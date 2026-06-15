@@ -119,30 +119,52 @@ function safeName(name: string): string {
   return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+// TTL cleanup: remove uploads older than 24h
+const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+setInterval(() => cleanupStaleUploads(UPLOAD_BASE, UPLOAD_TTL_MS).catch(() => {}), 30 * 60 * 1000);
+setTimeout(() => cleanupStaleUploads(UPLOAD_BASE, UPLOAD_TTL_MS).catch(() => {}), 10_000);
+
+async function cleanupStaleUploads(base: string, ttl: number): Promise<void> {
+  const now = Date.now();
+  try {
+    const entries = await fs.readdir(base);
+    for (const entry of entries) {
+      const p = path.join(base, entry);
+      try {
+        const s = await fs.stat(p);
+        if (s.isDirectory() && entry.startsWith('ses_') && now - s.mtimeMs > ttl) {
+          await fs.rm(p, { recursive: true, force: true }).catch(() => {});
+        }
+      } catch {}
+    }
+  } catch {}
+}
+
 // ── File Upload API ──────────────────────────────────────────────
 
 /** Upload a file (raw binary body). For large files, use chunked upload instead.
- *  Auto-analyzes log/text files on upload — extracts errors and caches results. */
+ *  Auto-analyzes log/text files on upload — extracts errors and caches results.
+ *  Uses `sessionId` (UUID) for isolation — each QA session has its own directory. */
 app.post('/api/upload', rawUploadParser, async (req: any, res: any) => {
-  const clientId = req.query.clientId as string;
+  const sessionId = req.query.sessionId as string;
   const fileName = req.query.name as string;
-  if (!clientId || !fileName) {
-    return res.status(400).json({ error: 'Missing clientId or name query param' });
+  if (!sessionId || !fileName) {
+    return res.status(400).json({ error: 'Missing sessionId or name query param' });
   }
-  const dir = path.join(UPLOAD_BASE, clientId);
+  const dir = path.join(UPLOAD_BASE, sessionId);
   await fs.mkdir(dir, { recursive: true });
   const safe = safeName(fileName);
   const dest = path.join(dir, safe);
   await fs.writeFile(dest, req.body as Buffer);
   const stat = await fs.stat(dest);
-  console.log(`[upload] saved ${safe} (${stat.size} bytes) for client ${clientId}`);
+  console.log(`[upload] saved ${safe} (${stat.size} bytes) for session ${sessionId}`);
 
-  // Auto-extract errors for text/log files — runs in background, doesn't block response
+  // Auto-extract errors for text/log files
   extractLogErrors(dest, safe, dir).catch((err: any) =>
     console.error(`[upload] error analysis failed for ${safe}:`, err?.message)
   );
 
-  res.json({ fileName: safe, size: stat.size, clientId });
+  res.json({ fileName: safe, size: stat.size, sessionId });
 });
 
 /** Auto-extract errors from an uploaded file and cache as .errors.json sidecar. */
@@ -167,12 +189,12 @@ async function extractLogErrors(filePath: string, fileName: string, dir: string)
 
 /** Chunked upload — start a chunked upload session */
 app.post('/api/upload/chunked/start', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, totalChunks } = req.body;
-  if (!clientId || !fileName || !totalChunks) {
-    return res.status(400).json({ error: 'Missing clientId, fileName, or totalChunks' });
+  const { sessionId, fileName, totalChunks } = req.body;
+  if (!sessionId || !fileName || !totalChunks) {
+    return res.status(400).json({ error: 'Missing sessionId, fileName, or totalChunks' });
   }
   const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const dir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
+  const dir = path.join(UPLOAD_BASE, sessionId, `.${uploadId}`);
   await fs.mkdir(dir, { recursive: true });
   res.json({ uploadId, totalChunks, chunkDir: dir });
 });
@@ -181,9 +203,9 @@ app.post('/api/upload/chunked/start', express.json(), async (req: any, res: any)
 const chunkParser = express.raw({ type: 'application/octet-stream', limit: '500mb' });
 app.post('/api/upload/chunked/:uploadId/:index', chunkParser, async (req: any, res: any) => {
   const { uploadId, index } = req.params;
-  const clientId = req.query.clientId as string;
-  if (!clientId) return res.status(400).json({ error: 'Missing clientId' });
-  const chunkDir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
+  const sessionId = req.query.sessionId as string;
+  if (!sessionId) return res.status(400).json({ error: 'Missing sessionId' });
+  const chunkDir = path.join(UPLOAD_BASE, sessionId, `.${uploadId}`);
   await fs.mkdir(chunkDir, { recursive: true });
   const chunkFile = path.join(chunkDir, `chunk_${String(index).padStart(6, '0')}`);
   await fs.writeFile(chunkFile, req.body as Buffer);
@@ -192,12 +214,12 @@ app.post('/api/upload/chunked/:uploadId/:index', chunkParser, async (req: any, r
 
 /** Chunked upload — complete and reassemble */
 app.post('/api/upload/chunked/complete', express.json(), async (req: any, res: any) => {
-  const { clientId, uploadId, fileName } = req.body;
-  if (!clientId || !uploadId || !fileName) {
-    return res.status(400).json({ error: 'Missing clientId, uploadId, or fileName' });
+  const { sessionId, uploadId, fileName } = req.body;
+  if (!sessionId || !uploadId || !fileName) {
+    return res.status(400).json({ error: 'Missing sessionId, uploadId, or fileName' });
   }
-  const chunkDir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
-  const destDir = path.join(UPLOAD_BASE, clientId);
+  const chunkDir = path.join(UPLOAD_BASE, sessionId, `.${uploadId}`);
+  const destDir = path.join(UPLOAD_BASE, sessionId);
   await fs.mkdir(destDir, { recursive: true });
   const safe = safeName(fileName);
   const dest = path.join(destDir, safe);
@@ -214,19 +236,19 @@ app.post('/api/upload/chunked/complete', express.json(), async (req: any, res: a
   // Clean up chunk dir
   await fs.rm(chunkDir, { recursive: true }).catch(() => {});
   const stat = await fs.stat(dest);
-  console.log(`[upload] reassembled ${safe} (${stat.size} bytes) for client ${clientId}`);
+  console.log(`[upload] reassembled ${safe} (${stat.size} bytes) for session ${sessionId}`);
 
   // Auto-extract errors for reassembled files
   extractLogErrors(dest, safe, destDir).catch((err: any) =>
     console.error(`[upload] error analysis failed for ${safe}:`, err?.message)
   );
 
-  res.json({ fileName: safe, size: stat.size, clientId });
+  res.json({ fileName: safe, size: stat.size, sessionId });
 });
 
-/** List uploaded files for a client */
-app.get('/api/upload/:clientId', async (req: any, res: any) => {
-  const dir = path.join(UPLOAD_BASE, req.params.clientId);
+/** List uploaded files for a session */
+app.get('/api/upload/:sessionId', async (req: any, res: any) => {
+  const dir = path.join(UPLOAD_BASE, req.params.sessionId);
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const files: { fileName: string; size: number; uploadedAt: string }[] = [];
@@ -246,9 +268,9 @@ app.get('/api/upload/:clientId', async (req: any, res: any) => {
 
 /** Read first N lines of an uploaded file */
 app.post('/api/file/head', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, lines = 100 } = req.body;
-  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
-  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  const { sessionId, fileName, lines = 100 } = req.body;
+  if (!sessionId || !fileName) return res.status(400).json({ error: 'Missing sessionId or fileName' });
+  const fp = path.join(UPLOAD_BASE, sessionId, safeName(fileName));
   try {
     const raw = await fs.readFile(fp, 'utf-8');
     const allLines = raw.split('\n');
@@ -260,9 +282,9 @@ app.post('/api/file/head', express.json(), async (req: any, res: any) => {
 
 /** Read last N lines of an uploaded file */
 app.post('/api/file/tail', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, lines = 100 } = req.body;
-  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
-  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  const { sessionId, fileName, lines = 100 } = req.body;
+  if (!sessionId || !fileName) return res.status(400).json({ error: 'Missing sessionId or fileName' });
+  const fp = path.join(UPLOAD_BASE, sessionId, safeName(fileName));
   try {
     const raw = await fs.readFile(fp, 'utf-8');
     const allLines = raw.split('\n');
@@ -274,9 +296,9 @@ app.post('/api/file/tail', express.json(), async (req: any, res: any) => {
 
 /** Read a specific line range of an uploaded file */
 app.post('/api/file/read', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, startLine = 1, endLine } = req.body;
-  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
-  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  const { sessionId, fileName, startLine = 1, endLine } = req.body;
+  if (!sessionId || !fileName) return res.status(400).json({ error: 'Missing sessionId or fileName' });
+  const fp = path.join(UPLOAD_BASE, sessionId, safeName(fileName));
   try {
     const raw = await fs.readFile(fp, 'utf-8');
     const allLines = raw.split('\n');
@@ -289,9 +311,9 @@ app.post('/api/file/read', express.json(), async (req: any, res: any) => {
 
 /** Search/grep an uploaded file */
 app.post('/api/file/grep', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, pattern, maxResults = 50, contextLines = 2 } = req.body;
-  if (!clientId || !fileName || !pattern) return res.status(400).json({ error: 'Missing clientId, fileName, or pattern' });
-  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  const { sessionId, fileName, pattern, maxResults = 50, contextLines = 2 } = req.body;
+  if (!sessionId || !fileName || !pattern) return res.status(400).json({ error: 'Missing sessionId, fileName, or pattern' });
+  const fp = path.join(UPLOAD_BASE, sessionId, safeName(fileName));
   try {
     const raw = await fs.readFile(fp, 'utf-8');
     const allLines = raw.split('\n');
@@ -314,9 +336,9 @@ app.post('/api/file/grep', express.json(), async (req: any, res: any) => {
 
 /** Extract errors/anomalies from an uploaded log file */
 app.post('/api/file/extract-errors', express.json(), async (req: any, res: any) => {
-  const { clientId, fileName, contextLines = 3, maxErrors = 30, includeWarnings } = req.body;
-  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
-  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  const { sessionId, fileName, contextLines = 3, maxErrors = 30, includeWarnings } = req.body;
+  if (!sessionId || !fileName) return res.status(400).json({ error: 'Missing sessionId or fileName' });
+  const fp = path.join(UPLOAD_BASE, sessionId, safeName(fileName));
   try {
     const raw = await fs.readFile(fp, 'utf-8');
     const { extractErrors } = await import('./log-analyzer.js');
@@ -328,8 +350,8 @@ app.post('/api/file/extract-errors', express.json(), async (req: any, res: any) 
 });
 
 /** Delete an uploaded file */
-app.delete('/api/upload/:clientId/:name', async (req: any, res: any) => {
-  const filePath = path.join(UPLOAD_BASE, req.params.clientId, safeName(req.params.name));
+app.delete('/api/upload/:sessionId/:name', async (req: any, res: any) => {
+  const filePath = path.join(UPLOAD_BASE, req.params.sessionId, safeName(req.params.name));
   try {
     await fs.unlink(filePath);
     res.json({ removed: true });

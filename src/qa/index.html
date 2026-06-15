@@ -296,7 +296,6 @@ let blockCounter = 0;
 let currentBlockId = null;
 let currentSessionId = null;
 let _globalRefCounter = 0;
-const _clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); // Stable per page load
 const _sourceMap = {};
 
 function createSessionBlock(question) {
@@ -677,15 +676,17 @@ async function uploadFile(file) {
   _attachedFiles.set(name, { fileName: name, size: file.size, uploaded: false });
   updateFileChips();
 
+  // Need a sessionId to upload — create one if QA hasn't started yet
+  const sid = currentSessionId || ('ses_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+
   try {
     if (file.size > 10 * 1024 * 1024) {
-      // Large file: chunked upload
       const CHUNK_SIZE = 5 * 1024 * 1024;
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       const startResp = await fetch('/api/upload/chunked/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: _clientId, fileName: name, totalChunks }),
+        body: JSON.stringify({ sessionId: sid, fileName: name, totalChunks }),
       });
       if (!startResp.ok) throw new Error('Failed to start chunked upload');
       const { uploadId } = await startResp.json();
@@ -694,7 +695,7 @@ async function uploadFile(file) {
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
-        const chunkResp = await fetch('/api/upload/chunked/' + uploadId + '/' + i + '?clientId=' + encodeURIComponent(_clientId), {
+        const chunkResp = await fetch('/api/upload/chunked/' + uploadId + '/' + i + '?sessionId=' + encodeURIComponent(sid), {
           method: 'POST',
           headers: { 'Content-Type': 'application/octet-stream' },
           body: chunk,
@@ -705,11 +706,11 @@ async function uploadFile(file) {
       const completeResp = await fetch('/api/upload/chunked/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: _clientId, uploadId, fileName: name }),
+        body: JSON.stringify({ sessionId: sid, uploadId, fileName: name }),
       });
       if (!completeResp.ok) throw new Error('Failed to complete upload');
     } else {
-      const resp = await fetch('/api/upload?clientId=' + encodeURIComponent(_clientId) + '&name=' + encodeURIComponent(name), {
+      const resp = await fetch('/api/upload?sessionId=' + encodeURIComponent(sid) + '&name=' + encodeURIComponent(name), {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream' },
         body: file,
@@ -779,7 +780,7 @@ async function sendMessage(e) {
   let assistantContent = '';
 
   try {
-    const payload = { question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId, clientId: _clientId };
+    const payload = { question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId };
     if (attachedSnapshot.length > 0) {
       payload.attachedFiles = attachedSnapshot;
     }

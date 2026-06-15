@@ -598,7 +598,6 @@ export function createQaEndpoint(
     const history: { role: string; content: string }[] = req.body?.history ?? [];
     const repoName = req.body?.repo ?? (req.query?.repo as string | undefined);
     let sessionId: string | undefined = req.body?.sessionId;
-    const clientId: string | undefined = req.body?.clientId;
     const attachedFiles: { fileName: string; size: number }[] = req.body?.attachedFiles ?? [];
 
     if (!question) {
@@ -795,10 +794,10 @@ export function createQaEndpoint(
     ).join('\n- ');
 
     // ── Uploaded Files Context ──────────────────────────────────
-    // Files stored at ~/.opencodewiki/uploads/<clientId>/.
+    // Files stored at ~/.opencodewiki/uploads/<sessionId>/.
     // Errors were auto-extracted on upload — we just read the cached .errors.json.
     // NEVER re-extract or send raw file content here.
-    const stagingId = clientId || sessionId || 'staging';
+    const stagingId = sessionId || 'staging';
     const uploadBase = path.join(os.homedir(), '.opencodewiki', 'uploads', stagingId);
     let uploadedContext = '';
     if (attachedFiles.length > 0) {
@@ -818,13 +817,7 @@ export function createQaEndpoint(
       if (fragments.length > 0) {
         uploadedContext = '\n## USER UPLOADED FILES (ERROR ANALYSIS)\n' +
           'The user attached log files. Below are auto-extracted errors/anomalies:\n\n' +
-          fragments.join('\n\n---\n\n') + '\n\n' +
-          '> To request more context, use:\n' +
-          '> - `POST /api/file/head` with `{ clientId, fileName, lines }`\n' +
-          '> - `POST /api/file/tail` with `{ clientId, fileName, lines }`\n' +
-          '> - `POST /api/file/grep` with `{ clientId, fileName, pattern }`\n' +
-          '> - `POST /api/file/read` with `{ clientId, fileName, startLine, endLine }`\n' +
-          '> - `POST /api/file/extract-errors` with `{ clientId, fileName, contextLines }`\n';
+          fragments.join('\n\n---\n\n');
       }
     }
 
