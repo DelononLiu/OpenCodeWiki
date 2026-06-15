@@ -609,7 +609,13 @@ export function createQaEndpoint(
 
     let session = sessionId ? sessions.get(sessionId) : undefined;
     if (!session) {
-      sessionId = generateSessionId();
+      // Use the client-provided sessionId if it looks like a valid ID,
+      // so pre-uploaded files (stored under that sessionId) are found.
+      // Only generate a new one if no sessionId was provided at all.
+      const newId = (sessionId && typeof sessionId === 'string' && sessionId.length >= 8)
+        ? sessionId
+        : generateSessionId();
+      sessionId = newId;
       session = { id: sessionId, messages: [], sources: [], repo: repoName, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       sessions.set(sessionId, session);
       saveSession(session);
@@ -795,29 +801,60 @@ export function createQaEndpoint(
 
     // ── Uploaded Files Context ──────────────────────────────────
     // Files stored at ~/.opencodewiki/uploads/<sessionId>/.
-    // Errors were auto-extracted on upload — we just read the cached .errors.json.
-    // NEVER re-extract or send raw file content here.
+    // Auto-extracted on upload — read cached .analysis.json.
+    // NEVER send raw file content — large files overflow context.
     const stagingId = sessionId || 'staging';
     const uploadBase = path.join(os.homedir(), '.opencodewiki', 'uploads', stagingId);
     let uploadedContext = '';
     if (attachedFiles.length > 0) {
-      const { buildErrorPromptFragment } = await import('./log-analyzer.js');
       const fragments: string[] = [];
       for (const f of attachedFiles) {
-        const cachePath = path.join(uploadBase, `.${f.fileName}.errors.json`);
+        const cachePath = path.join(uploadBase, `.${f.fileName}.analysis.json`);
+        const filePath = path.join(uploadBase, safeName(f.fileName));
         try {
           const cached = JSON.parse(await fs.readFile(cachePath, 'utf-8'));
-          const fragment = buildErrorPromptFragment(f.fileName, cached, 90);
-          fragments.push(fragment);
-          log('info', 'file error analysis (cached)', { fileName: f.fileName, extracted: cached.extracted, total: cached.total });
+
+          if (cached._type === 'source') {
+            // Source code file — show metadata + symbol list
+            const sizeStr = f.size > 1024 * 1024
+              ? (f.size / 1024 / 1024).toFixed(1) + 'MB'
+              : (f.size / 1024).toFixed(0) + 'KB';
+            fragments.push(
+              `📄 ${f.fileName} (${sizeStr}, ${cached.total} lines)\n` +
+              `Path: ${filePath}\n` +
+              (cached._symbols ? `Symbols: ${cached._symbols}\n` : '') +
+              `> Read this file via \`fs/read_text_file\` using the path above if needed.`
+            );
+            log('info', 'uploaded source file', { fileName: f.fileName, lines: cached.total, symbols: cached._symbols?.split(',').length || 0 });
+          } else {
+            // Log/text file — show error analysis
+            const { buildErrorPromptFragment } = await import('./log-analyzer.js');
+            fragments.push(buildErrorPromptFragment(f.fileName, cached, 90));
+            log('info', 'uploaded log analysis (cached)', { fileName: f.fileName, extracted: cached.extracted, total: cached.total });
+          }
         } catch {
-          log('warn', 'no cached error analysis for', { fileName: f.fileName });
+          // Fallback: no cached analysis — inject basic metadata anyway
+          try {
+            const raw = await fs.readFile(filePath, 'utf-8');
+            const totalLines = raw.split('\n').length;
+            const sizeStr = f.size > 1024 * 1024
+              ? (f.size / 1024 / 1024).toFixed(1) + 'MB'
+              : (f.size / 1024).toFixed(0) + 'KB';
+            fragments.push(
+              `📄 ${f.fileName} (${sizeStr}, ${totalLines} lines)\n` +
+              `Path: ${filePath}\n` +
+              `> No auto-analysis available. Read via \`fs/read_text_file\` if needed.`
+            );
+            log('info', 'uploaded file (no cache, basic info)', { fileName: f.fileName, lines: totalLines });
+          } catch {
+            log('warn', 'uploaded file not found', { fileName: f.fileName });
+          }
         }
       }
       if (fragments.length > 0) {
-        uploadedContext = '\n## USER UPLOADED FILES (ERROR ANALYSIS)\n' +
-          'The user attached log files. Below are auto-extracted errors/anomalies:\n\n' +
-          fragments.join('\n\n---\n\n');
+        uploadedContext = '\n## USER UPLOADED FILES\n' +
+          'The user attached the following files:\n\n' +
+          fragments.join('\n\n') + '\n';
       }
     }
 

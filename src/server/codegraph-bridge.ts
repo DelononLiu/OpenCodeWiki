@@ -167,23 +167,57 @@ app.post('/api/upload', rawUploadParser, async (req: any, res: any) => {
   res.json({ fileName: safe, size: stat.size, sessionId });
 });
 
-/** Auto-extract errors from an uploaded file and cache as .errors.json sidecar. */
+/** Analyze an uploaded file and cache the result as .analysis.json sidecar.
+ *  - Log files: extract errors/anomalies via log-analyzer
+ *  - Source code: extract symbols/functions, cache metadata + symbol list
+ *  - Binary: skip silently */
 async function extractLogErrors(filePath: string, fileName: string, dir: string): Promise<void> {
-  // Only process text-like files (skip binaries by extension)
-  const textExts = new Set(['.log', '.txt', '.out', '.err', '.json', '.csv', '.md', '.yml', '.yaml', '.xml', '.cfg', '.conf', '.ini']);
+  const textExts = new Set(['.log', '.txt', '.out', '.err', '.json', '.csv', '.md', '.yml', '.yaml', '.xml', '.cfg', '.conf', '.ini', '.toml']);
+  const codeExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.java', '.cpp', '.c', '.h', '.hpp', '.kt', '.scala', '.swift', '.rb', '.php', '.vue', '.svelte', '.css', '.scss', '.less']);
   const ext = path.extname(fileName).toLowerCase();
-  if (!textExts.has(ext) && !ext.match(/\.(log|err|out)$/i)) return;
+  const isCodeFile = codeExts.has(ext);
+  const isLogFile = textExts.has(ext) || !!ext.match(/\.(log|err|out)$/i);
+  if (!isCodeFile && !isLogFile) return;
 
   try {
     const raw = await fs.readFile(filePath, 'utf-8');
-    const { extractErrors } = await import('./log-analyzer.js');
-    const result = extractErrors(raw, { contextLines: 2, maxErrors: 30, includeWarnings: true });
-    // Cache analysis result alongside the file
-    const cachePath = path.join(dir, `.${fileName}.errors.json`);
+    const totalLines = raw.split('\n').length;
+    const size = raw.length;
+
+    let result: any;
+
+    if (isLogFile) {
+      const { extractErrors } = await import('./log-analyzer.js');
+      result = extractErrors(raw, { contextLines: 2, maxErrors: 30, includeWarnings: true });
+    } else {
+      // Source code: extract function/class definitions + provide metadata
+      const funcRe = /^\s*(export\s+)?(async\s+)?function\s+(\w+)|^\s*(export\s+)?(class|interface|trait|struct|impl)\s+(\w+)|^\s*(export\s+)?(const|let|var)\s+(\w+)\s*[=:]/gm;
+      const symbols: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = funcRe.exec(raw)) !== null) {
+        const name = m[3] || m[6] || m[9];
+        if (name && !symbols.includes(name)) symbols.push(name);
+      }
+      const symbolList = symbols.slice(0, 50).join(', ');
+
+      result = {
+        total: totalLines,
+        size,
+        extracted: 0,
+        severityCounts: { fatal: 0, error: 0, warning: 0 },
+        errors: [],
+        summary: `Source code file: ${totalLines} lines, ${size} bytes, ${symbols.length} symbols defined`,
+        _symbols: symbolList,
+        _type: 'source',
+      };
+    }
+
+    const cachePath = path.join(dir, `.${fileName}.analysis.json`);
     await fs.writeFile(cachePath, JSON.stringify(result), 'utf-8');
-    console.log(`[upload] error analysis cached for ${fileName}: ${result.extracted} issues in ${result.total} lines`);
+    const summary = isLogFile ? `${result.extracted} issues` : `${result._symbols ? result._symbols.split(',').length : 0} symbols`;
+    console.log(`[upload] file analysis cached for ${fileName}: ${result.total} lines, ${summary}`);
   } catch {
-    // Non-text or binary file — skip silently
+    // Binary or unreadable — skip silently
   }
 }
 
