@@ -6,6 +6,11 @@ import type { ServerResponse } from 'http';
 import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 
+/** Sanitize filename to prevent path traversal */
+function safeName(name: string): string {
+  return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 interface QaMessage { role: string; content: string }
 interface QaSession {
   id: string;
@@ -593,6 +598,8 @@ export function createQaEndpoint(
     const history: { role: string; content: string }[] = req.body?.history ?? [];
     const repoName = req.body?.repo ?? (req.query?.repo as string | undefined);
     let sessionId: string | undefined = req.body?.sessionId;
+    const clientId: string | undefined = req.body?.clientId;
+    const attachedFiles: { fileName: string; size: number }[] = req.body?.attachedFiles ?? [];
 
     if (!question) {
       res.status(400).json({ error: 'Missing "question" in request body' });
@@ -787,10 +794,46 @@ export function createQaEndpoint(
       s.filePath + (s.startLine ? ':' + s.startLine + (s.endLine && s.endLine !== s.startLine ? '-' + s.endLine : '') : '')
     ).join('\n- ');
 
+    // ── Uploaded Files Context ──────────────────────────────────
+    // Files stored at ~/.opencodewiki/uploads/<clientId>/.
+    // Strategy: auto-extract errors server-side, only inject error summary.
+    // NEVER send raw file content — large logs would overflow context.
+    const stagingId = clientId || sessionId || 'staging';
+    const uploadBase = path.join(os.homedir(), '.opencodewiki', 'uploads', stagingId);
+    let uploadedContext = '';
+    if (attachedFiles.length > 0) {
+      const { extractErrors, buildErrorPromptFragment } = await import('./log-analyzer.js');
+      const fragments: string[] = [];
+      for (const f of attachedFiles) {
+        const fp = path.join(uploadBase, safeName(f.fileName));
+        try {
+          const raw = await fs.readFile(fp, 'utf-8');
+          const result = extractErrors(raw, { contextLines: 2, maxErrors: 25, includeWarnings: true });
+          const fragment = buildErrorPromptFragment(f.fileName, result, 90);
+          fragments.push(fragment);
+          log('info', 'file error analysis', { fileName: f.fileName, extracted: result.extracted, total: result.total });
+        } catch {
+          log('warn', 'failed to analyze file', { fileName: f.fileName });
+        }
+      }
+      if (fragments.length > 0) {
+        uploadedContext = '\n## USER UPLOADED FILES (ERROR ANALYSIS)\n' +
+          'The user attached log files. Below are auto-extracted errors/anomalies:\n\n' +
+          fragments.join('\n\n---\n\n') + '\n\n' +
+          '> Use API endpoints to request more context:\n' +
+          '> - `POST /api/file/head` with `{ clientId, fileName, lines }`\n' +
+          '> - `POST /api/file/tail` with `{ clientId, fileName, lines }`\n' +
+          '> - `POST /api/file/grep` with `{ clientId, fileName, pattern }`\n' +
+          '> - `POST /api/file/read` with `{ clientId, fileName, startLine, endLine }`\n' +
+          '> - `POST /api/file/extract-errors` with `{ clientId, fileName, contextLines }`\n';
+      }
+    }
+
     const systemPrompt = 'You are opencodewiki, a code analyst. Answer the question in DeepWiki style.\n\n' +
       '## SEARCH CONTEXT\n' +
       'The following files were found across repositories. ONLY reference files from this list:\n\n' +
       '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
+      (uploadedContext ? uploadedContext + '\n' : '') +
       '## RULES\n' +
       structure + '\n' +
       '- Always answer in Chinese.\n' +

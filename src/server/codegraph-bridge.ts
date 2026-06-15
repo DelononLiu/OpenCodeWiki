@@ -103,7 +103,208 @@ async function initHandler(): Promise<any> {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+// Raw body parser for file uploads
+const rawUploadParser = express.raw({
+  type: 'application/octet-stream',
+  limit: '500mb',
+});
+
+const UPLOAD_BASE = path.join(os.homedir(), '.opencodewiki', 'uploads');
+
+/** Sanitize filename to prevent path traversal */
+function safeName(name: string): string {
+  return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+// ── File Upload API ──────────────────────────────────────────────
+
+/** Upload a file (raw binary body). For large files, use chunked upload instead.
+ *  Uses `clientId` as the staging key (not sessionId, since session is created by QA later). */
+app.post('/api/upload', rawUploadParser, async (req: any, res: any) => {
+  const clientId = req.query.clientId as string;
+  const fileName = req.query.name as string;
+  if (!clientId || !fileName) {
+    return res.status(400).json({ error: 'Missing clientId or name query param' });
+  }
+  const dir = path.join(UPLOAD_BASE, clientId);
+  await fs.mkdir(dir, { recursive: true });
+  const safe = safeName(fileName);
+  const dest = path.join(dir, safe);
+  await fs.writeFile(dest, req.body as Buffer);
+  const stat = await fs.stat(dest);
+  console.log(`[upload] saved ${safe} (${stat.size} bytes) for client ${clientId}`);
+  res.json({ fileName: safe, size: stat.size, clientId });
+});
+
+/** Chunked upload — start a chunked upload session */
+app.post('/api/upload/chunked/start', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, totalChunks } = req.body;
+  if (!clientId || !fileName || !totalChunks) {
+    return res.status(400).json({ error: 'Missing clientId, fileName, or totalChunks' });
+  }
+  const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const dir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
+  await fs.mkdir(dir, { recursive: true });
+  res.json({ uploadId, totalChunks, chunkDir: dir });
+});
+
+/** Chunked upload — upload one chunk (raw binary) */
+const chunkParser = express.raw({ type: 'application/octet-stream', limit: '500mb' });
+app.post('/api/upload/chunked/:uploadId/:index', chunkParser, async (req: any, res: any) => {
+  const { uploadId, index } = req.params;
+  const clientId = req.query.clientId as string;
+  if (!clientId) return res.status(400).json({ error: 'Missing clientId' });
+  const chunkDir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
+  await fs.mkdir(chunkDir, { recursive: true });
+  const chunkFile = path.join(chunkDir, `chunk_${String(index).padStart(6, '0')}`);
+  await fs.writeFile(chunkFile, req.body as Buffer);
+  res.json({ received: parseInt(index) });
+});
+
+/** Chunked upload — complete and reassemble */
+app.post('/api/upload/chunked/complete', express.json(), async (req: any, res: any) => {
+  const { clientId, uploadId, fileName } = req.body;
+  if (!clientId || !uploadId || !fileName) {
+    return res.status(400).json({ error: 'Missing clientId, uploadId, or fileName' });
+  }
+  const chunkDir = path.join(UPLOAD_BASE, clientId, `.${uploadId}`);
+  const destDir = path.join(UPLOAD_BASE, clientId);
+  await fs.mkdir(destDir, { recursive: true });
+  const safe = safeName(fileName);
+  const dest = path.join(destDir, safe);
+  const chunks = await fs.readdir(chunkDir);
+  chunks.sort();
+  const writeStream = fsSync.createWriteStream(dest);
+  for (const chunk of chunks) {
+    const data = await fs.readFile(path.join(chunkDir, chunk));
+    writeStream.write(data);
+  }
+  await new Promise<void>((resolve, reject) => {
+    writeStream.end((err) => (err ? reject(err) : resolve()));
+  });
+  // Clean up chunk dir
+  await fs.rm(chunkDir, { recursive: true }).catch(() => {});
+  const stat = await fs.stat(dest);
+  console.log(`[upload] reassembled ${safe} (${stat.size} bytes) for client ${clientId}`);
+  res.json({ fileName: safe, size: stat.size, clientId });
+});
+
+/** List uploaded files for a client */
+app.get('/api/upload/:clientId', async (req: any, res: any) => {
+  const dir = path.join(UPLOAD_BASE, req.params.clientId);
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const files: { fileName: string; size: number; uploadedAt: string }[] = [];
+    for (const entry of entries) {
+      if (entry.isFile() && !entry.name.startsWith('.')) {
+        const stat = await fs.stat(path.join(dir, entry.name));
+        files.push({ fileName: entry.name, size: stat.size, uploadedAt: stat.mtime.toISOString() });
+      }
+    }
+    res.json(files);
+  } catch {
+    res.json([]);
+  }
+});
+
+// ── File Query API (for LLM mode - no ACP agent) ───────────────────
+
+/** Read first N lines of an uploaded file */
+app.post('/api/file/head', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, lines = 100 } = req.body;
+  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
+  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  try {
+    const raw = await fs.readFile(fp, 'utf-8');
+    const allLines = raw.split('\n');
+    const head = allLines.slice(0, Math.min(lines, allLines.length));
+    const total = allLines.length;
+    res.json({ lines: head.length, total, content: head.join('\n') });
+  } catch { res.status(404).json({ error: 'File not found' }); }
+});
+
+/** Read last N lines of an uploaded file */
+app.post('/api/file/tail', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, lines = 100 } = req.body;
+  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
+  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  try {
+    const raw = await fs.readFile(fp, 'utf-8');
+    const allLines = raw.split('\n');
+    const tail = allLines.slice(Math.max(0, allLines.length - lines));
+    const total = allLines.length;
+    res.json({ lines: tail.length, total, content: tail.join('\n') });
+  } catch { res.status(404).json({ error: 'File not found' }); }
+});
+
+/** Read a specific line range of an uploaded file */
+app.post('/api/file/read', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, startLine = 1, endLine } = req.body;
+  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
+  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  try {
+    const raw = await fs.readFile(fp, 'utf-8');
+    const allLines = raw.split('\n');
+    const end = endLine ? Math.min(endLine, allLines.length) : allLines.length;
+    const slice = allLines.slice(Math.max(0, startLine - 1), end);
+    const total = allLines.length;
+    res.json({ startLine, endLine: end, lines: slice.length, total, content: slice.join('\n') });
+  } catch { res.status(404).json({ error: 'File not found' }); }
+});
+
+/** Search/grep an uploaded file */
+app.post('/api/file/grep', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, pattern, maxResults = 50, contextLines = 2 } = req.body;
+  if (!clientId || !fileName || !pattern) return res.status(400).json({ error: 'Missing clientId, fileName, or pattern' });
+  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  try {
+    const raw = await fs.readFile(fp, 'utf-8');
+    const allLines = raw.split('\n');
+    const regex = new RegExp(pattern, 'i');
+    const results: { lineNumber: number; line: string; context: string }[] = [];
+    for (let i = 0; i < allLines.length && results.length < maxResults; i++) {
+      if (regex.test(allLines[i])) {
+        const ctxStart = Math.max(0, i - contextLines);
+        const ctxEnd = Math.min(allLines.length, i + contextLines + 1);
+        results.push({
+          lineNumber: i + 1,
+          line: allLines[i],
+          context: allLines.slice(ctxStart, ctxEnd).map((l, j) => `${ctxStart + j + 1}: ${l}`).join('\n'),
+        });
+      }
+    }
+    res.json({ matches: results.length, total: allLines.length, results });
+  } catch { res.status(404).json({ error: 'File not found' }); }
+});
+
+/** Extract errors/anomalies from an uploaded log file */
+app.post('/api/file/extract-errors', express.json(), async (req: any, res: any) => {
+  const { clientId, fileName, contextLines = 3, maxErrors = 30, includeWarnings } = req.body;
+  if (!clientId || !fileName) return res.status(400).json({ error: 'Missing clientId or fileName' });
+  const fp = path.join(UPLOAD_BASE, clientId, safeName(fileName));
+  try {
+    const raw = await fs.readFile(fp, 'utf-8');
+    const { extractErrors } = await import('./log-analyzer.js');
+    const result = extractErrors(raw, { contextLines, maxErrors, includeWarnings });
+    res.json(result);
+  } catch {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
+/** Delete an uploaded file */
+app.delete('/api/upload/:clientId/:name', async (req: any, res: any) => {
+  const filePath = path.join(UPLOAD_BASE, req.params.clientId, safeName(req.params.name));
+  try {
+    await fs.unlink(filePath);
+    res.json({ removed: true });
+  } catch {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
 
 const PORT = parseInt(process.env.PORT || '4747', 10);
 

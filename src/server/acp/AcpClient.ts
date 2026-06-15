@@ -181,6 +181,7 @@ export class AcpClient {
       const stream = sdk.ndJsonStream(input, output);
 
       this.client = new OpenCodeWikiACPClient();
+      this.client.setCwd(this._cwd);
       this.connection = new sdk.ClientSideConnection(
         () => this.client!,
         stream,
@@ -221,6 +222,7 @@ export class AcpClient {
       const stream = sdk.ndJsonStream(input, output);
 
       this.client = new OpenCodeWikiACPClient();
+      this.client.setCwd(this._cwd);
       this.connection = new sdk.ClientSideConnection(
         () => this.client!,
         stream,

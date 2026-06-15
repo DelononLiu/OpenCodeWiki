@@ -1,6 +1,8 @@
 import type * as acp from '@agentclientprotocol/sdk';
 import type { AcpMessageHandler } from './types.js';
 import type { ServerResponse } from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 
 function log(level: string, msg: string, data?: Record<string, unknown>) {
   const ts = new Date().toISOString();
@@ -11,9 +13,16 @@ function log(level: string, msg: string, data?: Record<string, unknown>) {
 export class OpenCodeWikiACPClient implements acp.Client {
   private sessionHandlers = new Map<string, AcpMessageHandler>();
   private _lastActivityTime = 0;
+  /** CWD to resolve relative file paths against. */
+  private _cwd = '';
 
   get lastActivityTime(): number {
     return this._lastActivityTime;
+  }
+
+  /** Set the working directory for file path resolution. */
+  setCwd(cwd: string) {
+    this._cwd = cwd;
   }
 
   setSessionHandler(sessionId: string, handler: AcpMessageHandler) {
@@ -79,13 +88,40 @@ export class OpenCodeWikiACPClient implements acp.Client {
   }
 
   async writeTextFile(params: acp.WriteTextFileRequest): Promise<acp.WriteTextFileResponse> {
-    log('warn', 'writeTextFile called but opencodewiki is read-only', { path: params.path });
+    const filePath = params.path;
+    const content = params.content;
+    const resolvedPath = this.resolvePath(filePath);
+    try {
+      // Ensure parent dir exists
+      const dir = path.dirname(resolvedPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(resolvedPath, content, 'utf-8');
+      log('info', 'writeTextFile', { path: filePath, resolved: resolvedPath });
+    } catch (err: any) {
+      log('error', 'writeTextFile failed', { path: filePath, error: err.message });
+    }
     return {};
   }
 
   async readTextFile(params: acp.ReadTextFileRequest): Promise<acp.ReadTextFileResponse> {
-    log('warn', 'readTextFile called but opencodewiki session has no filesystem context', { path: params.path });
-    return { content: '' };
+    const filePath = params.path;
+    const resolvedPath = this.resolvePath(filePath);
+    try {
+      const content = fs.readFileSync(resolvedPath, 'utf-8');
+      log('info', 'readTextFile', { path: filePath, resolved: resolvedPath, size: content.length });
+      return { content };
+    } catch (err: any) {
+      log('error', 'readTextFile failed', { path: filePath, resolved: resolvedPath, error: err.message });
+      return { content: '' };
+    }
+  }
+
+  private resolvePath(filePath: string): string {
+    // Absolute path: use as-is
+    if (filePath.startsWith('/')) return filePath;
+    // Relative path: resolve against cwd
+    if (this._cwd) return `${this._cwd}/${filePath}`;
+    return filePath;
   }
 }
 

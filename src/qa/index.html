@@ -170,6 +170,25 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
 .input-box textarea::-webkit-scrollbar-thumb{background:var(--color-text-secondary);border-radius:2px}
 .input-box textarea::-webkit-scrollbar-button{display:none}
 
+/* File upload UI */
+.attach-btn{background:transparent;border:none;color:var(--color-text-secondary);cursor:pointer;padding:6px 4px;border-radius:6px;display:flex;align-items:center;transition:color .15s;flex-shrink:0;font-size:18px;line-height:1}
+.attach-btn:hover{color:var(--color-blue)}
+.file-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 6px 4px;max-height:80px;overflow-y:auto}
+.file-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 12px;border-radius:20px;font-size:12px;background:var(--bg-secondary);border:1px solid var(--color-border);color:var(--color-text-primary);max-width:220px}
+.file-chip .chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px}
+.file-chip .chip-size{color:var(--color-text-secondary);font-size:10px;white-space:nowrap}
+.file-chip .chip-status{font-size:10px;margin-left:2px}
+.file-chip .chip-remove{background:none;border:none;cursor:pointer;color:var(--color-text-secondary);padding:0 2px;font-size:14px;line-height:1;display:flex;align-items:center}
+.file-chip .chip-remove:hover{color:#ef4444}
+.file-chip.uploading{border-color:var(--color-blue);background:rgba(59,130,246,0.08)}
+.file-chip.error{border-color:#ef4444;background:rgba(239,68,68,0.08)}
+.file-chip.success{border-color:rgba(34,197,94,0.4);background:rgba(34,197,94,0.06)}
+.upload-progress{height:2px;background:var(--color-border);border-radius:1px;margin:4px 8px 0;overflow:hidden}
+.upload-progress-bar{height:100%;background:var(--color-blue);border-radius:1px;transition:width .2s;width:0%}
+.bottom-bar.drag-over .input-box{border-color:var(--color-blue);box-shadow:0 0 0 3px var(--color-input-glow);background:rgba(59,130,246,0.04)}
+.drag-hint{display:none;font-size:11px;color:var(--color-text-secondary);text-align:center;padding:2px 0 6px}
+.bottom-bar.drag-over .drag-hint{display:block}
+
 .qa-error{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;color:#991b1b;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
 .qa-error button{background:none;border:none;color:var(--color-blue);cursor:pointer;font-size:13px;padding:0;text-decoration:underline;white-space:nowrap}
 .dark .qa-error{background:#2d1b1b;border-color:#4a2525;color:#fca5a5}
@@ -226,12 +245,18 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
   </div>
 </div>
 
-<div class="bottom-bar">
+<div class="bottom-bar" id="bottomBar">
+  <div class="drag-hint" id="dragHint">&#128206; 拖放文件到此处上传</div>
   <div class="input-box">
-    <form id="qaForm" onsubmit="sendMessage(event)" style="display:flex;align-items:flex-end;gap:8px;width:100%">
-      <textarea id="qaInput" rows="1" placeholder="输入代码库相关问题..." autocomplete="off" autofocus></textarea>
-      <button type="submit" id="sendBtn">Ask</button>
-    </form>
+    <div style="display:flex;flex-direction:column;width:100%">
+      <div class="file-chips" id="fileChips"></div>
+      <form id="qaForm" onsubmit="sendMessage(event)" style="display:flex;align-items:flex-end;gap:6px;width:100%">
+        <button type="button" class="attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="上传文件 (日志、截图等)">&#128206;</button>
+        <input type="file" id="fileInput" multiple style="display:none" onchange="handleFilesSelected(this.files)">
+        <textarea id="qaInput" rows="1" placeholder="输入代码库相关问题..." autocomplete="off" autofocus></textarea>
+        <button type="submit" id="sendBtn">Ask</button>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -271,6 +296,7 @@ let blockCounter = 0;
 let currentBlockId = null;
 let currentSessionId = null;
 let _globalRefCounter = 0;
+const _clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); // Stable per page load
 const _sourceMap = {};
 
 function createSessionBlock(question) {
@@ -602,6 +628,132 @@ function autoResize() {
   input.style.overflowY = sh > 120 ? 'auto' : 'hidden';
 }
 
+// ── File Upload Management ──────────────────────────────────────────
+const _attachedFiles = new Map(); // fileName → { fileName, size, uploaded }
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+  return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+}
+
+function updateFileChips() {
+  const container = document.getElementById('fileChips');
+  if (_attachedFiles.size === 0) { container.innerHTML = ''; return; }
+  let html = '';
+  for (const [name, f] of _attachedFiles) {
+    const statusIcon = f.uploaded ? '' : ' &#8987;';
+    const statusClass = f.uploaded ? 'success' : 'uploading';
+    html += '<div class="file-chip ' + statusClass + '" title="' + escapeHtml(name) + '">' +
+      '<span class="chip-name">' + escapeHtml(name) + '</span>' +
+      '<span class="chip-size">' + formatFileSize(f.size) + '</span>' +
+      '<span class="chip-status">' + statusIcon + '</span>' +
+      '<button class="chip-remove" onclick="removeFile(\'' + escapeHtml(name) + '\')" title="Remove">&#x2715;</button>' +
+      '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function removeFile(name) {
+  _attachedFiles.delete(name);
+  updateFileChips();
+  const dt = _dataTransfer;
+  if (dt) {
+    // Rebuild FileList by filtering
+    const newFiles = Array.from(dt.files).filter(f => f.name !== name);
+    const newDt = new DataTransfer();
+    newFiles.forEach(f => newDt.items.add(f));
+    _dataTransfer = newDt;
+    document.getElementById('fileInput').files = newDt.files;
+  }
+}
+
+let _dataTransfer = null;
+
+async function uploadFile(file) {
+  const name = file.name;
+  if (_attachedFiles.has(name) && _attachedFiles.get(name).uploaded) return;
+
+  _attachedFiles.set(name, { fileName: name, size: file.size, uploaded: false });
+  updateFileChips();
+
+  try {
+    if (file.size > 10 * 1024 * 1024) {
+      // Large file: chunked upload
+      const CHUNK_SIZE = 5 * 1024 * 1024;
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const startResp = await fetch('/api/upload/chunked/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: _clientId, fileName: name, totalChunks }),
+      });
+      if (!startResp.ok) throw new Error('Failed to start chunked upload');
+      const { uploadId } = await startResp.json();
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        const chunkResp = await fetch('/api/upload/chunked/' + uploadId + '/' + i + '?clientId=' + encodeURIComponent(_clientId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: chunk,
+        });
+        if (!chunkResp.ok) throw new Error('Chunk ' + i + ' failed');
+      }
+
+      const completeResp = await fetch('/api/upload/chunked/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: _clientId, uploadId, fileName: name }),
+      });
+      if (!completeResp.ok) throw new Error('Failed to complete upload');
+    } else {
+      const resp = await fetch('/api/upload?clientId=' + encodeURIComponent(_clientId) + '&name=' + encodeURIComponent(name), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file,
+      });
+      if (!resp.ok) throw new Error('Upload failed');
+    }
+
+    _attachedFiles.set(name, { fileName: name, size: file.size, uploaded: true });
+    updateFileChips();
+  } catch (e) {
+    _attachedFiles.set(name, { fileName: name, size: file.size, uploaded: false });
+    updateFileChips();
+    console.error('[upload] failed:', name, e.message);
+  }
+}
+
+async function handleFilesSelected(files) {
+  if (!files || files.length === 0) return;
+  if (!_dataTransfer) _dataTransfer = new DataTransfer();
+  for (const file of files) {
+    _dataTransfer.items.add(file);
+    uploadFile(file);
+  }
+  document.getElementById('fileInput').value = '';
+}
+
+// Drag-and-drop
+const bottomBar = document.getElementById('bottomBar');
+bottomBar.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  bottomBar.classList.add('drag-over');
+});
+bottomBar.addEventListener('dragleave', function(e) {
+  e.preventDefault();
+  bottomBar.classList.remove('drag-over');
+});
+bottomBar.addEventListener('drop', function(e) {
+  e.preventDefault();
+  bottomBar.classList.remove('drag-over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    handleFilesSelected(e.dataTransfer.files);
+  }
+});
+
 async function sendMessage(e) {
   e.preventDefault();
   const text = input.value.trim();
@@ -609,6 +761,15 @@ async function sendMessage(e) {
   input.value = '';
   input.style.height = 'auto';
   updateSendBtn();
+
+  // Collect attached files for the API request
+  const attachedSnapshot = [];
+  for (const [name, f] of _attachedFiles) {
+    if (f.uploaded) attachedSnapshot.push({ fileName: name, size: f.size });
+  }
+  // Clear chips after snapshot
+  _attachedFiles.clear();
+  updateFileChips();
 
   messages.push({ role: 'user', content: text });
 
@@ -618,10 +779,14 @@ async function sendMessage(e) {
   let assistantContent = '';
 
   try {
+    const payload = { question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId, clientId: _clientId };
+    if (attachedSnapshot.length > 0) {
+      payload.attachedFiles = attachedSnapshot;
+    }
     const resp = await fetch('/api/qa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId }),
+      body: JSON.stringify(payload),
       signal: abortController.signal,
     });
 
