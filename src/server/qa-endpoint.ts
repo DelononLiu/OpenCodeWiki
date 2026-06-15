@@ -796,31 +796,30 @@ export function createQaEndpoint(
 
     // ── Uploaded Files Context ──────────────────────────────────
     // Files stored at ~/.opencodewiki/uploads/<clientId>/.
-    // Strategy: auto-extract errors server-side, only inject error summary.
-    // NEVER send raw file content — large logs would overflow context.
+    // Errors were auto-extracted on upload — we just read the cached .errors.json.
+    // NEVER re-extract or send raw file content here.
     const stagingId = clientId || sessionId || 'staging';
     const uploadBase = path.join(os.homedir(), '.opencodewiki', 'uploads', stagingId);
     let uploadedContext = '';
     if (attachedFiles.length > 0) {
-      const { extractErrors, buildErrorPromptFragment } = await import('./log-analyzer.js');
+      const { buildErrorPromptFragment } = await import('./log-analyzer.js');
       const fragments: string[] = [];
       for (const f of attachedFiles) {
-        const fp = path.join(uploadBase, safeName(f.fileName));
+        const cachePath = path.join(uploadBase, `.${f.fileName}.errors.json`);
         try {
-          const raw = await fs.readFile(fp, 'utf-8');
-          const result = extractErrors(raw, { contextLines: 2, maxErrors: 25, includeWarnings: true });
-          const fragment = buildErrorPromptFragment(f.fileName, result, 90);
+          const cached = JSON.parse(await fs.readFile(cachePath, 'utf-8'));
+          const fragment = buildErrorPromptFragment(f.fileName, cached, 90);
           fragments.push(fragment);
-          log('info', 'file error analysis', { fileName: f.fileName, extracted: result.extracted, total: result.total });
+          log('info', 'file error analysis (cached)', { fileName: f.fileName, extracted: cached.extracted, total: cached.total });
         } catch {
-          log('warn', 'failed to analyze file', { fileName: f.fileName });
+          log('warn', 'no cached error analysis for', { fileName: f.fileName });
         }
       }
       if (fragments.length > 0) {
         uploadedContext = '\n## USER UPLOADED FILES (ERROR ANALYSIS)\n' +
           'The user attached log files. Below are auto-extracted errors/anomalies:\n\n' +
           fragments.join('\n\n---\n\n') + '\n\n' +
-          '> Use API endpoints to request more context:\n' +
+          '> To request more context, use:\n' +
           '> - `POST /api/file/head` with `{ clientId, fileName, lines }`\n' +
           '> - `POST /api/file/tail` with `{ clientId, fileName, lines }`\n' +
           '> - `POST /api/file/grep` with `{ clientId, fileName, pattern }`\n' +

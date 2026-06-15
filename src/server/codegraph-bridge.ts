@@ -122,7 +122,7 @@ function safeName(name: string): string {
 // ── File Upload API ──────────────────────────────────────────────
 
 /** Upload a file (raw binary body). For large files, use chunked upload instead.
- *  Uses `clientId` as the staging key (not sessionId, since session is created by QA later). */
+ *  Auto-analyzes log/text files on upload — extracts errors and caches results. */
 app.post('/api/upload', rawUploadParser, async (req: any, res: any) => {
   const clientId = req.query.clientId as string;
   const fileName = req.query.name as string;
@@ -136,8 +136,34 @@ app.post('/api/upload', rawUploadParser, async (req: any, res: any) => {
   await fs.writeFile(dest, req.body as Buffer);
   const stat = await fs.stat(dest);
   console.log(`[upload] saved ${safe} (${stat.size} bytes) for client ${clientId}`);
+
+  // Auto-extract errors for text/log files — runs in background, doesn't block response
+  extractLogErrors(dest, safe, dir).catch((err: any) =>
+    console.error(`[upload] error analysis failed for ${safe}:`, err?.message)
+  );
+
   res.json({ fileName: safe, size: stat.size, clientId });
 });
+
+/** Auto-extract errors from an uploaded file and cache as .errors.json sidecar. */
+async function extractLogErrors(filePath: string, fileName: string, dir: string): Promise<void> {
+  // Only process text-like files (skip binaries by extension)
+  const textExts = new Set(['.log', '.txt', '.out', '.err', '.json', '.csv', '.md', '.yml', '.yaml', '.xml', '.cfg', '.conf', '.ini']);
+  const ext = path.extname(fileName).toLowerCase();
+  if (!textExts.has(ext) && !ext.match(/\.(log|err|out)$/i)) return;
+
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8');
+    const { extractErrors } = await import('./log-analyzer.js');
+    const result = extractErrors(raw, { contextLines: 2, maxErrors: 30, includeWarnings: true });
+    // Cache analysis result alongside the file
+    const cachePath = path.join(dir, `.${fileName}.errors.json`);
+    await fs.writeFile(cachePath, JSON.stringify(result), 'utf-8');
+    console.log(`[upload] error analysis cached for ${fileName}: ${result.extracted} issues in ${result.total} lines`);
+  } catch {
+    // Non-text or binary file — skip silently
+  }
+}
 
 /** Chunked upload — start a chunked upload session */
 app.post('/api/upload/chunked/start', express.json(), async (req: any, res: any) => {
@@ -189,6 +215,12 @@ app.post('/api/upload/chunked/complete', express.json(), async (req: any, res: a
   await fs.rm(chunkDir, { recursive: true }).catch(() => {});
   const stat = await fs.stat(dest);
   console.log(`[upload] reassembled ${safe} (${stat.size} bytes) for client ${clientId}`);
+
+  // Auto-extract errors for reassembled files
+  extractLogErrors(dest, safe, destDir).catch((err: any) =>
+    console.error(`[upload] error analysis failed for ${safe}:`, err?.message)
+  );
+
   res.json({ fileName: safe, size: stat.size, clientId });
 });
 
