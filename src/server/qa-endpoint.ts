@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import type { ServerResponse } from 'http';
-import { AcpClient } from './acp/AcpClient.js';
+import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 
 interface QaMessage { role: string; content: string }
@@ -187,8 +187,11 @@ function log(level: 'info' | 'warn' | 'error' | 'debug', msg: string, data?: Rec
   console.error('[' + ts + '] [qa] [' + level + '] ' + line);
 }
 
-const ACP_ENABLED = process.env.OPENCODEWIKI_ACP_ENABLE === 'true';
-const ACP_CROSS_ROOT = process.env.OPENCODEWIKI_ACP_CROSS_ROOT === 'true';
+// ACP enabled state is now resolved via isAcpEnabled() / isAcpCrossRoot() from AcpClient
+// which reads from ~/.opencodewiki/config.json with env var override.
+// Constants below are for convenience (no longer raw env vars).
+const ACP_ENABLED = isAcpEnabled();
+const ACP_CROSS_ROOT = isAcpCrossRoot();
 const CROSS_REPO_ACP_CLIENT = '__cross__';
 
 const repoClients = new Map<string, AcpClient>();

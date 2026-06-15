@@ -5,9 +5,20 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { ToolHandler } from '@colbymchenry/codegraph/dist/mcp/index.js';
-import { CodeGraph } from '@colbymchenry/codegraph';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
+
+// Codegraph is optional — the server can run without it (search/QA will be degraded)
+let ToolHandler: any, CodeGraph: any;
+try {
+  const cgModule = await import('@colbymchenry/codegraph/dist/mcp/index.js');
+  const cgCore = await import('@colbymchenry/codegraph');
+  ToolHandler = cgModule.ToolHandler;
+  CodeGraph = cgCore.CodeGraph;
+} catch {
+  console.warn('[codegraph] Codegraph engine not available — search/QA features will be limited');
+  ToolHandler = null;
+  CodeGraph = null;
+}
 
 const opencodewikiDir = path.join(os.homedir(), '.opencodewiki');
 const registryFile = path.join(opencodewikiDir, 'registry.json');
@@ -70,9 +81,15 @@ const vendorDir = path.resolve(rootDir, 'vendor');
 const qaIndexFile = path.resolve(rootDir, 'src', 'qa', 'index.html');
 const homeIndexFile = path.resolve(rootDir, 'src', 'home', 'index.html');
 
-async function initHandler(): Promise<ToolHandler> {
+async function initHandler(): Promise<any> {
+  if (!ToolHandler) {
+    // Return a stub handler when codegraph is not installed
+    return {
+      execute: async (_method: string, _args?: any) => ({ content: [{ text: '' }] }),
+    };
+  }
   const codegraphDir = path.join(rootDir, '.codegraph');
-  let cg: CodeGraph | null = null;
+  let cg: any = null;
   try {
     await fs.access(codegraphDir);
     cg = await CodeGraph.open(rootDir);
