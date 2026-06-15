@@ -50,6 +50,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 .qa-input-wrap textarea::-webkit-scrollbar{width:4px}
 .qa-input-wrap textarea::-webkit-scrollbar-thumb{background:var(--text3);border-radius:2px}
 .qa-input-wrap textarea::-webkit-scrollbar-button{display:none}
+.qa-input-wrap .attach-btn{background:transparent!important;border:none!important;color:var(--text3);cursor:pointer;padding:4px 6px!important;border-radius:6px;display:flex;align-items:center;font-size:20px;line-height:1;min-width:32px;height:32px;justify-content:center;flex-shrink:0}
+.qa-input-wrap .attach-btn:hover{color:var(--blue)!important;background:var(--tag-bg)!important;opacity:1!important}
+.home-file-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:var(--tag-bg);color:var(--text2);max-width:180px}
+.home-file-chip .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px}
+.home-file-chip .size{color:var(--text3);font-size:10px}
+.home-file-chip .rm{background:none;border:none;cursor:pointer;color:var(--text3);padding:0;font-size:12px;line-height:1}
 .qa-examples{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px}
 .qa-examples button{padding:5px 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface);font-size:12px;color:var(--text3);cursor:pointer}
 .qa-examples button:hover{border-color:var(--blue);color:var(--blue)}
@@ -98,9 +104,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
     <div class="qa-welcome">
       <div class="qa-welcome-title">OpenCodeWiki <span class="qa-welcome-sub">/ 你的代码智能问答助手</span></div>
     </div>
-    <div class="qa-input-wrap">
-      <textarea id="qaInput" rows="1" placeholder="输入代码库相关问题..." autocomplete="off"></textarea>
-      <button id="qaAskBtn" disabled>Ask</button>
+    <div class="qa-input-wrap" style="flex-direction:column;padding:8px 12px">
+      <div class="file-chips" id="fileChips" style="display:none;flex-wrap:wrap;gap:4px;padding:0 0 4px 0;max-height:60px;overflow-y:auto"></div>
+      <div style="display:flex;align-items:flex-end;gap:6px;width:100%">
+        <button type="button" class="attach-btn" onclick="document.getElementById('fileInput').click()" title="上传文件 (日志等)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        </button>
+        <input type="file" id="fileInput" multiple style="display:none" onchange="handleHomeFiles(this.files)">
+        <textarea id="qaInput" rows="1" placeholder="输入代码库相关问题..." autocomplete="off"></textarea>
+        <button id="qaAskBtn" disabled>Ask</button>
+      </div>
     </div>
     <div class="qa-examples">
       <button onclick="askExample('auth service 的影响范围')">auth service 的影响范围</button>
@@ -141,11 +156,53 @@ qaAskBtn.addEventListener('click', submitQa);
 function autoResize(el) { el.style.height = 'auto'; var sh = el.scrollHeight; el.style.height = Math.min(sh, 120) + 'px'; el.style.overflowY = sh > 120 ? 'auto' : 'hidden'; }
 function escapeHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
+// ── File Upload (Home page) ─────────────────────────────────────
+const _homeSessionId = 'ses_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+const _homeFiles = new Map();
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + 'KB';
+  return (bytes/1024/1024).toFixed(1) + 'MB';
+}
+
+function updateHomeChips() {
+  var c = document.getElementById('fileChips');
+  if (_homeFiles.size === 0) { c.style.display = 'none'; c.innerHTML = ''; return; }
+  c.style.display = 'flex';
+  var html = '';
+  for (const [name, f] of _homeFiles) {
+    html += '<div class="home-file-chip"><span class="name">' + escapeHtml(name) + '</span><span class="size">' + formatSize(f.size) + '</span><button class="rm" onclick="removeHomeFile(\'' + escapeHtml(name) + '\')">&times;</button></div>';
+  }
+  c.innerHTML = html;
+}
+
+function removeHomeFile(name) { _homeFiles.delete(name); updateHomeChips(); }
+
+async function uploadHomeFile(file) {
+  if (_homeFiles.has(file.name)) return;
+  _homeFiles.set(file.name, { fileName: file.name, size: file.size });
+  updateHomeChips();
+  try {
+    await fetch('/api/upload?sessionId=' + encodeURIComponent(_homeSessionId) + '&name=' + encodeURIComponent(file.name), {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
+    });
+    _homeFiles.set(file.name, { fileName: file.name, size: file.size, uploaded: true });
+  } catch(e) { console.error('[upload]', e.message); }
+}
+
+function handleHomeFiles(files) {
+  for (const f of files) uploadHomeFile(f);
+  document.getElementById('fileInput').value = '';
+}
+
 function submitQa() {
   var q = qaInput.value.trim();
   if (!q) return;
   redirectOverlay.style.display = 'flex';
-  setTimeout(function() { location.href = '/qa?q=' + encodeURIComponent(q); }, 150);
+  // Pass sessionId so uploaded files carry over to QA page
+  var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
+  setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
 }
 
 function askExample(text) { qaInput.value = text; qaAskBtn.disabled = false; autoResize(qaInput); qaInput.focus(); }
