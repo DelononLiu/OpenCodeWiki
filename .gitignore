@@ -39,3 +39,4 @@ __pycache__/
 
 # CRG index data (rebuilt on demand)
 .code-review-graph/
+engine/codegraph

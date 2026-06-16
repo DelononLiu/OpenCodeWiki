@@ -730,20 +730,19 @@ async function sendWikiViewer(repoName: string, _req: any, res: any) {
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#ffffff;--sidebar-bg:#f8f9fb;--border:#e5e7eb;--text:#1e293b;--text-muted:#64748b;--primary:#2563eb;--primary-soft:#eff6ff;--hover:#f1f5f9;--code-bg:#f1f5f9;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08)}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.65;color:var(--text);background:var(--bg)}
+.header{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px}
+.header-logo{display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--primary);font-size:15px;font-weight:700}
+.header-logo svg{flex-shrink:0}
+.header-repo{font-size:10px;color:var(--text-muted);font-weight:500;padding:2px 6px;border-radius:4px;background:var(--hover)}
 .layout{display:flex;min-height:100vh}
-.sidebar{width:280px;background:var(--sidebar-bg);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;padding:24px 16px;display:flex;flex-direction:column;z-index:10}
-.content{margin-left:280px;flex:1;padding:48px 64px;max-width:960px}
-.sidebar-header{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-.sidebar-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
-.sidebar-title svg{flex-shrink:0}
-.sidebar-meta{font-size:11px;color:var(--text-muted);margin-top:6px}
+.sidebar{width:280px;background:var(--sidebar-bg);border-right:1px solid var(--border);position:fixed;top:41px;left:0;bottom:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;z-index:10}
+.content{margin-left:280px;flex:1;padding:32px 64px;max-width:960px}
 .nav-section{margin-bottom:2px}
 .nav-item{display:block;padding:7px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text);text-decoration:none;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav-item:hover{background:var(--hover)}
 .nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .nav-item.overview{font-weight:600;margin-bottom:4px}
 .nav-group-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 12px 4px;user-select:none}
-.sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center}
 .content h1{font-size:28px;font-weight:700;margin-bottom:8px;line-height:1.3}
 .content h2{font-size:22px;font-weight:600;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .content h3{font-size:17px;font-weight:600;margin:24px 0 8px}
@@ -777,24 +776,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 <body>
 
 <button class="menu-toggle" id="menuToggle">&#9776;</button>
+<div class="header">
+  <a href="/" class="header-logo">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    OpenCodeWiki
+  </a>
+  <span class="header-repo">${repoName}</span>
+</div>
 <div class="layout">
-
 <nav class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <a href="/" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;text-decoration:none;color:var(--primary);font-weight:600;font-size:14px">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-      OpenCodeWiki
-    </a>
-    <div class="sidebar-title">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-      ${repoName}
-    </div>
-    <div class="sidebar-meta" id="metaInfo"></div>
-  </div>
   <div id="navTree"></div>
-  <div class="sidebar-footer">
-    
-  </div>
 </nav>
 
 <main class="content" id="content">
