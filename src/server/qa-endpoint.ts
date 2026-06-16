@@ -161,6 +161,43 @@ export function listSessions(sort: 'latest' | 'popular' = 'latest', limit = 10):
   }));
 }
 
+export interface QuestionSuggestion {
+  question: string;
+  sessionId: string;
+  updatedAt: string;
+}
+
+export function searchQuestions(query: string, limit = 5): QuestionSuggestion[] {
+  if (!query || query.trim().length < 2) return [];
+  const q = query.trim().toLowerCase();
+  const results: { question: string; sessionId: string; updatedAt: string; score: number }[] = [];
+  const seen = new Set<string>();
+
+  for (const session of sessions.values()) {
+    const firstMsg = session.messages.find(m => m.role === 'user');
+    if (!firstMsg) continue;
+    const question = firstMsg.content.trim();
+    if (!question || seen.has(question.toLowerCase())) continue;
+    seen.add(question.toLowerCase());
+
+    const lower = question.toLowerCase();
+    let score = 0;
+    if (lower.startsWith(q)) {
+      score = 100;
+    } else if (new RegExp('\\b' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(lower)) {
+      score = 80;
+    } else if (lower.includes(q)) {
+      score = 60;
+    }
+    if (score === 0) continue;
+
+    results.push({ question, sessionId: session.id, updatedAt: session.updatedAt, score });
+  }
+
+  results.sort((a, b) => b.score - a.score || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  return results.slice(0, limit).map(({ score: _s, ...rest }) => rest);
+}
+
 export interface FrequentQuestion {
   question: string;
   count: number;

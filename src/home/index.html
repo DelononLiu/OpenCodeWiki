@@ -135,7 +135,7 @@ function homeRedirectToQa() {
   if (_st) params.set('type', _st);
   setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
 }
-qaInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(); } });
+qaInput.addEventListener('keydown', function(e) { if (e.defaultPrevented) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(); } });
 qaAskBtn.addEventListener('click', function(e) { e.preventDefault(); homeRedirectToQa(); });
 
 function autoResize(el) { el.style.height = 'auto'; var sh = el.scrollHeight; el.style.height = Math.min(sh, 120) + 'px'; el.style.overflowY = sh > 120 ? 'auto' : 'hidden'; }
@@ -273,12 +273,17 @@ async function loadLatestSessions() {
       }
     }
     listEl.innerHTML = html;
-  } catch { listEl.innerHTML = '<div class="sidebar-empty">加载失败</div>'; }
+  } catch { listEl.innerHTML = '<div class="sidebar-empty">加载失败 <button onclick="loadLatestSessions()" style="background:none;border:none;color:var(--blue);cursor:pointer;text-decoration:underline">重试</button></div>'; }
 }
 
 function renderSidebarItem(s) {
+  var timeLabel = formatTime(s.updatedAt);
   return '<a class="sidebar-item" href="/qa/' + encodeURIComponent(s.id) + '">' +
-    '<div class="sidebar-item-summary">' + escapeHtml(s.summary) + '</div></a>';
+    '<div class="sidebar-item-summary">' + escapeHtml(s.summary) + '</div>' +
+    '<div class="sidebar-item-meta" style="display:flex;align-items:center;gap:6px;margin-top:3px">' +
+    '<span class="sidebar-item-time">' + timeLabel + '</span>' +
+    '<span style="font-size:10px;color:var(--text3);background:var(--tag-bg);padding:1px 6px;border-radius:6px">' + s.messageCount + '</span>' +
+    '</div></a>';
 }
 
 async function fetchRepos() {

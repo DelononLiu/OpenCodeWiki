@@ -5,7 +5,7 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
+import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
 import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-input.js';
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
@@ -414,10 +414,10 @@ async function sendQaPage(_req: any, res: any) {
   try {
     let content = await fs.readFile(qaIndexFile, 'utf-8');
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
-    const QA_IDS = { typeBar: 'qaTypeBar', moreBtn: 'qaMoreBtn', moreDropdown: 'qaMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput' };
+    const QA_IDS = { typeBar: 'qaTypeBar', moreBtn: 'qaMoreBtn', moreDropdown: 'qaMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput', suggestDropdown: 'qaSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS }));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Q&A page not found');
@@ -428,10 +428,10 @@ async function sendHomePage(_req: any, res: any) {
   try {
     let content = await fs.readFile(homeIndexFile, 'utf-8');
     const HOME_VARS = { bgSurface: 'var(--surface)', bgSecondary: 'var(--tag-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text3)', blue: 'var(--blue)' };
-    const HOME_IDS = { typeBar: 'homeTypeBar', moreBtn: 'homeMoreBtn', moreDropdown: 'homeMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput' };
+    const HOME_IDS = { typeBar: 'homeTypeBar', moreBtn: 'homeMoreBtn', moreDropdown: 'homeMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput', suggestDropdown: 'homeSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS }));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Home page not found');
@@ -652,6 +652,13 @@ app.get('/api/qa/sessions/latest', (_req, res) => {
 
 app.get('/api/qa/sessions/frequent', (_req, res) => {
   res.json(listFrequentQuestions(3));
+});
+
+app.get('/api/qa/questions/suggest', (req, res) => {
+  const q = (req.query.q as string || '').trim();
+  const limit = Math.min(parseInt(req.query.limit as string) || 5, 10);
+  if (q.length < 2) { res.json({ suggestions: [] }); return; }
+  res.json({ suggestions: searchQuestions(q, limit) });
 });
 
 // ── Wiki API ──────────────────────────────────────────────
@@ -893,10 +900,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 </script>
 </body></html>`;
   const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
-  const WIKI_IDS = { typeBar: 'wikiTypeBar', moreBtn: 'wikiMoreBtn', moreDropdown: 'wikiMoreDropdown', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType' };
+  const WIKI_IDS = { typeBar: 'wikiTypeBar', moreBtn: 'wikiMoreBtn', moreDropdown: 'wikiMoreDropdown', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType', suggestDropdown: 'wikiSuggestDropdown' };
   html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
-  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS }));
-  html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS }));
+  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
+  html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
   res.type('html').send(html);
 }
 

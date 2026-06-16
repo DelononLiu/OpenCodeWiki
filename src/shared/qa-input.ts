@@ -18,6 +18,9 @@ export interface QaInputConfig {
   formAction?: string;      // form action URL (wiki uses '/qa')
   onsubmit?: string;        // JS onsubmit handler (home: 'return submitQa()', QA: 'sendMessage(event)')
   repoName?: string;        // hidden repo input value (wiki only)
+  suggestApi?: string;      // URL for question suggestion API (autocomplete)
+  suggestDebounceMs?: number; // debounce delay for suggestions (default 300)
+  suggestMinChars?: number;  // minimum chars before triggering suggestions (default 2)
   idMap: {
     typeBar: string;
     moreBtn: string;
@@ -27,6 +30,7 @@ export interface QaInputConfig {
     sendBtn: string;
     qaInput: string;
     typeInput?: string;     // hidden input for type (wiki: wikiQaType)
+    suggestDropdown?: string; // suggestion dropdown container ID
   };
 }
 
@@ -54,6 +58,14 @@ export function qaInputStyles(v: QaInputVars): string {
 .qa-input-footer button{padding:4px 16px;background:${v.blue};color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;flex-shrink:0}
 .qa-input-footer button:hover{opacity:.88}
 .qa-input-footer button:disabled{opacity:.35;cursor:not-allowed}
+.qa-suggest-wrap{position:relative}
+.qa-suggest-dropdown{position:absolute;top:100%;left:0;right:0;display:none;background:${v.bgSurface};border:1px solid ${v.border};border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:50;max-height:220px;overflow-y:auto;margin-top:2px;font-size:14px}
+.qa-suggest-dropdown.open{display:block}
+.qa-suggest-item{padding:10px 14px;color:${v.text};cursor:pointer;border-bottom:1px solid ${v.border};line-height:1.4;transition:background .1s}
+.qa-suggest-item:last-child{border-bottom:none}
+.qa-suggest-item:hover,.qa-suggest-item.highlighted{background:${v.bgSecondary}}
+.qa-suggest-match{font-weight:600;color:${v.blue}}
+.qa-suggest-empty,.qa-suggest-error{padding:14px;color:${v.textMuted};text-align:center;font-size:13px}
 `.trim();
 }
 
@@ -75,10 +87,14 @@ export function qaInputHtml(cfg: QaInputConfig): string {
     ? `onsubmit="${cfg.onsubmit}"`
     : '';
 
+  const suggestWrap = cfg.idMap.suggestDropdown
+    ? `<div class="qa-suggest-wrap">${inputTag}<div class="qa-suggest-dropdown" id="${cfg.idMap.suggestDropdown}"></div></div>`
+    : inputTag;
+
   return `
 <div class="qa-input-wrap">
   <div class="file-chips" id="fileChips" style="display:none;flex-wrap:wrap;gap:4px;padding:0 0 4px 0;max-height:60px;overflow-y:auto"></div>
-  ${inputTag}
+  ${suggestWrap}
   <input type="file" id="${cfg.idMap.fileInput}" multiple style="display:none">
   <form ${formAttrs} ${submitAttrs}>
     ${hiddenRepo}
@@ -141,5 +157,100 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
   // Expose selectedType for page-specific send functions
   window.__qaSelectedType = function(){ return ST; };
 })();
+
+// ── QA Input: question suggest autocomplete ──
+try {
+(function(){
+  var _api = ${cfg.suggestApi ? `'${cfg.suggestApi}'` : 'null'};
+  var _min = ${cfg.suggestMinChars ?? 2};
+  var _deb = ${cfg.suggestDebounceMs ?? 300};
+  if (!_api) return;
+  var _inp = document.getElementById('${cfg.idMap.qaInput}');
+  var _dd = document.getElementById('${cfg.idMap.suggestDropdown || ''}');
+  if (!_inp || !_dd) return;
+  var _timer = null;
+  var _items = [];
+  var _idx = -1;
+  var _comp = false;
+
+  function _esc(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  _inp.addEventListener('compositionstart', function(){ _comp = true; });
+  _inp.addEventListener('compositionend', function(){ _comp = false; this.dispatchEvent(new Event('input', {bubbles:true})); });
+
+  _inp.addEventListener('input', function(){
+    clearTimeout(_timer);
+    if (_comp) return;
+    var val = this.value.trim();
+    if (val.length < _min) {
+      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; return;
+    }
+    _timer = setTimeout(function(){
+      _dd.innerHTML = '<div class="qa-suggest-empty">Searching...</div>';
+      _dd.classList.add('open');
+      fetch(_api + '?q=' + encodeURIComponent(val) + '&limit=5')
+        .then(function(r){ if (!r.ok) throw new Error('fail'); return r.json(); })
+        .then(function(data){
+          _items = data.suggestions || []; _idx = -1;
+          if (_items.length === 0) {
+            _dd.classList.remove('open'); _dd.innerHTML = ''; return;
+          }
+          var html = '';
+          for (var i = 0; i < _items.length; i++) {
+            var q = _items[i].question;
+            var esc = _esc(q);
+            var lq = q.toLowerCase();
+            var lv = val.toLowerCase();
+            var pos = lq.indexOf(lv);
+            var display = pos >= 0
+              ? esc.slice(0, pos) + '<span class="qa-suggest-match">' + esc.slice(pos, pos + val.length) + '</span>' + esc.slice(pos + val.length)
+              : esc;
+            html += '<div class="qa-suggest-item" data-index="' + i + '">' + display + '</div>';
+          }
+          _dd.innerHTML = html;
+        })
+        .catch(function(){ _dd.innerHTML = '<div class="qa-suggest-error">Suggestions unavailable</div>'; });
+    }, _deb);
+  });
+
+  _inp.addEventListener('keydown', function(e){
+    if (!_dd.classList.contains('open') || _items.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _idx = Math.min(_idx + 1, _items.length - 1); _highlight(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); _idx = Math.max(_idx - 1, -1); _highlight(); }
+    else if (e.key === 'Enter' && _idx >= 0) { e.preventDefault(); _select(_idx); }
+    else if (e.key === 'Escape') { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; }
+  });
+
+  function _highlight() {
+    var items = _dd.querySelectorAll('.qa-suggest-item');
+    items.forEach(function(el, i){ el.classList.toggle('highlighted', i === _idx); });
+    if (_idx >= 0 && items[_idx]) items[_idx].scrollIntoView({ block: 'nearest' });
+  }
+
+  function _select(index) {
+    if (index >= 0 && index < _items.length) {
+      _inp.value = _items[index].question;
+      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1;
+      _inp.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof autoResize === 'function') autoResize();
+      _inp.focus();
+    }
+  }
+
+  _dd.addEventListener('mousedown', function(e){
+    var item = e.target.closest('.qa-suggest-item');
+    if (item) { _select(parseInt(item.dataset.index)); }
+  });
+
+  document.addEventListener('click', function(e){
+    var wrap = _inp.closest('.qa-suggest-wrap');
+    if (!wrap || !wrap.contains(e.target)) {
+      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1;
+    }
+  });
+})();
+} catch(e) { console.error('[qa-input] suggest error', e); }
 `.trim();
 }
