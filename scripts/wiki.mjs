@@ -18,6 +18,11 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+
+function resolvePath(p) {
+  return path.resolve(p.replace(/^~/, os.homedir()));
+}
 
 const repoPath = process.argv[2];
 const force = process.argv.includes('--force');
@@ -27,8 +32,9 @@ if (!repoPath) {
   process.exit(1);
 }
 
-const resolvedPath = path.resolve(repoPath);
+const resolvedPath = resolvePath(repoPath);
 const gitnexusDir = path.join(resolvedPath, '.gitnexus');
+const outputDir = path.join(resolvedPath, '.codegraph', 'wiki');
 const metaPath = path.join(gitnexusDir, 'meta.json');
 
 // Step 1: gitnexus analyze if index doesn't exist
@@ -52,7 +58,6 @@ if (!fs.existsSync(metaPath)) {
 
 // Step 2: Generate wiki
 console.log(`[2/2] Generating wiki...`);
-console.log(`     Output: ${gitnexusDir}/wiki/`);
 console.log('');
 
 const args = ['wiki', resolvedPath];
@@ -64,6 +69,21 @@ try {
     stdio: 'inherit',
     cwd: resolvedPath,
   });
+
+  // Step 3: Copy to .codegraph/wiki/
+  const srcDir = path.join(gitnexusDir, 'wiki');
+  if (fs.existsSync(srcDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+    for (const file of fs.readdirSync(srcDir)) {
+      const src = path.join(srcDir, file);
+      const dst = path.join(outputDir, file);
+      if (fs.statSync(src).isFile()) {
+        fs.copyFileSync(src, dst);
+      }
+    }
+    console.log(`  ✓ Copied to ${outputDir}`);
+  }
+
   console.log('\n✓ Wiki generated successfully');
   console.log(`  View at: http://localhost:4747/${path.basename(resolvedPath)}/wiki`);
 } catch (err) {

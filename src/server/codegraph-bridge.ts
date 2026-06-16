@@ -7,7 +7,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
 import {
-  generateWiki, readWikiPage, listWikiPages, loadModuleTree, wikiOutputDir,
+  generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
 
 // Codegraph is optional — the server can run without it (search/QA will be degraded)
@@ -29,7 +29,6 @@ const registryFile = path.join(opencodewikiDir, 'registry.json');
 interface RegistryEntry {
   name: string;
   path: string;
-  indexedAt: string;
 }
 
 async function loadRegistry(): Promise<RegistryEntry[]> {
@@ -608,7 +607,7 @@ app.post('/api/repos', async (req, res) => {
     res.status(409).json({ error: 'Repo "' + name + '" already registered' });
     return;
   }
-  const entry: RegistryEntry = { name, path: absPath, indexedAt: new Date().toISOString() };
+  const entry: RegistryEntry = { name, path: absPath };
   registry.push(entry);
   await saveRegistry(registry);
   const stats = await getCodegraphStatsFor(absPath);
@@ -681,9 +680,8 @@ app.get('/api/wiki/:repoName', async (req, res) => {
 
   const wikiDir = wikiOutputDir(entry.path);
   const tree = await loadModuleTree(wikiDir);
-  const pages = await listWikiPages(wikiDir);
 
-  res.json({ repoName: entry.name, tree, pages });
+  res.json({ repoName: entry.name, tree });
 });
 
 /** Get a specific wiki page for a repo. Returns { page, content }. */
@@ -710,90 +708,27 @@ const knownRepos = async () => {
   return names;
 };
 
-async function sendWikiPage(repoName: string, _req: any, res: any) {
-  const allRepos = await knownRepos();
-  const repos = await listRepos();
-  const repo = repos.find(r => r.name === repoName);
-  if (!repo) { res.status(404).type('text').send('Repo "' + repoName + '" not found'); return; }
-  const stats = repo.stats;
-  const wikiDir = wikiOutputDir(
-    repoName === 'opencodewiki' ? rootDir : (await loadRegistry()).find(r => r.name === repoName)?.path || rootDir,
-  );
-  const hasWiki = (await listWikiPages(wikiDir)).length > 0;
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>${repoName} — OpenCodeWiki</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-body{background:#f5f5f7;color:#111}
-.header{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid #e5e7eb;padding:14px 24px;display:flex;align-items:center;gap:12px}
-.header h1{font-size:16px;font-weight:600}
-.header a{color:#007aff;text-decoration:none;margin-left:auto;font-size:14px}
-.main{max-width:800px;margin:0 auto;padding:32px 24px 100px}
-.repo-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-.repo-list a{padding:6px 14px;border-radius:20px;border:1px solid #e5e7eb;text-decoration:none;font-size:13px;color:#555;background:#fff}
-.repo-list a.active{background:#007aff;color:#fff;border-color:#007aff}
-.stats{display:flex;gap:16px;margin:20px 0 32px}
-.stat-box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;flex:1;text-align:center}
-.stat-box .num{font-size:24px;font-weight:700;color:#007aff}
-.stat-box .label{font-size:12px;color:#888;margin-top:4px}
-.btn{display:inline-block;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;text-align:center}
-.btn-primary{background:#007aff;color:#fff;border:none}
-.btn-primary:hover{opacity:.88}
-.btn-outline{border:1px solid #007aff;color:#007aff;background:transparent}
-.btn-outline:hover{background:#e8f0fe}
-.actions{display:flex;gap:12px;justify-content:center;margin-top:24px}
-.bottom-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:640px;z-index:20;padding:0 16px}
-.input-box{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:10px 16px;display:flex;align-items:flex-end;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-.input-box:focus-within{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.18)}
-.input-box textarea{flex:1;border:none;outline:none;font-size:16px;resize:none;overflow:hidden;padding:3px 0;min-height:56px;line-height:1.6;font-family:inherit}
-.input-box textarea::placeholder{color:#aaa}
-.input-box button{padding:8px 22px;background:#007aff;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
-.input-box button:hover{opacity:.88}
-</style></head>
-<body>
-<div class="header">
-  <h1><a href="/" style="color:#007aff;text-decoration:none">OpenCodeWiki</a></h1>
-  <span style="font-size:13px;color:#888">${repoName}</span>
-  <a href="/qa?repo=${encodeURIComponent(repoName)}">Ask AI</a>
-</div>
-<div class="main">
-<div class="repo-list">${allRepos.map(n => '<a href="/' + encodeURIComponent(n) + '"' + (n === repoName ? ' class="active"' : '') + '>' + n + '</a>').join('')}</div>
-<div class="stats">
-  <div class="stat-box"><div class="num">${stats.files}</div><div class="label">Files</div></div>
-  <div class="stat-box"><div class="num">${stats.nodes}</div><div class="label">Symbols</div></div>
-  <div class="stat-box"><div class="num">${stats.edges ?? '-'}</div><div class="label">Relations</div></div>
-</div>
-<div class="actions">
-  ${hasWiki ? '<a href="/' + encodeURIComponent(repoName) + '/wiki" class="btn btn-primary">View Wiki</a>' : ''}
-</div>
-</div>
-<div class="bottom-bar">
-  <div class="input-box"><form action="/qa" method="get" style="display:flex;align-items:flex-end;gap:8px;width:100%">
-    <input type="hidden" name="repo" value="${repoName}">
-    <textarea name="q" placeholder="Ask about ${repoName}..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit()}"></textarea>
-    <button type="submit">Ask</button>
-  </form></div>
-</div>
-</body></html>`;
-  res.type('html').send(html);
-}
-
 async function sendWikiViewer(repoName: string, _req: any, res: any) {
-  const repos = await knownRepos();
+  const allRepos = await knownRepos();
   const reg = await loadRegistry();
   const entry = repoName === 'opencodewiki'
     ? { name: 'opencodewiki', path: rootDir }
     : reg.find(r => r.name === repoName);
   if (!entry) { res.status(404).type('text').send('Repo not found'); return; }
-  const wikiDir = wikiOutputDir(entry.path);
+  const repoPath = entry.path;
+  const wikiDir = wikiOutputDir(repoPath);
   const tree = await loadModuleTree(wikiDir);
+  const repoLinks = allRepos.map(n =>
+    '<a href="/' + encodeURIComponent(n) + '"' +
+    (n === repoName ? ' class="active"' : '') + '>' + n + '</a>'
+  ).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>${repoName} — Wiki</title>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${repoName} &mdash; Wiki</title>
 <script src="/vendor/marked.min.js"></script>
 <script src="/vendor/mermaid.min.js"></script>
 <style>
@@ -804,17 +739,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .sidebar{width:280px;background:var(--sidebar-bg);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;padding:24px 16px;display:flex;flex-direction:column;z-index:10}
 .content{margin-left:280px;flex:1;padding:48px 64px;max-width:960px}
 .sidebar-header{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-.sidebar-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--primary)}
-.sidebar-title:hover{opacity:.85}
+.sidebar-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.sidebar-title svg{flex-shrink:0}
 .sidebar-meta{font-size:11px;color:var(--text-muted);margin-top:6px}
+.repo-switcher{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.repo-switcher a{padding:2px 8px;border-radius:12px;border:1px solid var(--border);font-size:11px;color:var(--text-muted);text-decoration:none}
+.repo-switcher a.active{background:var(--primary-soft);color:var(--primary);border-color:var(--primary)}
+.nav-section{margin-bottom:2px}
 .nav-item{display:block;padding:7px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text);text-decoration:none;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav-item:hover{background:var(--hover)}
 .nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .nav-item.overview{font-weight:600;margin-bottom:4px}
+.nav-group-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 12px 4px;user-select:none}
 .sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center}
 .content h1{font-size:28px;font-weight:700;margin-bottom:8px;line-height:1.3}
 .content h2{font-size:22px;font-weight:600;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .content h3{font-size:17px;font-weight:600;margin:24px 0 8px}
+.content h4{font-size:15px;font-weight:600;margin:20px 0 6px}
 .content p{margin:12px 0}
 .content ul,.content ol{margin:12px 0 12px 24px}
 .content li{margin:4px 0}
@@ -827,63 +768,122 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .content table{border-collapse:collapse;width:100%;margin:16px 0}
 .content th,.content td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:14px}
 .content th{background:var(--sidebar-bg);font-weight:600}
+.content img{max-width:100%;border-radius:var(--radius)}
+.content hr{border:none;border-top:1px solid var(--border);margin:32px 0}
 .content .mermaid{margin:20px 0;text-align:center}
-@media(max-width:768px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.content{margin-left:0;padding:24px 20px}.menu-toggle{display:block}}
-.menu-toggle{display:none;position:fixed;top:12px;left:12px;z-index:20;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;cursor:pointer}
+.menu-toggle{display:none;position:fixed;top:12px;left:12px;z-index:20;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;cursor:pointer;font-size:18px;box-shadow:var(--shadow)}
+@media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:2px 0 12px rgba(0,0,0,.1)}.content{margin-left:0;padding:24px 20px;padding-top:56px}.menu-toggle{display:block}}
 .empty-state{text-align:center;padding:80px 20px;color:var(--text-muted)}
+.empty-state h2{font-size:20px;margin-bottom:8px;border:none}
+.qa-entry{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:740px;z-index:20;padding:0 16px}
+.qa-form{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
+.qa-form input{flex:1;border:none;background:transparent;outline:none;font-size:14px;font-family:inherit;color:var(--text);padding:4px 0;line-height:1.5}
+.qa-form input::placeholder{color:var(--text-muted)}
+.qa-form button{padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.qa-form button:hover{opacity:.88}
 </style></head>
 <body>
+
+<button class="menu-toggle" id="menuToggle">&#9776;</button>
 <div class="layout">
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <a href="/${encodeURIComponent(repoName)}" class="sidebar-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        ${repoName}
-      </a>
-      <div class="sidebar-meta">Wiki · generated by GitNexus</div>
+
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="repo-switcher">${repoLinks}</div>
+    <div class="sidebar-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      ${repoName}
     </div>
-    <nav>
-      <a class="nav-item overview" href="#" onclick="loadPage('overview');return false">📄 Overview</a>
-      ${tree.map(m => '<a class="nav-item" href="#" onclick="loadPage(\'' + m.slug + '\');return false">' + m.name + '</a>').join('')}
-    </nav>
-    <div class="sidebar-footer">
-      <a href="/qa?repo=${encodeURIComponent(repoName)}" style="color:var(--primary);font-size:12px;text-decoration:none">Ask AI about this repo →</a>
-    </div>
+    <div class="sidebar-meta" id="metaInfo"></div>
   </div>
-  <div class="content" id="content">
-    <div class="empty-state"><h2>Loading...</h2></div>
+  <div id="navTree"></div>
+  <div class="sidebar-footer">
+    <a href="/qa?repo=${encodeURIComponent(repoName)}" style="color:var(--primary);text-decoration:none">Ask AI &rarr;</a>
   </div>
+</nav>
+
+<main class="content" id="content">
+  <div class="empty-state"><h2>Loading...</h2></div>
+</main>
+
 </div>
-<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<div class="qa-entry">
+  <form class="qa-form" action="/qa" method="GET">
+    <input type="hidden" name="repo" value="${repoName}">
+    <input type="text" name="q" placeholder="Ask anything about this codebase..." autocomplete="off">
+    <button type="submit">Ask</button>
+  </form>
+</div>
+
 <script>
-const REPO = ${JSON.stringify(repoName)};
+(function() {
+  var REPO = ${JSON.stringify(repoName)};
+  var TREE = ${JSON.stringify(tree)};
+  var activePage = 'overview';
 
-function loadPage(slug) {
-  document.querySelectorAll('.nav-item').forEach(a => a.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(a => {
-    if (a.textContent.includes(slug === 'overview' ? 'Overview' : slug.replace(/-/g, ' '))) {
-      a.classList.add('active');
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+    renderNav();
+    document.getElementById('menuToggle').addEventListener('click', function() {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+    if (location.hash && location.hash.length > 1) {
+      activePage = decodeURIComponent(location.hash.slice(1));
     }
+    navigateTo(activePage);
   });
-  const el = document.getElementById('content');
-  el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
-  const url = slug === 'overview'
-    ? '/api/wiki/' + encodeURIComponent(REPO) + '/overview'
-    : '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
-  fetch(url).then(r => r.json()).then(data => {
-    if (data.content) {
-      el.innerHTML = marked.parse(data.content);
-      if (window.mermaid) mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
-    } else {
-      el.innerHTML = '<div class="empty-state"><h2>Page not found</h2></div>';
-    }
-  }).catch(() => {
-    el.innerHTML = '<div class="empty-state"><h2>Failed to load page</h2></div>';
-  });
-}
 
-// Load overview by default
-loadPage('overview');
+  function renderNav() {
+    var container = document.getElementById('navTree');
+    var html = '<div class="nav-section">';
+    html += '<a class="nav-item overview" data-page="overview" href="#overview">Overview</a>';
+    html += '</div>';
+    if (TREE.length > 0) {
+      html += '<div class="nav-group-label">Modules</div>';
+      html += '<div class="nav-section">';
+      for (var i = 0; i < TREE.length; i++) {
+        html += '<a class="nav-item" data-page="' + TREE[i].slug + '" href="#' + TREE[i].slug + '">' + TREE[i].name + '</a>';
+      }
+      html += '</div>';
+    }
+    container.innerHTML = html;
+    container.addEventListener('click', function(e) {
+      var target = e.target;
+      while (target && !target.dataset.page) { target = target.parentElement; }
+      if (target && target.dataset.page) {
+        e.preventDefault();
+        navigateTo(target.dataset.page);
+      }
+    });
+  }
+
+  function navigateTo(slug) {
+    activePage = slug;
+    document.querySelectorAll('.nav-item').forEach(function(a) { a.classList.remove('active'); });
+    var match = document.querySelector('[data-page="' + slug + '"]');
+    if (match) match.classList.add('active');
+    history.replaceState(null, '', '#' + encodeURIComponent(slug));
+
+    var el = document.getElementById('content');
+    el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
+
+    var url = slug === 'overview'
+      ? '/api/wiki/' + encodeURIComponent(REPO) + '/overview'
+      : '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.content) {
+        el.innerHTML = data.content;
+        if (window.mermaid) mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
+      } else {
+        el.innerHTML = '<div class="empty-state"><h2>Page not found</h2></div>';
+      }
+    }).catch(function() {
+      el.innerHTML = '<div class="empty-state"><h2>Failed to load page</h2></div>';
+    });
+  }
+})();
 </script>
 </body></html>`;
   res.type('html').send(html);
@@ -892,21 +892,10 @@ loadPage('overview');
 app.get('/:repoName', async (req, res, next) => {
   const names = await knownRepos();
   if (names.includes(req.params.repoName)) {
-    // Check if it's a wiki page request
-    await sendWikiPage(req.params.repoName, req, res);
+    await sendWikiViewer(req.params.repoName, req, res);
   } else {
     next();
   }
-});
-
-/** Wiki viewer route: /<repoName>/wiki */
-app.get('/:repoName/wiki', async (req, res) => {
-  const names = await knownRepos();
-  if (!names.includes(req.params.repoName)) {
-    res.status(404).type('text').send('Repo not found');
-    return;
-  }
-  await sendWikiViewer(req.params.repoName, req, res);
 });
 
 app.listen(PORT, () => {

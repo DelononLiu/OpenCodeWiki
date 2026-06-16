@@ -35,7 +35,7 @@ mkdir -p ~/.opencodewiki
 # {"apiKey":"sk-xxx","baseUrl":"https://api.openai.com/v1","model":"gpt-4o-mini"}
 
 # 4. 初始化仓库（codegraph init + index + 注册）
-node scripts/setup-repo.mjs ~/Code/example
+npm run index -- ~/Code/example
 
 # 5. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎
 #     首次自动运行 gitnexus analyze，然后生成 Wiki

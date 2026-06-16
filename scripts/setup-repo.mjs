@@ -19,7 +19,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const repoPath = path.resolve(process.argv[2] || '');
+function resolvePath(p) {
+  return path.resolve(p.replace(/^~/, os.homedir()));
+}
+
+const repoPath = resolvePath(process.argv[2] || '');
 let repoName = process.argv[3];
 
 if (!repoPath) {
@@ -71,14 +75,9 @@ try {
 const existing = registry.find((r: any) => r.name === repoName);
 if (existing) {
   existing.path = repoPath;
-  existing.indexedAt = new Date().toISOString();
   console.log(`  ✓ Updated existing entry for "${repoName}"`);
 } else {
-  registry.push({
-    name: repoName,
-    path: repoPath,
-    indexedAt: new Date().toISOString(),
-  });
+  registry.push({ name: repoName, path: repoPath });
   console.log(`  ✓ Registered "${repoName}"`);
 }
 

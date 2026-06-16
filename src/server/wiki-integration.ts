@@ -113,7 +113,7 @@ export async function loadModuleTree(wikiDir: string): Promise<ModuleTreeNode[]>
   }
 }
 
-/** Default wiki directory for a repo. */
+/** Default wiki directory for a repo (.codegraph/wiki/). */
 export function wikiOutputDir(repoPath: string): string {
-  return path.join(repoPath, '.gitnexus', 'wiki');
+  return path.join(repoPath, '.codegraph', 'wiki');
 }

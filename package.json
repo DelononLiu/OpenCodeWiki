@@ -8,7 +8,7 @@
     "start": "node dist/server/codegraph-bridge.js",
     "build": "npx tsc",
     "wiki": "node scripts/wiki.mjs",
-    "setup-repo": "node scripts/setup-repo.mjs"
+    "index": "node scripts/setup-repo.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.22.1",
