@@ -893,7 +893,6 @@ export function createQaEndpoint(
       '- Always answer in Chinese.\n' +
       '- Use mermaid diagrams for architecture flows when relevant.\n' +
       '- Use code blocks for commands or examples.\n' +
-      '- End with ## Notes (caveats, related context).\n' +
       '- Keep paragraphs short (2-4 sentences).\n' +
       '- Do not restate the question.\n' +
       '- If unsure, say so.\n' +

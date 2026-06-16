@@ -248,6 +248,7 @@ const form = document.getElementById('qaForm');
 const input = document.getElementById('qaInput');
 const sendBtn = document.getElementById('sendBtn');
 const mainScroll = document.getElementById('messagesInner');
+sendBtn.addEventListener('click', function(e) { sendMessage(e); });
 
 /* QA_INPUT_JS */
 function escapeHtml(str) {
@@ -963,7 +964,7 @@ if (currentSessionIdFromUrl) {
 }
 
 const initialQ = qParams.get('q');
-if (initialQ && !currentSessionIdFromUrl) {
+if (initialQ) {
   input.value = initialQ;
   updateSendBtn();
   sendMessage(new Event('submit', { cancelable: true }));

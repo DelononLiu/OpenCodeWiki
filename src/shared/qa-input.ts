@@ -97,7 +97,7 @@ export function qaInputHtml(cfg: QaInputConfig): string {
         <span class="more-wrapper">
           <button class="type-chip" id="${cfg.idMap.moreBtn}" data-type="">更多&#9660;</button>
           <div class="more-dropdown" id="${cfg.idMap.moreDropdown}">
-            <button class="type-chip" data-type="build">编译构建</button>
+            <button class="type-chip" data-type="build-issue">编译构建</button>
             <button class="type-chip" data-type="program-analysis">程序分析</button>
           </div>
         </span>

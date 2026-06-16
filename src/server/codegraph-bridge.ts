@@ -416,7 +416,7 @@ async function sendQaPage(_req: any, res: any) {
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
     const QA_IDS = { typeBar: 'qaTypeBar', moreBtn: 'qaMoreBtn', moreDropdown: 'qaMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', onsubmit: 'sendMessage(event)', idMap: QA_IDS }));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS }));
     content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS }));
     res.type('html').send(content);
   } catch {
@@ -814,17 +814,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   document.addEventListener('DOMContentLoaded', function() {
     mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
     /* QA_INPUT_JS */
-    // Enter key redirect to QA page (input is outside <form>)
+    // Enter key / Ask button → redirect to QA (input is outside <form>)
+    function redirectToQa() {
+      var inp = document.getElementById('wikiQaInput');
+      var q = inp.value.trim();
+      if (!q) return;
+      var st = window.__qaSelectedType ? window.__qaSelectedType() : '';
+      var params = new URLSearchParams({ q: q, repo: REPO });
+      if (st) params.set('type', st);
+      location.href = '/qa?' + params.toString();
+    }
     document.getElementById('wikiQaInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        var q = this.value.trim();
-        if (!q) return;
-        var st = window.__qaSelectedType ? window.__qaSelectedType() : '';
-        var params = new URLSearchParams({ q: q, repo: REPO });
-        if (st) params.set('type', st);
-        location.href = '/qa?' + params.toString();
-      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); redirectToQa(); }
+    });
+    document.getElementById('wikiSendBtn').addEventListener('click', function(e) {
+      e.preventDefault(); redirectToQa();
     });
     renderNav();
     document.getElementById('menuToggle').addEventListener('click', function() {
@@ -891,8 +895,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
   const WIKI_IDS = { typeBar: 'wikiTypeBar', moreBtn: 'wikiMoreBtn', moreDropdown: 'wikiMoreDropdown', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType' };
   html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
-  var wikiOnsubmit = "var _st=window.__qaSelectedType?window.__qaSelectedType():'';document.getElementById('wikiQaType').value=_st";
-  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', formAction: '/qa', repoName, onsubmit: wikiOnsubmit, idMap: WIKI_IDS }));
+  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS }));
   html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS }));
   res.type('html').send(html);
 }

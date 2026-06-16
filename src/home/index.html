@@ -126,8 +126,17 @@ const repoDivider = document.getElementById('repoDivider');
 const redirectOverlay = document.getElementById('redirectOverlay');
 
 qaInput.addEventListener('input', function() { qaAskBtn.disabled = !this.value.trim(); autoResize(this); });
-qaInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (this.value.trim()) submitQa(); } });
-qaAskBtn.addEventListener('click', submitQa);
+function homeRedirectToQa() {
+  var q = qaInput.value.trim();
+  if (!q) return;
+  redirectOverlay.style.display = 'flex';
+  var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
+  var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
+  if (_st) params.set('type', _st);
+  setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
+}
+qaInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(); } });
+qaAskBtn.addEventListener('click', function(e) { e.preventDefault(); homeRedirectToQa(); });
 
 function autoResize(el) { el.style.height = 'auto'; var sh = el.scrollHeight; el.style.height = Math.min(sh, 120) + 'px'; el.style.overflowY = sh > 120 ? 'auto' : 'hidden'; }
 function escapeHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
@@ -173,17 +182,6 @@ function handleHomeFiles(files) {
 }
 
 /* QA_INPUT_JS */
-
-function submitQa() {
-  var q = qaInput.value.trim();
-  if (!q) return;
-  redirectOverlay.style.display = 'flex';
-  // Pass sessionId so uploaded files carry over to QA page
-  var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
-  var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
-  if (_st) params.set('type', _st);
-  setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
-}
 
 function askExample(text) { qaInput.value = text; qaAskBtn.disabled = false; autoResize(qaInput); qaInput.focus(); }
 
