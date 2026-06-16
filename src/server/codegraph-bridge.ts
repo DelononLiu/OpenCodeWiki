@@ -7,7 +7,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
 import {
-  generateWiki, readWikiPage, readWikiIndex, listWikiPages, wikiOutputDir,
+  generateWiki, readWikiPage, listWikiPages, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
 
 // Codegraph is optional — the server can run without it (search/QA will be degraded)
@@ -648,7 +648,7 @@ app.get('/api/qa/sessions/frequent', (_req, res) => {
 
 /** Trigger wiki generation for a repo. */
 app.post('/api/wiki/generate', async (req, res) => {
-  const { repoName, force } = req.body;
+  const { repoName } = req.body;
   if (!repoName) { res.status(400).json({ error: 'Missing repoName' }); return; }
 
   const registry = await loadRegistry();
@@ -658,21 +658,19 @@ app.post('/api/wiki/generate', async (req, res) => {
 
   if (!entry) { res.status(404).json({ error: `Repo "${repoName}" not found` }); return; }
 
-  const outputDir = wikiOutputDir(entry.path);
-
-  // Run in background — respond immediately
-  generateWiki(entry.path, outputDir, !!force).then(result => {
+  // Run gitnexus wiki in background
+  generateWiki(entry.path).then(result => {
     if (result.success) {
-      console.log(`[wiki] ${repoName}: ${result.total} pages (${result.generated} new, ${result.updated} updated)`);
+      console.log(`[wiki] ${repoName}: generated successfully`);
     } else {
       console.error(`[wiki] ${repoName} failed: ${result.error}`);
     }
   });
 
-  res.json({ message: 'Wiki generation started', outputDir });
+  res.json({ message: 'Wiki generation started' });
 });
 
-/** Get wiki index for a repo. Returns { pages: string[], content: string }. */
+/** Get wiki info for a repo: module tree + overview content. */
 app.get('/api/wiki/:repoName', async (req, res) => {
   const { repoName } = req.params;
   const registry = await loadRegistry();
@@ -681,15 +679,11 @@ app.get('/api/wiki/:repoName', async (req, res) => {
     : registry.find(r => r.name === repoName);
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
 
-  const outputDir = wikiOutputDir(entry.path);
-  const pages = await listWikiPages(outputDir);
-  const content = await readWikiIndex(outputDir);
+  const wikiDir = wikiOutputDir(entry.path);
+  const tree = await loadModuleTree(wikiDir);
+  const pages = await listWikiPages(wikiDir);
 
-  res.json({
-    repoName: entry.name,
-    pages,
-    content, // raw markdown, frontend renders with marked.js
-  });
+  res.json({ repoName: entry.name, tree, pages });
 });
 
 /** Get a specific wiki page for a repo. Returns { page, content }. */
@@ -722,54 +716,34 @@ async function sendWikiPage(repoName: string, _req: any, res: any) {
   const repo = repos.find(r => r.name === repoName);
   if (!repo) { res.status(404).type('text').send('Repo "' + repoName + '" not found'); return; }
   const stats = repo.stats;
-  const reg = await loadRegistry();
-  const entry = reg.find(r => r.name === repoName);
-  const repoPath = entry?.path || rootDir;
-  const wikiDir = wikiOutputDir(repoPath);
-  const wikiPages = await listWikiPages(wikiDir);
-  const hasWiki = wikiPages.length > 0;
+  const wikiDir = wikiOutputDir(
+    repoName === 'opencodewiki' ? rootDir : (await loadRegistry()).find(r => r.name === repoName)?.path || rootDir,
+  );
+  const hasWiki = (await listWikiPages(wikiDir)).length > 0;
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>${repoName} — OpenCodeWiki</title>
-<script src="/vendor/marked.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
 body{background:#f5f5f7;color:#111}
 .header{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid #e5e7eb;padding:14px 24px;display:flex;align-items:center;gap:12px}
 .header h1{font-size:16px;font-weight:600}
-.header a{color:#007aff;text-decoration:none;font-size:14px;margin-left:auto}
-.nav{display:flex;gap:0;border-bottom:1px solid #e5e7eb;background:#fff;padding:0 24px}
-.nav a{padding:10px 18px;font-size:13px;color:#666;text-decoration:none;border-bottom:2px solid transparent;cursor:pointer}
-.nav a.active{color:#007aff;border-bottom-color:#007aff}
+.header a{color:#007aff;text-decoration:none;margin-left:auto;font-size:14px}
 .main{max-width:800px;margin:0 auto;padding:32px 24px 100px}
+.repo-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.repo-list a{padding:6px 14px;border-radius:20px;border:1px solid #e5e7eb;text-decoration:none;font-size:13px;color:#555;background:#fff}
+.repo-list a.active{background:#007aff;color:#fff;border-color:#007aff}
 .stats{display:flex;gap:16px;margin:20px 0 32px}
 .stat-box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;flex:1;text-align:center}
 .stat-box .num{font-size:24px;font-weight:700;color:#007aff}
 .stat-box .label{font-size:12px;color:#888;margin-top:4px}
-.repo-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-.repo-list a{padding:6px 14px;border-radius:20px;border:1px solid #e5e7eb;text-decoration:none;font-size:13px;color:#555;background:#fff}
-.repo-list a.active{background:#007aff;color:#fff;border-color:#007aff}
-.wiki-section{display:none;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;margin-top:20px}
-.wiki-section.active{display:block}
-.wiki-section h1,.wiki-section h2,.wiki-section h3{color:#111;margin:20px 0 10px}
-.wiki-section h1:first-child,.wiki-section h2:first-child{margin-top:0}
-.wiki-section h1{font-size:22px;border-bottom:1px solid #eee;padding-bottom:8px}
-.wiki-section h2{font-size:17px}
-.wiki-section h3{font-size:15px}
-.wiki-section p{font-size:14px;line-height:1.7;color:#333;margin:8px 0}
-.wiki-section a{color:#007aff;text-decoration:none}
-.wiki-section a:hover{text-decoration:underline}
-.wiki-section table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
-.wiki-section th,.wiki-section td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
-.wiki-section th{background:#f9f9f9;font-weight:600}
-.wiki-section code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}
-.wiki-section pre{background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.5}
-.wiki-section pre code{background:inherit;color:inherit;padding:0;font-size:inherit}
-.wiki-section ul,.wiki-section ol{padding-left:20px;margin:8px 0}
-.wiki-section li{font-size:14px;line-height:1.7;color:#333}
-.wiki-section blockquote{border-left:3px solid #007aff;padding:8px 16px;margin:12px 0;color:#666;background:#f9f9f9}
-.wiki-loading{color:#888;font-size:14px;padding:20px 0;text-align:center}
+.btn{display:inline-block;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;text-align:center}
+.btn-primary{background:#007aff;color:#fff;border:none}
+.btn-primary:hover{opacity:.88}
+.btn-outline{border:1px solid #007aff;color:#007aff;background:transparent}
+.btn-outline:hover{background:#e8f0fe}
+.actions{display:flex;gap:12px;justify-content:center;margin-top:24px}
 .bottom-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:640px;z-index:20;padding:0 16px}
 .input-box{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:10px 16px;display:flex;align-items:flex-end;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .input-box:focus-within{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.18)}
@@ -777,113 +751,139 @@ body{background:#f5f5f7;color:#111}
 .input-box textarea::placeholder{color:#aaa}
 .input-box button{padding:8px 22px;background:#007aff;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
 .input-box button:hover{opacity:.88}
-.input-box textarea::-webkit-scrollbar{width:4px}
-.input-box textarea::-webkit-scrollbar-thumb{background:#bbb;border-radius:2px}
-.input-box textarea::-webkit-scrollbar-button{display:none}
 </style></head>
 <body>
 <div class="header">
-  <h1 style="color:#007aff;display:inline"><a href="/" style="color:inherit;text-decoration:none">OpenCodeWiki</a></h1>
+  <h1><a href="/" style="color:#007aff;text-decoration:none">OpenCodeWiki</a></h1>
   <span style="font-size:13px;color:#888">${repoName}</span>
   <a href="/qa?repo=${encodeURIComponent(repoName)}">Ask AI</a>
 </div>
-<div class="repo-list" style="padding:12px 24px 0">
-  ${allRepos.map(n => '<a href="/' + encodeURIComponent(n) + '"' + (n === repoName ? ' class="active"' : '') + '>' + n + '</a>').join('')}
-</div>
-<div class="nav">
-  <a class="active" onclick="showTab('stats',this)">Overview</a>
-  ${hasWiki ? '<a onclick="showTab(\'wiki\',this)">Wiki</a>' : ''}
-  ${hasWiki ? '<a onclick="showTab(\'wiki-index\',this)">Wiki Index</a>' : ''}
-</div>
 <div class="main">
-  <!-- Stats tab -->
-  <div id="tab-stats" class="active">
-    <div class="stats">
-      <div class="stat-box"><div class="num">${stats.files}</div><div class="label">Files</div></div>
-      <div class="stat-box"><div class="num">${stats.nodes}</div><div class="label">Symbols</div></div>
-      <div class="stat-box"><div class="num">${stats.edges ?? '-'}</div><div class="label">Relations</div></div>
-    </div>
-  </div>
-
-  <!-- Wiki pages tab -->
-  <div id="tab-wiki" class="wiki-section"></div>
-
-  <!-- Wiki index tab -->
-  <div id="tab-wiki-index" class="wiki-section"></div>
+<div class="repo-list">${allRepos.map(n => '<a href="/' + encodeURIComponent(n) + '"' + (n === repoName ? ' class="active"' : '') + '>' + n + '</a>').join('')}</div>
+<div class="stats">
+  <div class="stat-box"><div class="num">${stats.files}</div><div class="label">Files</div></div>
+  <div class="stat-box"><div class="num">${stats.nodes}</div><div class="label">Symbols</div></div>
+  <div class="stat-box"><div class="num">${stats.edges ?? '-'}</div><div class="label">Relations</div></div>
+</div>
+<div class="actions">
+  ${hasWiki ? '<a href="/' + encodeURIComponent(repoName) + '/wiki" class="btn btn-primary">View Wiki</a>' : ''}
+</div>
 </div>
 <div class="bottom-bar">
-  <div class="input-box">
-    <form action="/qa" method="get" style="display:flex;align-items:flex-end;gap:8px;width:100%">
-      <input type="hidden" name="repo" value="${repoName}">
-      <textarea name="q" placeholder="Ask about ${repoName}..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit()}"></textarea>
-      <button type="submit">Ask</button>
-    </form>
+  <div class="input-box"><form action="/qa" method="get" style="display:flex;align-items:flex-end;gap:8px;width:100%">
+    <input type="hidden" name="repo" value="${repoName}">
+    <textarea name="q" placeholder="Ask about ${repoName}..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit()}"></textarea>
+    <button type="submit">Ask</button>
+  </form></div>
+</div>
+</body></html>`;
+  res.type('html').send(html);
+}
+
+async function sendWikiViewer(repoName: string, _req: any, res: any) {
+  const repos = await knownRepos();
+  const reg = await loadRegistry();
+  const entry = repoName === 'opencodewiki'
+    ? { name: 'opencodewiki', path: rootDir }
+    : reg.find(r => r.name === repoName);
+  if (!entry) { res.status(404).type('text').send('Repo not found'); return; }
+  const wikiDir = wikiOutputDir(entry.path);
+  const tree = await loadModuleTree(wikiDir);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${repoName} — Wiki</title>
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/mermaid.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#ffffff;--sidebar-bg:#f8f9fb;--border:#e5e7eb;--text:#1e293b;--text-muted:#64748b;--primary:#2563eb;--primary-soft:#eff6ff;--hover:#f1f5f9;--code-bg:#f1f5f9;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.65;color:var(--text);background:var(--bg)}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:280px;background:var(--sidebar-bg);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;padding:24px 16px;display:flex;flex-direction:column;z-index:10}
+.content{margin-left:280px;flex:1;padding:48px 64px;max-width:960px}
+.sidebar-header{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.sidebar-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--primary)}
+.sidebar-title:hover{opacity:.85}
+.sidebar-meta{font-size:11px;color:var(--text-muted);margin-top:6px}
+.nav-item{display:block;padding:7px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text);text-decoration:none;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-item:hover{background:var(--hover)}
+.nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.nav-item.overview{font-weight:600;margin-bottom:4px}
+.sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center}
+.content h1{font-size:28px;font-weight:700;margin-bottom:8px;line-height:1.3}
+.content h2{font-size:22px;font-weight:600;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.content h3{font-size:17px;font-weight:600;margin:24px 0 8px}
+.content p{margin:12px 0}
+.content ul,.content ol{margin:12px 0 12px 24px}
+.content li{margin:4px 0}
+.content a{color:var(--primary);text-decoration:none}
+.content a:hover{text-decoration:underline}
+.content blockquote{border-left:3px solid var(--primary);padding:8px 16px;margin:16px 0;background:var(--primary-soft);border-radius:0 var(--radius) var(--radius) 0;color:var(--text-muted);font-size:14px}
+.content code{font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:13px;background:var(--code-bg);padding:2px 6px;border-radius:4px}
+.content pre{background:#1e293b;color:#e2e8f0;border-radius:var(--radius);padding:16px;overflow-x:auto;margin:16px 0}
+.content pre code{background:none;padding:0;font-size:13px;line-height:1.6;color:inherit}
+.content table{border-collapse:collapse;width:100%;margin:16px 0}
+.content th,.content td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:14px}
+.content th{background:var(--sidebar-bg);font-weight:600}
+.content .mermaid{margin:20px 0;text-align:center}
+@media(max-width:768px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.content{margin-left:0;padding:24px 20px}.menu-toggle{display:block}}
+.menu-toggle{display:none;position:fixed;top:12px;left:12px;z-index:20;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;cursor:pointer}
+.empty-state{text-align:center;padding:80px 20px;color:var(--text-muted)}
+</style></head>
+<body>
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="/${encodeURIComponent(repoName)}" class="sidebar-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        ${repoName}
+      </a>
+      <div class="sidebar-meta">Wiki · generated by GitNexus</div>
+    </div>
+    <nav>
+      <a class="nav-item overview" href="#" onclick="loadPage('overview');return false">📄 Overview</a>
+      ${tree.map(m => '<a class="nav-item" href="#" onclick="loadPage(\'' + m.slug + '\');return false">' + m.name + '</a>').join('')}
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/qa?repo=${encodeURIComponent(repoName)}" style="color:var(--primary);font-size:12px;text-decoration:none">Ask AI about this repo →</a>
+    </div>
+  </div>
+  <div class="content" id="content">
+    <div class="empty-state"><h2>Loading...</h2></div>
   </div>
 </div>
+<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
 <script>
 const REPO = ${JSON.stringify(repoName)};
 
-function showTab(name, el) {
-  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
-  if (el) el.classList.add('active');
-  document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.remove('active'));
-  const tab = document.getElementById('tab-' + name);
-  if (tab) tab.classList.add('active');
-
-  // Load wiki content on first click
-  if (name === 'wiki-index' && !tab.dataset.loaded) {
-    tab.dataset.loaded = '1';
-    tab.innerHTML = '<div class="wiki-loading">Loading wiki...</div>';
-    fetch('/api/wiki/' + encodeURIComponent(REPO))
-      .then(r => r.json())
-      .then(data => {
-        if (data.content) {
-          tab.innerHTML = marked.parse(data.content);
-        } else {
-          tab.innerHTML = '<p style="color:#888;padding:20px;text-align:center">No wiki content available.</p>';
-        }
-      })
-      .catch(() => { tab.innerHTML = '<p style="color:#888;padding:20px">Failed to load wiki.</p>'; });
-  }
-  if (name === 'wiki' && !tab.dataset.loaded) {
-    tab.dataset.loaded = '1';
-    loadWikiPageList();
-  }
+function loadPage(slug) {
+  document.querySelectorAll('.nav-item').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(a => {
+    if (a.textContent.includes(slug === 'overview' ? 'Overview' : slug.replace(/-/g, ' '))) {
+      a.classList.add('active');
+    }
+  });
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
+  const url = slug === 'overview'
+    ? '/api/wiki/' + encodeURIComponent(REPO) + '/overview'
+    : '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+  fetch(url).then(r => r.json()).then(data => {
+    if (data.content) {
+      el.innerHTML = marked.parse(data.content);
+      if (window.mermaid) mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
+    } else {
+      el.innerHTML = '<div class="empty-state"><h2>Page not found</h2></div>';
+    }
+  }).catch(() => {
+    el.innerHTML = '<div class="empty-state"><h2>Failed to load page</h2></div>';
+  });
 }
 
-function loadWikiPageList() {
-  const tab = document.getElementById('tab-wiki');
-  tab.innerHTML = '<div class="wiki-loading">Loading wiki pages...</div>';
-  fetch('/api/wiki/' + encodeURIComponent(REPO))
-    .then(r => r.json())
-    .then(data => {
-      if (!data.pages || data.pages.length === 0) {
-        tab.innerHTML = '<p style="color:#888;padding:20px;text-align:center">No wiki pages.</p>';
-        return;
-      }
-      // Filter: remove index from the list, show page links
-      const pages = data.pages.filter(p => p !== 'index');
-      let html = '<h2>Wiki Pages</h2><ul>';
-      pages.forEach(p => {
-        html += '<li><a href="#" onclick="loadWikiPage(\\'' + p + '\\');return false">' + p.replace(/-/g, ' ') + '</a></li>';
-      });
-      html += '</ul><div id="wiki-page-content" style="margin-top:24px;border-top:1px solid #eee;padding-top:20px"></div>';
-      tab.innerHTML = html;
-    })
-    .catch(() => { tab.innerHTML = '<p style="color:#888;padding:20px">Failed to load wiki pages.</p>'; });
-}
-
-function loadWikiPage(slug) {
-  const container = document.getElementById('wiki-page-content');
-  container.innerHTML = '<div class="wiki-loading">Loading...</div>';
-  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  fetch('/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug))
-    .then(r => r.json())
-    .then(data => {
-      container.innerHTML = data.content ? marked.parse(data.content) : '<p>Page not found.</p>';
-    })
-    .catch(() => { container.innerHTML = '<p style="color:#888">Failed to load page.</p>'; });
-}
+// Load overview by default
+loadPage('overview');
 </script>
 </body></html>`;
   res.type('html').send(html);
@@ -892,10 +892,21 @@ function loadWikiPage(slug) {
 app.get('/:repoName', async (req, res, next) => {
   const names = await knownRepos();
   if (names.includes(req.params.repoName)) {
+    // Check if it's a wiki page request
     await sendWikiPage(req.params.repoName, req, res);
   } else {
     next();
   }
+});
+
+/** Wiki viewer route: /<repoName>/wiki */
+app.get('/:repoName/wiki', async (req, res) => {
+  const names = await knownRepos();
+  if (!names.includes(req.params.repoName)) {
+    res.status(404).type('text').send('Repo not found');
+    return;
+  }
+  await sendWikiViewer(req.params.repoName, req, res);
 });
 
 app.listen(PORT, () => {

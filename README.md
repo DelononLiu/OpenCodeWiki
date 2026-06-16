@@ -44,9 +44,10 @@ cd engine/codegraph && npm install && npm run build && cd ../..
 node engine/codegraph/dist/bin/codegraph.js init ~/Code/example
 node engine/codegraph/dist/bin/codegraph.js index ~/Code/example
 
-# 7. (可选) 生成 Wiki 文档 — 基于社区结构的自动文档
-#     首次会先构建 CRG 索引（较慢），之后增量更新
-#     Wiki 生成到 .codegraph/wiki/，纯 Markdown 可脱离工具阅读
+# 7. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎生成
+#     需要先运行 gitnexus analyze 建立索引
+#     Wiki 生成到 .gitnexus/wiki/，纯 Markdown 可脱离工具阅读
+gitnexus analyze ~/Code/example
 npm run wiki -- ~/Code/example
 
 # 8. 启动服务

@@ -116,7 +116,7 @@ data: {"type":"error","message":"..."}
 
 ```
 用户提问 → POST /api/qa
-  → resolveRepo → 读取 .codegraph/wiki/overview.md（系统上下文）
+  → resolveRepo → 读取 .gitnexus/wiki/overview.md（系统上下文，回退 .codegraph/wiki/index.md）
   → 中文检测 → 翻译英文 → 构造双语搜索语句
   → 调 search() 回调（codegraph 搜索）
   → 遍历每个搜索结果 → 从磁盘读实际代码片段

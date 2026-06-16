@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI script to generate wiki for a repository.
+ * CLI script to generate wiki for a repository using GitNexus.
  *
  * Usage:
  *   node scripts/wiki.mjs <repo-path> [--force]
@@ -8,14 +8,17 @@
  * Examples:
  *   node scripts/wiki.mjs ~/Code/myproject
  *   node scripts/wiki.mjs ~/Code/myproject --force
+ *
+ * Prerequisites:
+ *   - gitnexus CLI installed (npm install -g gitnexus)
+ *   - `gitnexus analyze` has been run on the repo first
+ *   - LLM configured (OPENAI_API_KEY or ~/.gitnexus/config.json)
  */
 
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const bridge = path.resolve(__dirname, 'crg-wiki.py');
 const repoPath = process.argv[2];
 const force = process.argv.includes('--force');
 
@@ -24,46 +27,28 @@ if (!repoPath) {
   process.exit(1);
 }
 
-const outputDir = path.join(path.resolve(repoPath), '.codegraph', 'wiki');
-const args = [bridge, path.resolve(repoPath), outputDir];
+const resolvedPath = path.resolve(repoPath);
+
+// Check for gitnexus index first
+const metaPath = path.join(resolvedPath, '.gitnexus', 'meta.json');
+if (!fs.existsSync(metaPath)) {
+  console.error(`✗ No GitNexus index found at ${resolvedPath}`);
+  console.error('  Run `gitnexus analyze` first to index this repository.');
+  process.exit(1);
+}
+
+const args = ['wiki', resolvedPath];
 if (force) args.push('--force');
 
-console.log(`Generating wiki for: ${repoPath}`);
-console.log(`Output: ${outputDir}`);
+console.log(`Generating wiki for: ${resolvedPath}`);
 console.log('');
 
 try {
-  const stdout = execFileSync('python3', args, {
+  execFileSync('gitnexus', args, {
     timeout: 600_000,
-    maxBuffer: 1024 * 1024,
-    encoding: 'utf-8',
+    stdio: 'inherit',
   });
-
-  // Parse the last JSON line
-  const lines = stdout.trim().split('\n').filter(Boolean);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const result = JSON.parse(lines[i]);
-      if (result.success) {
-        console.log(`✓ Wiki generated: ${result.total} pages (${result.generated} new, ${result.updated} updated)`);
-        console.log(`  Pages: ${result.output_dir}`);
-        process.exit(0);
-      } else {
-        if (result.needs_build) {
-          console.log('  CRG index not found, building... (this may take a few minutes)');
-          // The bridge script will handle this, but we already got the result
-          // Actually let's just re-run since the first run triggered the build
-          continue;
-        }
-        console.error(`✗ Failed: ${result.error}`);
-        process.exit(1);
-      }
-    } catch { /* skip non-JSON lines (build progress) */ }
-  }
-  console.error('✗ No JSON result from bridge script');
-  console.error('stdout:', stdout.slice(0, 1000));
-  process.exit(1);
 } catch (err) {
-  console.error(`✗ Error: ${err.message}`);
+  console.error(`✗ Wiki generation failed: ${err.message}`);
   process.exit(1);
 }
