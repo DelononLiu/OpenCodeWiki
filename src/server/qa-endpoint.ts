@@ -481,63 +481,32 @@ async function resolveCrossRepoSources(
   return merged;
 }
 
-type QuestionType = 'overview' | 'feature' | 'debug' | 'compare' | 'api' | 'general'
-  | 'build' | 'static-analysis' | 'stack-analysis' | 'program-analysis' | 'log-analysis';
+type QuestionType = 'general'
+  | 'build-issue' | 'static-analysis' | 'stack-analysis' | 'program-analysis' | 'log-analysis';
 
 function classifyQuestion(question: string): QuestionType {
   const q = question.trim().toLowerCase();
-  if (/^(介绍|什么是|overview|describe|explain|tell me about|what is|架构|architecture|简介)/.test(q)) return 'overview';
-  if (/(区别|差异|vs\b|versus|compared|对比|不同|difference|pros|cons|tradeoff)/.test(q)) return 'compare';
-  if (/(报错|错误|失败|error|fail|bug|crash|exception|为什么|why|原因|cause|解决|fix|排查|trouble)/.test(q)) return 'debug';
-  if (/(函数|方法|api\b|interface|class|function|method|参数|返回|signature|params?|returns?)/.test(q)) return 'api';
-  // New: build / compile
-  if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency)/.test(q)) return 'build';
-  // New: static code analysis
+  // Build / compile issues
+  if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency)/.test(q)) return 'build-issue';
+  // Static code analysis
   if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|静态分析|格式检查|代码规范|规范检查)/.test(q)) return 'static-analysis';
-  // New: stack trace / crash analysis
+  // Stack trace / crash analysis
   if (/(堆栈|栈回溯|stack trace|call stack|segfault|段错误|null pointer|空指针|crash dump|core dump|异常退出|panic)/.test(q)) return 'stack-analysis';
-  // New: program analysis
+  // Program analysis
   if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用图|call graph|循环复杂度|cyclomatic)/.test(q)) return 'program-analysis';
-  // New: log analysis
+  // Log analysis
   if (/(日志|日志分析|异常日志|服务日志|access log|nginx log|application log|syslog|日志文件|log\b)/.test(q)) return 'log-analysis';
   return 'general';
 }
 
 function structureGuide(type: QuestionType): string {
   const guides: Record<QuestionType, string[]> = {
-    overview: [
-      '- Start with a 1-sentence summary (no heading).',
-      '- Use ## Architecture with a mermaid diagram for the high-level structure.',
-      '- Use ## Features with a bullet list of key capabilities.',
-      '- Use ## Usage with code blocks for examples.',
-    ],
-    feature: [
-      '- Answer directly (1 sentence, no heading).',
-      '- Use ## Implementation (or ## Details) with key code snippets.',
-      '- Use bullet points for steps or considerations.',
-    ],
-    debug: [
-      '- State the cause directly (1 sentence, no heading).',
-      '- Use ## Root Cause explaining what triggers the issue.',
-      '- Use ## Solution with code blocks for the fix.',
-    ],
-    compare: [
-      '- Start with a 1-sentence verdict (no heading).',
-      '- Use a markdown table for side-by-side comparison.',
-      '- Use ## Analysis explaining trade-offs and when to use each.',
-    ],
-    api: [
-      '- Start with 1 sentence on what it does (no heading).',
-      '- Use ## Signature with the type signature in a code block.',
-      '- Use ## Parameters as a bullet list.',
-      '- Use ## Example with a usage code block.',
-    ],
     general: [
       '- Start with a 1-sentence direct answer (no heading).',
       '- Organize the rest into ## sections by topic.',
       '- Prefer bullet points and short paragraphs.',
     ],
-    build: [
+    'build-issue': [
       '- 直接指出错误信息（1 句话，无标题）。',
       '- Use ## 错误信息 with the exact error text in a code block.',
       '- Use ## 可能原因 as a bullet list explaining what triggers it.',
@@ -844,8 +813,8 @@ export function createQaEndpoint(
     session.updatedAt = new Date().toISOString();
     saveSession(session);
 
-    const VALID_TYPES: QuestionType[] = ['overview', 'feature', 'debug', 'compare', 'api', 'general',
-      'build', 'static-analysis', 'stack-analysis', 'program-analysis', 'log-analysis'];
+    const VALID_TYPES: QuestionType[] = ['general',
+      'build-issue', 'static-analysis', 'stack-analysis', 'program-analysis', 'log-analysis'];
     const qType: QuestionType = (questionType && VALID_TYPES.includes(questionType as QuestionType))
       ? (questionType as QuestionType)
       : classifyQuestion(question);
