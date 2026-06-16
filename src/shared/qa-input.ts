@@ -102,7 +102,7 @@ export function qaInputHtml(cfg: QaInputConfig): string {
           </div>
         </span>
       </div>
-      <button type="submit" id="${cfg.idMap.sendBtn}">Ask</button>
+      <button type="${cfg.formAction || cfg.onsubmit ? 'submit' : 'button'}" id="${cfg.idMap.sendBtn}">Ask</button>
     </div>
   </form>
 </div>`.trim();

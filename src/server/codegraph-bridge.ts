@@ -814,13 +814,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   document.addEventListener('DOMContentLoaded', function() {
     mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
     /* QA_INPUT_JS */
-    // Enter key submits the form (input is outside <form>)
+    // Enter key redirect to QA page (input is outside <form>)
     document.getElementById('wikiQaInput').addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
+        var q = this.value.trim();
+        if (!q) return;
         var st = window.__qaSelectedType ? window.__qaSelectedType() : '';
-        document.getElementById('wikiQaType').value = st;
-        this.closest('.qa-entry').querySelector('form').submit();
+        var params = new URLSearchParams({ q: q, repo: REPO });
+        if (st) params.set('type', st);
+        location.href = '/qa?' + params.toString();
       }
     });
     renderNav();
