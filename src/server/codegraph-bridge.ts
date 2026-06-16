@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
+import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-input.js';
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
@@ -411,7 +412,12 @@ app.use('/vendor', async (req, res, next) => {
 
 async function sendQaPage(_req: any, res: any) {
   try {
-    const content = await fs.readFile(qaIndexFile, 'utf-8');
+    let content = await fs.readFile(qaIndexFile, 'utf-8');
+    const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
+    const QA_IDS = { typeBar: 'qaTypeBar', moreBtn: 'qaMoreBtn', moreDropdown: 'qaMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput' };
+    content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', onsubmit: 'sendMessage(event)', idMap: QA_IDS }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS }));
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Q&A page not found');
@@ -420,7 +426,12 @@ async function sendQaPage(_req: any, res: any) {
 
 async function sendHomePage(_req: any, res: any) {
   try {
-    const content = await fs.readFile(homeIndexFile, 'utf-8');
+    let content = await fs.readFile(homeIndexFile, 'utf-8');
+    const HOME_VARS = { bgSurface: 'var(--surface)', bgSecondary: 'var(--tag-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text3)', blue: 'var(--blue)' };
+    const HOME_IDS = { typeBar: 'homeTypeBar', moreBtn: 'homeMoreBtn', moreDropdown: 'homeMoreDropdown', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput' };
+    content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS }));
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Home page not found');
@@ -718,7 +729,7 @@ async function sendWikiViewer(repoName: string, _req: any, res: any) {
   const wikiDir = wikiOutputDir(repoPath);
   const tree = await loadModuleTree(wikiDir);
 
-  const html = `<!DOCTYPE html>
+  let html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -766,12 +777,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:2px 0 12px rgba(0,0,0,.1)}.content{margin-left:0;padding:24px 20px;padding-top:56px}.menu-toggle{display:block}}
 .empty-state{text-align:center;padding:80px 20px;color:var(--text-muted)}
 .empty-state h2{font-size:20px;margin-bottom:8px;border:none}
-.qa-entry{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:740px;z-index:20;padding:0 16px}
-.qa-form{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
-.qa-form input{flex:1;border:none;background:transparent;outline:none;font-size:14px;font-family:inherit;color:var(--text);padding:4px 0;line-height:1.5}
-.qa-form input::placeholder{color:var(--text-muted)}
-.qa-form button{padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
-.qa-form button:hover{opacity:.88}
+.qa-entry{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:680px;z-index:20;padding:0 16px}
+/* QA_INPUT_CSS */
 </style></head>
 <body>
 
@@ -795,11 +802,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 </div>
 
 <div class="qa-entry">
-  <form class="qa-form" action="/qa" method="GET">
-    <input type="hidden" name="repo" value="${repoName}">
-    <input type="text" name="q" placeholder="Ask anything about this codebase..." autocomplete="off">
-    <button type="submit">Ask</button>
-  </form>
+  <!-- QA_INPUT_HTML -->
 </div>
 
 <script>
@@ -810,6 +813,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 
   document.addEventListener('DOMContentLoaded', function() {
     mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+    /* QA_INPUT_JS */
+    // Enter key submits the form (input is outside <form>)
+    document.getElementById('wikiQaInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        var st = window.__qaSelectedType ? window.__qaSelectedType() : '';
+        document.getElementById('wikiQaType').value = st;
+        this.closest('.qa-entry').querySelector('form').submit();
+      }
+    });
     renderNav();
     document.getElementById('menuToggle').addEventListener('click', function() {
       document.getElementById('sidebar').classList.toggle('open');
@@ -872,6 +885,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 })();
 </script>
 </body></html>`;
+  const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
+  const WIKI_IDS = { typeBar: 'wikiTypeBar', moreBtn: 'wikiMoreBtn', moreDropdown: 'wikiMoreDropdown', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType' };
+  html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
+  var wikiOnsubmit = "var _st=window.__qaSelectedType?window.__qaSelectedType():'';document.getElementById('wikiQaType').value=_st";
+  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', formAction: '/qa', repoName, onsubmit: wikiOnsubmit, idMap: WIKI_IDS }));
+  html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS }));
   res.type('html').send(html);
 }
 

@@ -34,24 +34,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 
 /* Main area */
 .main{flex:1;display:flex;flex-direction:column;align-items:center;padding:25vh 40px 0;min-width:0;overflow-y:auto}
-.qa-box{max-width:640px;width:100%;margin:0 auto}
+.qa-box{max-width:680px;width:100%;margin:0 auto}
 .qa-welcome{text-align:center;margin-bottom:16px;position:relative;top:-40px}
 .qa-welcome-title{font-size:28px;font-weight:700;color:var(--blue);letter-spacing:-.02em}
 .qa-welcome-sub{font-size:13px;color:var(--text3);font-weight:400;letter-spacing:normal}
 .repo-section{width:800px;margin:0 auto;flex-shrink:0}
-.qa-input-wrap{display:flex;align-items:flex-end;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 16px;transition:box-shadow .2s;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-
-.qa-input-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,122,255,.18)}
-.qa-input-wrap textarea{flex:1;border:none;background:transparent;outline:none;font-size:16px;color:var(--text);resize:none;overflow:hidden;padding:3px 0;line-height:1.6;min-height:56px;font-family:inherit}
-.qa-input-wrap textarea::placeholder{color:#aaa}
-.qa-input-wrap button{padding:8px 22px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
-.qa-input-wrap button:hover{opacity:.88}
-.qa-input-wrap button:disabled{opacity:.35;cursor:not-allowed}
-.qa-input-wrap textarea::-webkit-scrollbar{width:4px}
-.qa-input-wrap textarea::-webkit-scrollbar-thumb{background:var(--text3);border-radius:2px}
-.qa-input-wrap textarea::-webkit-scrollbar-button{display:none}
-.qa-input-wrap .attach-btn{background:transparent!important;border:none!important;color:var(--text3);cursor:pointer;padding:4px 6px!important;border-radius:6px;display:flex;align-items:center;font-size:20px;line-height:1;min-width:32px;height:32px;justify-content:center;flex-shrink:0}
-.qa-input-wrap .attach-btn:hover{color:var(--blue)!important;background:var(--tag-bg)!important;opacity:1!important}
+/* QA_INPUT_CSS */
 .home-file-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:var(--tag-bg);color:var(--text2);max-width:180px}
 .home-file-chip .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px}
 .home-file-chip .size{color:var(--text3);font-size:10px}
@@ -104,19 +92,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
     <div class="qa-welcome">
       <div class="qa-welcome-title">OpenCodeWiki <span class="qa-welcome-sub">/ 你的代码智能问答助手</span></div>
     </div>
-    <div class="qa-input-wrap" style="flex-direction:column;padding:8px 12px">
-      <div class="file-chips" id="fileChips" style="display:none;flex-wrap:wrap;gap:4px;padding:0 0 4px 0;max-height:60px;overflow-y:auto"></div>
-      <div style="display:flex;align-items:flex-end;gap:6px;width:100%">
-        <button type="button" class="attach-btn" onclick="document.getElementById('fileInput').click()" title="上传文件 (日志等)">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-          </svg>
-        </button>
-        <input type="file" id="fileInput" multiple style="display:none" onchange="handleHomeFiles(this.files)">
-        <textarea id="qaInput" rows="1" placeholder="输入代码库相关问题..." autocomplete="off"></textarea>
-        <button id="qaAskBtn" disabled>Ask</button>
-      </div>
-    </div>
+    <!-- QA_INPUT_HTML -->
     <div class="qa-examples">
       <button onclick="askExample('auth service 的影响范围')">auth service 的影响范围</button>
       <button onclick="askExample('kcode 和 opencodewiki 如何集成')">kcode 和 opencodewiki 如何集成</button>
@@ -196,12 +172,16 @@ function handleHomeFiles(files) {
   document.getElementById('fileInput').value = '';
 }
 
+/* QA_INPUT_JS */
+
 function submitQa() {
   var q = qaInput.value.trim();
   if (!q) return;
   redirectOverlay.style.display = 'flex';
   // Pass sessionId so uploaded files carry over to QA page
   var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
+  var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
+  if (_st) params.set('type', _st);
   setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
 }
 
@@ -355,6 +335,7 @@ document.getElementById('qaSidebar').style.borderRight = 'none';
 document.getElementById('qaSidebar').classList.add('collapsed');
 loadRepos();
 loadLatestSessions();
+document.getElementById('fileInput').addEventListener('change', function(e) { handleHomeFiles(e.target.files); });
 </script>
 
 </body>

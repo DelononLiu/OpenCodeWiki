@@ -481,7 +481,8 @@ async function resolveCrossRepoSources(
   return merged;
 }
 
-type QuestionType = 'overview' | 'feature' | 'debug' | 'compare' | 'api' | 'general';
+type QuestionType = 'overview' | 'feature' | 'debug' | 'compare' | 'api' | 'general'
+  | 'build' | 'static-analysis' | 'stack-analysis' | 'program-analysis' | 'log-analysis';
 
 function classifyQuestion(question: string): QuestionType {
   const q = question.trim().toLowerCase();
@@ -489,6 +490,16 @@ function classifyQuestion(question: string): QuestionType {
   if (/(区别|差异|vs\b|versus|compared|对比|不同|difference|pros|cons|tradeoff)/.test(q)) return 'compare';
   if (/(报错|错误|失败|error|fail|bug|crash|exception|为什么|why|原因|cause|解决|fix|排查|trouble)/.test(q)) return 'debug';
   if (/(函数|方法|api\b|interface|class|function|method|参数|返回|signature|params?|returns?)/.test(q)) return 'api';
+  // New: build / compile
+  if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency)/.test(q)) return 'build';
+  // New: static code analysis
+  if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|静态分析|格式检查|代码规范|规范检查)/.test(q)) return 'static-analysis';
+  // New: stack trace / crash analysis
+  if (/(堆栈|栈回溯|stack trace|call stack|segfault|段错误|null pointer|空指针|crash dump|core dump|异常退出|panic)/.test(q)) return 'stack-analysis';
+  // New: program analysis
+  if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用图|call graph|循环复杂度|cyclomatic)/.test(q)) return 'program-analysis';
+  // New: log analysis
+  if (/(日志|日志分析|异常日志|服务日志|access log|nginx log|application log|syslog|日志文件|log\b)/.test(q)) return 'log-analysis';
   return 'general';
 }
 
@@ -525,6 +536,41 @@ function structureGuide(type: QuestionType): string {
       '- Start with a 1-sentence direct answer (no heading).',
       '- Organize the rest into ## sections by topic.',
       '- Prefer bullet points and short paragraphs.',
+    ],
+    build: [
+      '- 直接指出错误信息（1 句话，无标题）。',
+      '- Use ## 错误信息 with the exact error text in a code block.',
+      '- Use ## 可能原因 as a bullet list explaining what triggers it.',
+      '- Use ## 解决方案 with actionable code blocks or commands.',
+      '- Keep it concise — no lengthy architecture discussion.',
+    ],
+    'static-analysis': [
+      '- 直接指出问题（1 句话，无标题）。',
+      '- Use ## 问题 describing the code quality or correctness issue.',
+      '- Use ## 文件位置 referencing the exact path and line.',
+      '- Use ## 建议修复 with before/after code snippets.',
+      '- Make recommendations actionable. Use code blocks.',
+    ],
+    'stack-analysis': [
+      '- 直接指出异常类型和关键信息（1 句话，无标题）。',
+      '- Use ## 异常类型 with the exception class and message in a code block.',
+      '- Use ## 调用链 showing only the critical frames from the trace.',
+      '- Use ## 根因 identifying the exact source line or condition.',
+      '- Focus on root cause — do not dump the full trace.',
+    ],
+    'program-analysis': [
+      '- 直接描述程序行为（1 句话，无标题）。',
+      '- Use ## 行为描述 explaining what the code does in plain language.',
+      '- Use ## 源码分析 walking through the relevant code path with snippets.',
+      '- Use ## 影响 explaining consequences, edge cases, or risks.',
+      '- Keep analysis focused on the specific code path.',
+    ],
+    'log-analysis': [
+      '- 1 句话总结日志内容（无标题）。',
+      '- Use ## 日志摘要 highlighting key timestamps and events.',
+      '- Use ## 异常提取 listing errors, warnings, and unusual patterns.',
+      '- Use ## 根因建议 with diagnostic steps or fix suggestions.',
+      '- Do not reproduce the full log — only critical lines.',
     ],
   };
   return guides[type].join('\n');
@@ -599,6 +645,7 @@ export function createQaEndpoint(
     const repoName = req.body?.repo ?? (req.query?.repo as string | undefined);
     let sessionId: string | undefined = req.body?.sessionId;
     const attachedFiles: { fileName: string; size: number }[] = req.body?.attachedFiles ?? [];
+    const questionType: string | undefined = req.body?.questionType;
 
     if (!question) {
       res.status(400).json({ error: 'Missing "question" in request body' });
@@ -797,7 +844,11 @@ export function createQaEndpoint(
     session.updatedAt = new Date().toISOString();
     saveSession(session);
 
-    const qType = classifyQuestion(question);
+    const VALID_TYPES: QuestionType[] = ['overview', 'feature', 'debug', 'compare', 'api', 'general',
+      'build', 'static-analysis', 'stack-analysis', 'program-analysis', 'log-analysis'];
+    const qType: QuestionType = (questionType && VALID_TYPES.includes(questionType as QuestionType))
+      ? (questionType as QuestionType)
+      : classifyQuestion(question);
     const structure = structureGuide(qType);
 
     const sourceRefs = sources.map(s =>
