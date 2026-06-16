@@ -6,6 +6,9 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions } from './qa-endpoint.js';
+import {
+  generateWiki, readWikiPage, readWikiIndex, listWikiPages, wikiOutputDir,
+} from './wiki-integration.js';
 
 // Codegraph is optional — the server can run without it (search/QA will be degraded)
 let ToolHandler: any, CodeGraph: any;
@@ -641,6 +644,71 @@ app.get('/api/qa/sessions/frequent', (_req, res) => {
   res.json(listFrequentQuestions(3));
 });
 
+// ── Wiki API ──────────────────────────────────────────────
+
+/** Trigger wiki generation for a repo. */
+app.post('/api/wiki/generate', async (req, res) => {
+  const { repoName, force } = req.body;
+  if (!repoName) { res.status(400).json({ error: 'Missing repoName' }); return; }
+
+  const registry = await loadRegistry();
+  const entry = repoName === 'opencodewiki'
+    ? { name: 'opencodewiki', path: rootDir }
+    : registry.find(r => r.name === repoName);
+
+  if (!entry) { res.status(404).json({ error: `Repo "${repoName}" not found` }); return; }
+
+  const outputDir = wikiOutputDir(entry.path);
+
+  // Run in background — respond immediately
+  generateWiki(entry.path, outputDir, !!force).then(result => {
+    if (result.success) {
+      console.log(`[wiki] ${repoName}: ${result.total} pages (${result.generated} new, ${result.updated} updated)`);
+    } else {
+      console.error(`[wiki] ${repoName} failed: ${result.error}`);
+    }
+  });
+
+  res.json({ message: 'Wiki generation started', outputDir });
+});
+
+/** Get wiki index for a repo. Returns { pages: string[], content: string }. */
+app.get('/api/wiki/:repoName', async (req, res) => {
+  const { repoName } = req.params;
+  const registry = await loadRegistry();
+  const entry = repoName === 'opencodewiki'
+    ? { name: 'opencodewiki', path: rootDir }
+    : registry.find(r => r.name === repoName);
+  if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
+
+  const outputDir = wikiOutputDir(entry.path);
+  const pages = await listWikiPages(outputDir);
+  const content = await readWikiIndex(outputDir);
+
+  res.json({
+    repoName: entry.name,
+    pages,
+    content, // raw markdown, frontend renders with marked.js
+  });
+});
+
+/** Get a specific wiki page for a repo. Returns { page, content }. */
+app.get('/api/wiki/:repoName/:page', async (req, res) => {
+  const repoName = req.params.repoName;
+  const page = req.params.page;
+  const registry = await loadRegistry();
+  const entry = repoName === 'opencodewiki'
+    ? { name: 'opencodewiki', path: rootDir }
+    : registry.find(r => r.name === repoName);
+  if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
+
+  const outputDir = wikiOutputDir(entry.path);
+  const content = await readWikiPage(outputDir, page);
+  if (content === null) { res.status(404).json({ error: `Wiki page "${page}" not found` }); return; }
+
+  res.json({ page, repoName: entry.name, content });
+});
+
 const knownRepos = async () => {
   const reg = await loadRegistry();
   const names = reg.map(r => r.name);
@@ -657,16 +725,23 @@ async function sendWikiPage(repoName: string, _req: any, res: any) {
   const reg = await loadRegistry();
   const entry = reg.find(r => r.name === repoName);
   const repoPath = entry?.path || rootDir;
+  const wikiDir = wikiOutputDir(repoPath);
+  const wikiPages = await listWikiPages(wikiDir);
+  const hasWiki = wikiPages.length > 0;
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>${repoName} — OpenCodeWiki</title>
+<script src="/vendor/marked.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
 body{background:#f5f5f7;color:#111}
 .header{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid #e5e7eb;padding:14px 24px;display:flex;align-items:center;gap:12px}
 .header h1{font-size:16px;font-weight:600}
 .header a{color:#007aff;text-decoration:none;font-size:14px;margin-left:auto}
+.nav{display:flex;gap:0;border-bottom:1px solid #e5e7eb;background:#fff;padding:0 24px}
+.nav a{padding:10px 18px;font-size:13px;color:#666;text-decoration:none;border-bottom:2px solid transparent;cursor:pointer}
+.nav a.active{color:#007aff;border-bottom-color:#007aff}
 .main{max-width:800px;margin:0 auto;padding:32px 24px 100px}
 .stats{display:flex;gap:16px;margin:20px 0 32px}
 .stat-box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;flex:1;text-align:center}
@@ -675,6 +750,26 @@ body{background:#f5f5f7;color:#111}
 .repo-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
 .repo-list a{padding:6px 14px;border-radius:20px;border:1px solid #e5e7eb;text-decoration:none;font-size:13px;color:#555;background:#fff}
 .repo-list a.active{background:#007aff;color:#fff;border-color:#007aff}
+.wiki-section{display:none;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;margin-top:20px}
+.wiki-section.active{display:block}
+.wiki-section h1,.wiki-section h2,.wiki-section h3{color:#111;margin:20px 0 10px}
+.wiki-section h1:first-child,.wiki-section h2:first-child{margin-top:0}
+.wiki-section h1{font-size:22px;border-bottom:1px solid #eee;padding-bottom:8px}
+.wiki-section h2{font-size:17px}
+.wiki-section h3{font-size:15px}
+.wiki-section p{font-size:14px;line-height:1.7;color:#333;margin:8px 0}
+.wiki-section a{color:#007aff;text-decoration:none}
+.wiki-section a:hover{text-decoration:underline}
+.wiki-section table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+.wiki-section th,.wiki-section td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
+.wiki-section th{background:#f9f9f9;font-weight:600}
+.wiki-section code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}
+.wiki-section pre{background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.5}
+.wiki-section pre code{background:inherit;color:inherit;padding:0;font-size:inherit}
+.wiki-section ul,.wiki-section ol{padding-left:20px;margin:8px 0}
+.wiki-section li{font-size:14px;line-height:1.7;color:#333}
+.wiki-section blockquote{border-left:3px solid #007aff;padding:8px 16px;margin:12px 0;color:#666;background:#f9f9f9}
+.wiki-loading{color:#888;font-size:14px;padding:20px 0;text-align:center}
 .bottom-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:640px;z-index:20;padding:0 16px}
 .input-box{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:10px 16px;display:flex;align-items:flex-end;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .input-box:focus-within{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.18)}
@@ -690,24 +785,106 @@ body{background:#f5f5f7;color:#111}
 <div class="header">
   <h1 style="color:#007aff;display:inline"><a href="/" style="color:inherit;text-decoration:none">OpenCodeWiki</a></h1>
   <span style="font-size:13px;color:#888">${repoName}</span>
+  <a href="/qa?repo=${encodeURIComponent(repoName)}">Ask AI</a>
+</div>
+<div class="repo-list" style="padding:12px 24px 0">
+  ${allRepos.map(n => '<a href="/' + encodeURIComponent(n) + '"' + (n === repoName ? ' class="active"' : '') + '>' + n + '</a>').join('')}
+</div>
+<div class="nav">
+  <a class="active" onclick="showTab('stats',this)">Overview</a>
+  ${hasWiki ? '<a onclick="showTab(\'wiki\',this)">Wiki</a>' : ''}
+  ${hasWiki ? '<a onclick="showTab(\'wiki-index\',this)">Wiki Index</a>' : ''}
 </div>
 <div class="main">
-  <div class="repo-list">${allRepos.map(n => '<a href="/' + encodeURIComponent(n) + '"' + (n === repoName ? ' class="active"' : '') + '>' + n + '</a>').join('')}</div>
-  <div class="stats">
-    <div class="stat-box"><div class="num">${stats.files}</div><div class="label">Files</div></div>
-    <div class="stat-box"><div class="num">${stats.nodes}</div><div class="label">Symbols</div></div>
-    <div class="stat-box"><div class="num">${stats.edges ?? '-'}</div><div class="label">Relations</div></div>
+  <!-- Stats tab -->
+  <div id="tab-stats" class="active">
+    <div class="stats">
+      <div class="stat-box"><div class="num">${stats.files}</div><div class="label">Files</div></div>
+      <div class="stat-box"><div class="num">${stats.nodes}</div><div class="label">Symbols</div></div>
+      <div class="stat-box"><div class="num">${stats.edges ?? '-'}</div><div class="label">Relations</div></div>
+    </div>
   </div>
+
+  <!-- Wiki pages tab -->
+  <div id="tab-wiki" class="wiki-section"></div>
+
+  <!-- Wiki index tab -->
+  <div id="tab-wiki-index" class="wiki-section"></div>
 </div>
 <div class="bottom-bar">
   <div class="input-box">
     <form action="/qa" method="get" style="display:flex;align-items:flex-end;gap:8px;width:100%">
       <input type="hidden" name="repo" value="${repoName}">
-      <textarea name="q" placeholder="${repoName} 相关问题..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit()}"></textarea>
+      <textarea name="q" placeholder="Ask about ${repoName}..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit()}"></textarea>
       <button type="submit">Ask</button>
     </form>
   </div>
 </div>
+<script>
+const REPO = ${JSON.stringify(repoName)};
+
+function showTab(name, el) {
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById('tab-' + name);
+  if (tab) tab.classList.add('active');
+
+  // Load wiki content on first click
+  if (name === 'wiki-index' && !tab.dataset.loaded) {
+    tab.dataset.loaded = '1';
+    tab.innerHTML = '<div class="wiki-loading">Loading wiki...</div>';
+    fetch('/api/wiki/' + encodeURIComponent(REPO))
+      .then(r => r.json())
+      .then(data => {
+        if (data.content) {
+          tab.innerHTML = marked.parse(data.content);
+        } else {
+          tab.innerHTML = '<p style="color:#888;padding:20px;text-align:center">No wiki content available.</p>';
+        }
+      })
+      .catch(() => { tab.innerHTML = '<p style="color:#888;padding:20px">Failed to load wiki.</p>'; });
+  }
+  if (name === 'wiki' && !tab.dataset.loaded) {
+    tab.dataset.loaded = '1';
+    loadWikiPageList();
+  }
+}
+
+function loadWikiPageList() {
+  const tab = document.getElementById('tab-wiki');
+  tab.innerHTML = '<div class="wiki-loading">Loading wiki pages...</div>';
+  fetch('/api/wiki/' + encodeURIComponent(REPO))
+    .then(r => r.json())
+    .then(data => {
+      if (!data.pages || data.pages.length === 0) {
+        tab.innerHTML = '<p style="color:#888;padding:20px;text-align:center">No wiki pages.</p>';
+        return;
+      }
+      // Filter: remove index from the list, show page links
+      const pages = data.pages.filter(p => p !== 'index');
+      let html = '<h2>Wiki Pages</h2><ul>';
+      pages.forEach(p => {
+        html += '<li><a href="#" onclick="loadWikiPage(\\'' + p + '\\');return false">' + p.replace(/-/g, ' ') + '</a></li>';
+      });
+      html += '</ul><div id="wiki-page-content" style="margin-top:24px;border-top:1px solid #eee;padding-top:20px"></div>';
+      tab.innerHTML = html;
+    })
+    .catch(() => { tab.innerHTML = '<p style="color:#888;padding:20px">Failed to load wiki pages.</p>'; });
+}
+
+function loadWikiPage(slug) {
+  const container = document.getElementById('wiki-page-content');
+  container.innerHTML = '<div class="wiki-loading">Loading...</div>';
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  fetch('/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug))
+    .then(r => r.json())
+    .then(data => {
+      container.innerHTML = data.content ? marked.parse(data.content) : '<p>Page not found.</p>';
+    })
+    .catch(() => { container.innerHTML = '<p style="color:#888">Failed to load page.</p>'; });
+}
+</script>
 </body></html>`;
   res.type('html').send(html);
 }

@@ -630,10 +630,16 @@ export function createQaEndpoint(
     } else {
       entry = await resolveRepo(repoName);
       if (entry) {
-        const overviewPath = path.join(entry.storagePath, 'wiki', 'overview.md');
+        // Try overview.md first, then fall back to index.md (CRG-generated wiki index)
+        const wikiDir = path.join(entry.storagePath, '.codegraph', 'wiki');
+        const overviewPath = path.join(wikiDir, 'overview.md');
         try {
           wikiContext = await fs.readFile(overviewPath, 'utf-8');
-        } catch {}
+        } catch {
+          try {
+            wikiContext = await fs.readFile(path.join(wikiDir, 'index.md'), 'utf-8');
+          } catch {}
+        }
       }
     }
 

@@ -203,7 +203,7 @@ Phase 2 预留给 Phase 1 迁移后的稳定性测试、问题修复、性能优
 | P3-01 | 向量嵌入 + RRF 混合搜索 | ⬜ 未开始 | P0 |
 | P3-02 | 执行流追踪 | ⬜ 未开始 | P0 |
 | P3-03 | 社区检测 (Leiden/Louvain) | ⬜ 未开始 | P1 |
-| P3-04 | Wiki 生成 | ⬜ 未开始 | P1 |
+| P3-04 | Wiki 生成（输出到 `.codegraph/wiki/`） | ⬜ 未开始 | P1 |
 | P3-05 | 影响分析风险评分 | ⬜ 未开始 | P1 |
 | P3-06 | 非代码解析器 ×12 | ⬜ 未开始 | P1 |
 | P3-07 | 指纹增量更新 | ⬜ 未开始 | P2 |
@@ -240,6 +240,29 @@ Phase 2 预留给 Phase 1 迁移后的稳定性测试、问题修复、性能优
 - 输出 `flows` 表和 `flow_memberships` 表
 
 **状态**: ⬜ 未开始
+
+### P3-04: Wiki 生成（CRG 桥接方案）
+
+**涉及文件**:
+- `scripts/crg-wiki.py` — Python 桥接脚本，调用 CRG 构建索引+生成 Wiki
+- `src/server/wiki-integration.ts` — TypeScript 封装：generateWiki() / ensureWiki() / readWikiPage() / readWikiIndex() / listWikiPages()
+- `src/server/codegraph-bridge.ts` — Wiki API 路由 + 仓库页 Wiki 标签页
+- `src/server/qa-endpoint.ts` — QA 读取 `.codegraph/wiki/overview.md` / `index.md`
+
+**实现方案**:
+- 不重写 CRG，直接通过 Python 子进程调用 CRG 的 `generate_wiki()`
+- CRG 索引（`.code-review-graph/`）用完即弃，只用生成的 `.md` 文件
+- 生成的 Wiki 可在 `/<repoName>` 页面的 "Wiki" / "Wiki Index" 标签页查看
+
+**已定事项**:
+- 输出目录：`.codegraph/wiki/`（2026-06-16 定）
+- `qa-endpoint.ts` 已改为先读 `overview.md` → 回退到 `index.md`
+- `codegraph-bridge.ts` 新增 3 条路由：
+  - `POST /api/wiki/generate` — 触发生成（后台运行）
+  - `GET /api/wiki/:repoName` — Wiki 索引页内容
+  - `GET /api/wiki/:repoName/:page` — 具体 Wiki 页面
+
+**状态**: ✅ 已完成
 
 ---
 

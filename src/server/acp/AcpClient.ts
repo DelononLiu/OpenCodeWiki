@@ -94,7 +94,8 @@ export function isAcpEnabled(acpEnabled?: boolean): boolean {
     return process.env.OPENCODEWIKI_ACP_ENABLE === 'true';
   }
   const fileCfg = loadConfigFile();
-  return fileCfg.acpEnabled === true;
+  // Default true — ACP Agent mode enhances QA with autonomous code analysis
+  return fileCfg.acpEnabled !== false;
 }
 
 /**

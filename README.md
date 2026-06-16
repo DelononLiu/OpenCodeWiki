@@ -37,11 +37,19 @@ mkdir -p ~/.opencodewiki
 # 4. 构建 codegraph 引擎
 cd engine/codegraph && npm install && npm run build && cd ../..
 
-# 5. 初始化 codegraph 索引（使用本地引擎，指向 engine/codegraph/）
+# 5. 构建 codegraph 引擎
+cd engine/codegraph && npm install && npm run build && cd ../..
+
+# 6. 初始化 codegraph 索引（使用本地引擎，指向 engine/codegraph/）
 node engine/codegraph/dist/bin/codegraph.js init ~/Code/example
 node engine/codegraph/dist/bin/codegraph.js index ~/Code/example
 
-# 6. 启动服务
+# 7. (可选) 生成 Wiki 文档 — 基于社区结构的自动文档
+#     首次会先构建 CRG 索引（较慢），之后增量更新
+#     Wiki 生成到 .codegraph/wiki/，纯 Markdown 可脱离工具阅读
+npm run wiki -- ~/Code/example
+
+# 8. 启动服务
 npm run dev
 # OPENCODEWIKI_ACP_ENABLE=true npm run dev
 # OpenCodeWiki server running on http://localhost:4747
