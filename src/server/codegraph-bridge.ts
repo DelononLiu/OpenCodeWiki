@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
+import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
 import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-input.js';
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
@@ -660,6 +661,11 @@ app.get('/api/qa/questions/suggest', (req, res) => {
   if (q.length < 2) { res.json({ suggestions: [] }); return; }
   res.json({ suggestions: searchQuestions(q, limit) });
 });
+
+// ── #Q 问答沉淀体系 API ─────────────────────────────────────
+const lightweightSearchHandler = createLightweightSearchHandler(search);
+app.post('/api/qa/lightweight-search', lightweightSearchHandler);
+app.use('/api/qa', qaRouter);
 
 // ── Wiki API ──────────────────────────────────────────────
 

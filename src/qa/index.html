@@ -64,6 +64,8 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .header-left h1{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
 .header-repo-name{font-size:10px;color:var(--color-text-secondary);font-weight:500;padding:2px 4px;border-radius:4px;background:var(--bg-secondary)}
 .header-cross-badge{font-size:10px;color:var(--color-purple);font-weight:600;padding:2px 4px;border-radius:4px;background:var(--bg-secondary);border:1px solid var(--color-purple)}
+.header-qid{font-size:11px;font-weight:600;color:var(--color-blue);padding:2px 8px;border-radius:4px;background:var(--bg-secondary);border:1px solid var(--color-blue);display:inline-flex;align-items:center;gap:4px}
+.header-qid .qid-parent{color:var(--color-text-secondary);font-weight:400;font-size:10px}
 .header-right{display:flex;align-items:center;gap:10px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-primary);transition:all .15s}
 .btn:hover{background:var(--bg-secondary)}
@@ -123,6 +125,14 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
 .action-btn svg{width:15px;height:15px}
 
 .file-list-card{background:var(--bg-surface);border:0.5px solid var(--color-border);border-radius:8px}
+.related-qa-card{background:var(--bg-surface);border:0.5px solid var(--color-border);border-radius:8px;margin-top:12px}
+.related-qa-header{font-size:12px;font-weight:600;color:var(--color-text-secondary);padding:12px 14px 6px;border-bottom:0.5px solid var(--color-border)}
+.related-qa-item{display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12px;color:var(--color-text-primary);cursor:pointer;transition:background .1s;text-decoration:none}
+.related-qa-item:hover{background:var(--bg-secondary)}
+.related-qa-item .qid{font-weight:600;color:var(--color-blue);flex-shrink:0}
+.related-qa-item .qtext{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.related-qa-empty{padding:20px 14px;font-size:12px;color:var(--color-text-secondary);text-align:center}
+.file-list-item{margin-top:0!important}
 .file-list-item{font-size:13px;color:var(--color-text-primary);user-select:none}
 .file-list-item .file-item-header{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;transition:background .1s}
 .file-list-item .file-item-header:hover{background:var(--bg-secondary)}
@@ -220,6 +230,7 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
         <h1 style="color:var(--color-blue);display:inline;font-size:20px"><a href="/" style="color:inherit;text-decoration:none">OpenCodeWiki</a></h1>
         <span class="header-repo-name" id="headerRepoName"></span>
         <span class="header-cross-badge" id="headerCrossBadge" style="display:none">Cross-repo</span>
+        <span class="header-qid" id="headerQid" style="display:none"></span>
       </div>
       <div class="header-right">
         <button class="btn" onclick="toggleQaSidebar()">History</button>
@@ -265,6 +276,10 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
     <div class="file-list-empty" id="fileListEmpty">No files referenced</div>
     <div id="filesGlobal"></div>
   </div>
+  <div class="related-qa-card" id="relatedQaCard" style="display:none;margin-top:12px">
+    <div class="related-qa-header">🔗 关联问答</div>
+    <div id="relatedQaList"></div>
+  </div>
 </div>
 
 <div class="bottom-bar" id="bottomBar">
@@ -309,6 +324,7 @@ function scrollToElement(el) {
 let blockCounter = 0;
 let currentBlockId = null;
 let currentSessionId = null;
+let currentQid = null;
 let _globalRefCounter = 0;
 const _sourceMap = {};
 
@@ -331,11 +347,11 @@ function createSessionBlock(question) {
   block.innerHTML = `
     <div class="question-title">
       <span class="question-text">${escapeHtml(question)}</span>
-      <span class="fast-badge">Fast</span>
+      <span class="fast-badge">Deep</span>
     </div>
     <div class="answer-card">
       <div class="answer-content" id="answer-${blockId}"></div>
-      <div class="answer-actions">
+      <div class="answer-actions" style="display:flex;justify-content:flex-end;align-items:center;gap:6px">
         <button class="action-btn" onclick="copyAnswer('${blockId}')" title="Copy answer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
@@ -609,6 +625,23 @@ function updateAnswerContent(blockId, content) {
   try { mermaid.run({ querySelector: '.answer-content .mermaid' }); } catch(e) { console.error('[qa] mermaid error', e); }
 }
 
+function updateQidBreadcrumb(qid) {
+  var el = document.getElementById('headerQid');
+  if (!el) return;
+  if (qid) {
+    el.style.display = 'inline';
+    el.innerHTML = '#Q' + qid;
+    el.title = 'Copy #Q' + qid + ' link';
+    el.style.cursor = 'pointer';
+    el.onclick = function() {
+      var url = location.origin + '/qa/' + currentSessionId;
+      navigator.clipboard.writeText(url);
+    };
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function updateSendBtn() {
   sendBtn.disabled = isLoading || !input.value.trim();
 }
@@ -834,6 +867,10 @@ async function sendMessage(e) {
             const sessionUrl = '/qa/' + currentSessionId;
             history.replaceState(null, '', sessionUrl);
             console.log('[qa] session', data.id);
+          } else if (data.type === 'qid') {
+            currentQid = data.qid;
+            updateQidBreadcrumb(data.qid);
+            console.log('[qa] #Q' + data.qid);
           } else if (data.type === 'sources') {
             console.log('[qa] sources event', { count: data.sources?.length, first: data.sources?.[0]?.filePath, currentRepo: currentRepo });
             if (currentBlockId) {
@@ -897,6 +934,42 @@ function askSuggestion(text) {
   input.value = text;
   updateSendBtn();
   sendMessage(new Event('submit', { cancelable: true }));
+}
+
+function copyQidLink() {
+  if (!currentQid) return;
+  var url = location.origin + '/qa/' + currentSessionId;
+  try { navigator.clipboard.writeText(url); } catch {}
+}
+
+function loadRelatedQa(qid) {
+  var card = document.getElementById('relatedQaCard');
+  var list = document.getElementById('relatedQaList');
+  if (!card || !list || !qid) return;
+  fetch('/api/qa/entry/' + qid + '/related')
+    .then(function(r) { if (!r.ok) throw new Error('fail'); return r.json(); })
+    .then(function(data) {
+      var items = [];
+      if (data.parent) items.push({ qid: data.parent.qid, question: data.parent.question, rel: '⬆ 衍生自' });
+      if (data.children && data.children.length > 0) {
+        data.children.forEach(function(c) { items.push({ qid: c.qid, question: c.question, rel: '↳ 衍生' }); });
+      }
+      if (data.related && data.related.length > 0) {
+        data.related.forEach(function(r) { items.push({ qid: r.qid, question: r.question, rel: '🔗 关联' }); });
+      }
+      if (items.length === 0) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      var html = '';
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        html += '<a class="related-qa-item" href="/qa/' + encodeURIComponent(currentSessionId) + '?qid=' + item.qid + '">' +
+          '<span class="qid">' + item.rel + ' #Q' + item.qid + '</span>' +
+          '<span class="qtext">' + escapeHtml(item.question.slice(0, 60)) + '</span>' +
+          '</a>';
+      }
+      list.innerHTML = html;
+    })
+    .catch(function() { card.style.display = 'none'; });
 }
 
 function copyAnswer(blockId) {
@@ -965,6 +1038,12 @@ async function restoreSession(sessionId) {
     const resp = await fetch('/api/qa/session/' + sessionId);
     if (!resp.ok) return;
     const session = await resp.json();
+    // Restore #Q info
+    if (session.qid) {
+      currentQid = session.qid;
+      updateQidBreadcrumb(session.qid);
+      loadRelatedQa(session.qid);
+    }
     if (!session.messages || session.messages.length === 0) return;
     if (session.repo) { currentRepo = session.repo; headerRepoName.textContent = session.repo; headerRepoName.style.display = ''; headerCrossBadge.style.display = 'none'; document.getElementById('qaInput').placeholder = session.repo + ' 相关问题...'; document.title = session.repo + ' — OpenCodeWiki Q&A'; }
     let lastBlockId = null;

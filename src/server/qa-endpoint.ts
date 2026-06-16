@@ -5,6 +5,7 @@ import os from 'os';
 import type { ServerResponse } from 'http';
 import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
+import * as qaStore from './qa-store.js';
 
 /** Sanitize filename to prevent path traversal */
 function safeName(name: string): string {
@@ -18,6 +19,8 @@ interface QaSession {
   sources: any[];
   repo?: string;
   acpSessionId?: string;
+  qid?: number;
+  mode?: 'lightweight' | 'deep';
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +45,7 @@ function generateSessionId(): string {
 }
 
 function sessionToJson(s: QaSession): Record<string, unknown> {
-  return { id: s.id, repo: s.repo, messages: s.messages, sources: s.sources, acpSessionId: s.acpSessionId, createdAt: s.createdAt, updatedAt: s.updatedAt };
+  return { id: s.id, repo: s.repo, messages: s.messages, sources: s.sources, acpSessionId: s.acpSessionId, qid: s.qid, mode: s.mode, createdAt: s.createdAt, updatedAt: s.updatedAt };
 }
 
 function sessionFromJson(data: Record<string, unknown>): QaSession {
@@ -52,6 +55,8 @@ function sessionFromJson(data: Record<string, unknown>): QaSession {
     messages: (data.messages || []) as QaMessage[],
     sources: (data.sources || []) as any[],
     acpSessionId: data.acpSessionId as string | undefined,
+    qid: data.qid as number | undefined,
+    mode: data.mode as 'lightweight' | 'deep' | undefined,
     createdAt: data.createdAt as string,
     updatedAt: data.updatedAt as string,
   };
@@ -141,6 +146,7 @@ export interface QaSessionSummary {
   id: string;
   summary: string;
   messageCount: number;
+  qid?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -156,6 +162,7 @@ export function listSessions(sort: 'latest' | 'popular' = 'latest', limit = 10):
     id: s.id,
     summary: s.messages.find(m => m.role === 'user')?.content?.slice(0, 80) || '(empty)',
     messageCount: s.messages.length,
+    qid: s.qid,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   }));
@@ -661,6 +668,9 @@ export function createQaEndpoint(
     log('info', 'Q&A request', { repo: repoName ?? '(all)', sessionId: sessionId ?? '(new)', question: question.slice(0, 80) });
 
     let session = sessionId ? sessions.get(sessionId) : undefined;
+    let qid: number | undefined;
+    const qRefRe = /#Q(\d+)/g;
+
     if (!session) {
       // Use the client-provided sessionId if it looks like a valid ID,
       // so pre-uploaded files (stored under that sessionId) are found.
@@ -669,9 +679,43 @@ export function createQaEndpoint(
         ? sessionId
         : generateSessionId();
       sessionId = newId;
-      session = { id: sessionId, messages: [], sources: [], repo: repoName, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      session = { id: sessionId, messages: [], sources: [], repo: repoName, mode: 'deep', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       sessions.set(sessionId, session);
       saveSession(session);
+
+      // Detect #Q references in the question
+      const qRefs: number[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = qRefRe.exec(question)) !== null) {
+        qRefs.push(parseInt(m[1], 10));
+      }
+
+      // Create #Q entry for this session (one #Q per session)
+      try {
+        const entry = qaStore.createEntry({
+          sessionId,
+          repo: repoName || '',
+          question,
+          mode: 'deep',
+          sources: [],
+          relatedQids: qRefs.length > 0 ? qRefs : undefined,
+        });
+        qid = entry.qid;
+        session.qid = qid;
+        saveSession(session);
+
+        // Bidirectional link for each #Q reference
+        for (const refQid of qRefs) {
+          try {
+            qaStore.linkEntries(refQid, qid);
+          } catch {}
+        }
+      } catch (e) {
+        log('error', 'failed to create #Q entry', { error: (e as Error)?.message });
+      }
+    } else {
+      // Follow-up question: reuse session's existing #Q, no new entry
+      qid = session.qid;
     }
 
     const isCrossRepo = !repoName && !!listRepos;
@@ -840,6 +884,9 @@ export function createQaEndpoint(
     res.setHeader('X-Accel-Buffering', 'no');
 
     res.write('data: ' + JSON.stringify({ type: 'session', id: sessionId }) + '\n\n');
+    if (qid) {
+      res.write('data: ' + JSON.stringify({ type: 'qid', qid }) + '\n\n');
+    }
     log('info', 'sending SSE sources', { type: 'sources', count: sources.length, isCrossRepo });
     if (sources.length > 0) {
       log('info', 'SSE sources sample', { filePath: sources[0].filePath, fileName: sources[0].fileName, refId: sources[0].refId });
@@ -1017,6 +1064,15 @@ export function createQaEndpoint(
                 if (resolvedSources.length > sources.length) {
                   res.write('data: ' + JSON.stringify({ type: 'sources', sources: resolvedSources }) + '\n\n');
                 }
+
+                // Update #Q entry with answer
+                if (qid) {
+                  try {
+                    qaStore.updateEntry(qid, { answer: content });
+                  } catch (e) {
+                    log('error', 'failed to update #Q entry', { error: (e as Error)?.message });
+                  }
+                }
               }
               res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
               res.end();
@@ -1123,6 +1179,20 @@ export function createQaEndpoint(
         saveSession(session);
         if (resolvedSources.length > sources.length) {
           res.write('data: ' + JSON.stringify({ type: 'sources', sources: resolvedSources }) + '\n\n');
+        }
+
+        // Update #Q entry with answer and sources
+        if (qid) {
+          try {
+            qaStore.updateEntry(qid, { answer: assistantContent });
+            // Also update sources via the entry's JSON sources field
+            const dbEntry = qaStore.getEntryByQid(qid);
+            if (dbEntry) {
+              qaStore.updateEntry(qid, { tags: ['answered'] });
+            }
+          } catch (e) {
+            log('error', 'failed to update #Q entry', { error: (e as Error)?.message });
+          }
         }
       }
       res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');

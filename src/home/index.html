@@ -68,6 +68,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 .app-icon{position:fixed;top:14px;left:14px;z-index:100;width:24px;height:24px;cursor:pointer;color:var(--text3);transition:left .2s ease;background:none;border:none;padding:0}
 .app-icon:hover{color:var(--text)}
 .loading-state{text-align:center;padding:32px 20px;font-size:13px;color:var(--text3)}
+.search-results-panel{max-width:680px;width:100%;margin:8px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);max-height:400px;overflow-y:auto;z-index:10;position:relative}
+.search-results-panel .search-header{font-size:11px;color:var(--text3);padding:10px 14px 6px;border-bottom:1px solid var(--border)}
+.search-results-panel .search-qid{font-weight:600;color:var(--blue)}
+.search-result{padding:8px 14px;border-bottom:1px solid var(--border);transition:background .1s}
+.search-result:hover{background:var(--sidebar-bg)}
+.search-result-path{font-size:12px;color:var(--blue);cursor:pointer;font-weight:500;margin-bottom:3px}
+.search-result-path:hover{text-decoration:underline}
+.search-snippet{background:var(--sidebar-bg);border-radius:6px;padding:6px 10px;margin:4px 0 0;overflow-x:auto;font-size:11px;line-height:1.4;color:var(--text2)}
+.search-snippet code{font-family:'SF Mono',Consolas,'Courier New',monospace;white-space:pre}
+.search-empty{padding:20px 14px;font-size:13px;color:var(--text3);text-align:center}
+.search-loading{padding:20px;text-align:center;font-size:13px;color:var(--text3)}
 .fade-in{animation:fadeIn .3s ease-out both}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 </style>
@@ -125,18 +136,68 @@ const emptyState = document.getElementById('emptyState');
 const repoDivider = document.getElementById('repoDivider');
 const redirectOverlay = document.getElementById('redirectOverlay');
 
-qaInput.addEventListener('input', function() { qaAskBtn.disabled = !this.value.trim(); autoResize(this); });
-function homeRedirectToQa() {
-  var q = qaInput.value.trim();
+qaInput.addEventListener('input', function() { qaAskBtn.disabled = !this.value.trim(); autoResize(this); triggerLightweightSearch(this.value.trim()); });
+
+// ── Input-triggered lightweight search ─────────────────────────
+var searchPanel = document.createElement('div');
+searchPanel.id = 'searchResultsPanel';
+searchPanel.className = 'search-results-panel';
+searchPanel.style.display = 'none';
+qaInput.parentNode.appendChild(searchPanel);
+
+var _lwTimer = null;
+
+function triggerLightweightSearch(q) {
+  clearTimeout(_lwTimer);
+  if (q.length < 2) { searchPanel.style.display = 'none'; return; }
+  _lwTimer = setTimeout(function() {
+    fetch('/api/qa/lightweight-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, sessionId: _homeSessionId }),
+    })
+    .then(function(r) { if (!r.ok) throw new Error('fail'); return r.json(); })
+    .then(function(data) {
+      var sources = data.sources || [];
+      if (sources.length === 0) { searchPanel.style.display = 'none'; return; }
+      var html = '<div class="search-header">' + sources.length + ' results <span class="search-qid">#Q' + data.qid + '</span></div>';
+      for (var i = 0; i < Math.min(sources.length, 8); i++) {
+        var s = sources[i];
+        var label = s.filePath + (s.startLine ? ':' + s.startLine : '');
+        var snippet = s.snippet || '';
+        html += '<div class="search-result" onclick="homeRedirectToQa(\'' + escapeHtml(q) + '\', \'' + escapeHtml(s.filePath) + '\')">' +
+          '<div class="search-result-path">📄 ' + escapeHtml(label) + '</div>';
+        if (snippet) {
+          html += '<pre class="search-snippet"><code>' + escapeHtml(snippet.split('\n').slice(0, 4).join('\n')) + '</code></pre>';
+        }
+        html += '</div>';
+      }
+      searchPanel.innerHTML = html;
+      searchPanel.style.display = 'block';
+    })
+    .catch(function() { searchPanel.style.display = 'none'; });
+  }, 250);
+}
+
+function homeRedirectToQa(q, filePath) {
   if (!q) return;
   redirectOverlay.style.display = 'flex';
   var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
   var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
   if (_st) params.set('type', _st);
+  if (filePath) params.set('file', filePath);
   setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
 }
-qaInput.addEventListener('keydown', function(e) { if (e.defaultPrevented) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(); } });
-qaAskBtn.addEventListener('click', function(e) { e.preventDefault(); homeRedirectToQa(); });
+
+qaInput.addEventListener('keydown', function(e) { if (e.defaultPrevented) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(qaInput.value.trim(), ''); } });
+qaAskBtn.addEventListener('click', function(e) { e.preventDefault(); homeRedirectToQa(qaInput.value.trim(), ''); });
+
+// Hide search panel when clicking outside
+document.addEventListener('click', function(e) {
+  if (searchPanel.style.display !== 'none' && !e.target.closest('.qa-input-wrap') && !e.target.closest('.search-results-panel')) {
+    searchPanel.style.display = 'none';
+  }
+});
 
 function autoResize(el) { el.style.height = 'auto'; var sh = el.scrollHeight; el.style.height = Math.min(sh, 120) + 'px'; el.style.overflowY = sh > 120 ? 'auto' : 'hidden'; }
 function escapeHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
@@ -278,8 +339,9 @@ async function loadLatestSessions() {
 
 function renderSidebarItem(s) {
   var timeLabel = formatTime(s.updatedAt);
+  var qidHtml = s.qid ? '<span style="font-size:10px;font-weight:600;color:var(--blue);margin-right:4px">#Q' + s.qid + '</span>' : '';
   return '<a class="sidebar-item" href="/qa/' + encodeURIComponent(s.id) + '">' +
-    '<div class="sidebar-item-summary">' + escapeHtml(s.summary) + '</div>' +
+    '<div class="sidebar-item-summary">' + qidHtml + escapeHtml(s.summary) + '</div>' +
     '<div class="sidebar-item-meta" style="display:flex;align-items:center;gap:6px;margin-top:3px">' +
     '<span class="sidebar-item-time">' + timeLabel + '</span>' +
     '<span style="font-size:10px;color:var(--text3);background:var(--tag-bg);padding:1px 6px;border-radius:6px">' + s.messageCount + '</span>' +
