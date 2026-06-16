@@ -72,7 +72,7 @@ try {
 }
 
 // Check for duplicate
-const existing = registry.find((r: any) => r.name === repoName);
+const existing = registry.find(r => r.name === repoName);
 if (existing) {
   existing.path = repoPath;
   console.log(`  ✓ Updated existing entry for "${repoName}"`);

@@ -709,7 +709,6 @@ const knownRepos = async () => {
 };
 
 async function sendWikiViewer(repoName: string, _req: any, res: any) {
-  const allRepos = await knownRepos();
   const reg = await loadRegistry();
   const entry = repoName === 'opencodewiki'
     ? { name: 'opencodewiki', path: rootDir }
@@ -718,10 +717,6 @@ async function sendWikiViewer(repoName: string, _req: any, res: any) {
   const repoPath = entry.path;
   const wikiDir = wikiOutputDir(repoPath);
   const tree = await loadModuleTree(wikiDir);
-  const repoLinks = allRepos.map(n =>
-    '<a href="/' + encodeURIComponent(n) + '"' +
-    (n === repoName ? ' class="active"' : '') + '>' + n + '</a>'
-  ).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -742,9 +737,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .sidebar-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
 .sidebar-title svg{flex-shrink:0}
 .sidebar-meta{font-size:11px;color:var(--text-muted);margin-top:6px}
-.repo-switcher{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
-.repo-switcher a{padding:2px 8px;border-radius:12px;border:1px solid var(--border);font-size:11px;color:var(--text-muted);text-decoration:none}
-.repo-switcher a.active{background:var(--primary-soft);color:var(--primary);border-color:var(--primary)}
 .nav-section{margin-bottom:2px}
 .nav-item{display:block;padding:7px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text);text-decoration:none;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav-item:hover{background:var(--hover)}
@@ -789,7 +781,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-header">
-    <div class="repo-switcher">${repoLinks}</div>
+    <a href="/" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;text-decoration:none;color:var(--primary);font-weight:600;font-size:14px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      OpenCodeWiki
+    </a>
     <div class="sidebar-title">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
       ${repoName}
@@ -798,7 +793,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   </div>
   <div id="navTree"></div>
   <div class="sidebar-footer">
-    <a href="/qa?repo=${encodeURIComponent(repoName)}" style="color:var(--primary);text-decoration:none">Ask AI &rarr;</a>
+    
   </div>
 </nav>
 
@@ -874,7 +869,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
-        el.innerHTML = data.content;
+        el.innerHTML = marked.parse(data.content);
         if (window.mermaid) mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
       } else {
         el.innerHTML = '<div class="empty-state"><h2>Page not found</h2></div>';
