@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * CLI script to generate wiki for a repository using GitNexus.
+ * Generate wiki for a repository using GitNexus.
+ * Automatically runs `gitnexus analyze` if the index doesn't exist yet.
  *
  * Usage:
  *   node scripts/wiki.mjs <repo-path> [--force]
@@ -11,7 +12,6 @@
  *
  * Prerequisites:
  *   - gitnexus CLI installed (npm install -g gitnexus)
- *   - `gitnexus analyze` has been run on the repo first
  *   - LLM configured (OPENAI_API_KEY or ~/.gitnexus/config.json)
  */
 
@@ -28,26 +28,44 @@ if (!repoPath) {
 }
 
 const resolvedPath = path.resolve(repoPath);
+const gitnexusDir = path.join(resolvedPath, '.gitnexus');
+const metaPath = path.join(gitnexusDir, 'meta.json');
 
-// Check for gitnexus index first
-const metaPath = path.join(resolvedPath, '.gitnexus', 'meta.json');
+// Step 1: gitnexus analyze if index doesn't exist
 if (!fs.existsSync(metaPath)) {
-  console.error(`✗ No GitNexus index found at ${resolvedPath}`);
-  console.error('  Run `gitnexus analyze` first to index this repository.');
-  process.exit(1);
+  console.log(`[1/2] No GitNexus index found. Running gitnexus analyze...`);
+  console.log(`     Path: ${resolvedPath}`);
+  console.log('');
+  try {
+    execFileSync('gitnexus', ['analyze', resolvedPath], {
+      timeout: 600_000,
+      stdio: 'inherit',
+      cwd: resolvedPath,
+    });
+    console.log('  ✓ Index complete\n');
+  } catch (err) {
+    console.error(`✗ gitnexus analyze failed: ${err.message}`);
+    console.error('  Make sure gitnexus is installed: npm install -g gitnexus');
+    process.exit(1);
+  }
 }
+
+// Step 2: Generate wiki
+console.log(`[2/2] Generating wiki...`);
+console.log(`     Output: ${gitnexusDir}/wiki/`);
+console.log('');
 
 const args = ['wiki', resolvedPath];
 if (force) args.push('--force');
-
-console.log(`Generating wiki for: ${resolvedPath}`);
-console.log('');
 
 try {
   execFileSync('gitnexus', args, {
     timeout: 600_000,
     stdio: 'inherit',
+    cwd: resolvedPath,
   });
+  console.log('\n✓ Wiki generated successfully');
+  console.log(`  View at: http://localhost:4747/${path.basename(resolvedPath)}/wiki`);
 } catch (err) {
   console.error(`✗ Wiki generation failed: ${err.message}`);
   process.exit(1);

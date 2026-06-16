@@ -34,25 +34,16 @@ mkdir -p ~/.opencodewiki
 # 编辑 ~/.opencodewiki/config.json:
 # {"apiKey":"sk-xxx","baseUrl":"https://api.openai.com/v1","model":"gpt-4o-mini"}
 
-# 4. 构建 codegraph 引擎
-cd engine/codegraph && npm install && npm run build && cd ../..
+# 4. 初始化仓库（codegraph init + index + 注册）
+node scripts/setup-repo.mjs ~/Code/example
 
-# 5. 构建 codegraph 引擎
-cd engine/codegraph && npm install && npm run build && cd ../..
-
-# 6. 初始化 codegraph 索引（使用本地引擎，指向 engine/codegraph/）
-node engine/codegraph/dist/bin/codegraph.js init ~/Code/example
-node engine/codegraph/dist/bin/codegraph.js index ~/Code/example
-
-# 7. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎生成
-#     需要先运行 gitnexus analyze 建立索引
-#     Wiki 生成到 .gitnexus/wiki/，纯 Markdown 可脱离工具阅读
-gitnexus analyze ~/Code/example
+# 5. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎
+#     首次自动运行 gitnexus analyze，然后生成 Wiki
+#     输出到 .gitnexus/wiki/，纯 Markdown 可脱离工具阅读
 npm run wiki -- ~/Code/example
 
-# 8. 启动服务
+# 6. 启动服务
 npm run dev
-# OPENCODEWIKI_ACP_ENABLE=true npm run dev
 # OpenCodeWiki server running on http://localhost:4747
 ```
 
