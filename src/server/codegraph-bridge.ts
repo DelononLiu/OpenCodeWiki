@@ -518,6 +518,12 @@ async function loadSavedConfig(): Promise<Record<string, string>> {
   }
 }
 
+/** Read crossRepos scope from config. If set, cross-repo queries are limited to these repos. */
+function loadCrossRepoScope(): string[] | undefined {
+  try { return JSON.parse(fsSync.readFileSync(path.join(os.homedir(), '.opencodewiki', 'config.json'), 'utf-8')).crossRepos; } catch {}
+  return undefined;
+}
+
 const resolveLLMConfig = async () => {
   const saved = await loadSavedConfig();
   return {
@@ -694,7 +700,7 @@ app.delete('/api/repos/:name', async (req, res) => {
   res.json({ removed: true });
 });
 
-const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact);
+const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope());
 app.post('/api/qa', qaHandler);
 
 app.get('/api/qa/session/:id', (req, res) => {

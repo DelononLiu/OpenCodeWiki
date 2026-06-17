@@ -706,6 +706,7 @@ export function createQaEndpoint(
   listRepos?: () => Promise<{ name: string }[]>,
   searchCallers?: (symbol: string, repo?: string) => Promise<string>,
   searchImpact?: (symbol: string, repo?: string) => Promise<string>,
+  crossRepoScope?: string[],  // if set, cross-repo queries are limited to these repo names
 ) {
   // Eager init: pre-start ACP clients for all indexed repos
   if (ACP_ENABLED && listRepos) {
@@ -788,10 +789,25 @@ export function createQaEndpoint(
       qid = session.qid;
     }
 
-    // Cross-repo mode: @cross tag forces it, otherwise auto when no repo specified
+    // Cross-repo mode detection and scope filtering
+    // @cross forces cross-repo search; @repoName targets a specific repo
     const hasCrossTag = /@cross\b/i.test(question);
-    const isCrossRepo = !!listRepos && (hasCrossTag || !repoName);
-    // Strip @cross tag from question for clean search/prompt
+    const repoAtMatch = question.match(/@(\w[\w-]*)\b/);
+    const explicitRepo = repoAtMatch && repoAtMatch[1] !== 'cross' ? repoAtMatch[1] : undefined;
+    const isCrossRepo = !!listRepos && (hasCrossTag || !repoName || !!explicitRepo);
+
+    // Resolve cross-repo search scope
+    let crossRepoNames: string[] | undefined;
+    if (explicitRepo) {
+      // @repoName: search only that repo
+      crossRepoNames = [explicitRepo];
+      question = question.replace(new RegExp('@' + explicitRepo + '\\b\\s*', 'gi'), '');
+    } else if (crossRepoScope && crossRepoScope.length > 0) {
+      // Config scope: limit cross-repo to configured repos
+      crossRepoNames = crossRepoScope;
+    }
+
+    // Strip @cross tag
     if (hasCrossTag) question = question.replace(/@cross\b\s*/gi, '');
     let wikiContext = '';
     let entry = undefined;
@@ -841,8 +857,12 @@ export function createQaEndpoint(
     let repoBaseMap: Map<string, string> | undefined = undefined;
     try {
       if (isCrossRepo) {
-        const allRepos = await listRepos!();
-        log('info', 'cross-repo search starting', { repoCount: allRepos.length, query: searchQuery.slice(0, 60) });
+        let allRepos = await listRepos!();
+        // Apply cross-repo scope filter if configured
+        if (crossRepoNames) {
+          allRepos = allRepos.filter(r => crossRepoNames!.includes(r.name));
+        }
+        log('info', 'cross-repo search starting', { repoCount: allRepos.length, scoped: !!crossRepoNames, query: searchQuery.slice(0, 60) });
         repoBaseMap = new Map();
         const allRepoResults: { repoName: string; sources: any[]; flows?: string }[] = [];
         await Promise.allSettled(allRepos.map(async (r) => {
