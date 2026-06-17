@@ -561,9 +561,12 @@ function parseSearchText(text: string): { filePath: string; startLine: number; e
 }
 
 function searchRepoPath(repoName?: string): string | undefined {
-  if (!repoName || repoName === 'opencodewiki') return undefined;
+  if (!repoName) return undefined;
   const registry = loadRegistrySync();
-  return registry.find(r => r.name === repoName)?.path;
+  const repo = registry.find(r => r.name === repoName);
+  // Self repo (path matches rootDir) or legacy opencodewiki — no projectPath needed
+  if (!repo || repo.path === rootDir || repoName === 'opencodewiki') return undefined;
+  return repo.path;
 }
 
 function loadRegistrySync(): RegistryEntry[] {
@@ -621,8 +624,16 @@ const searchImpact = async (symbol: string, repo?: string) => {
   } catch { return ''; }
 };
 
+/** Resolve the "self" repo — the registry entry whose path matches rootDir. */
+async function resolveSelfRepo(): Promise<{ storagePath: string; path: string; name: string }> {
+  const registry = await loadRegistry();
+  const self = registry.find(r => r.path === rootDir);
+  const sp = self ? self.path : rootDir;
+  return { storagePath: sp, path: sp, name: self ? self.name : 'opencodewiki' };
+}
+
 const resolveRepo = async (repoName?: string) => {
-  if (!repoName) return { storagePath: rootDir, name: 'opencodewiki' };
+  if (!repoName) return resolveSelfRepo();
   const registry = await loadRegistry();
   const entry = registry.find(r => r.name === repoName);
   if (entry) return { storagePath: entry.path, name: repoName };
@@ -631,7 +642,12 @@ const resolveRepo = async (repoName?: string) => {
 
 const listRepos = async () => {
   const registry = await loadRegistry();
-  const results = [{ name: 'opencodewiki', stats: await getCodegraphStatsFor(rootDir) }];
+  // If self (rootDir) is not in registry, add it as synthetic entry
+  const selfEntry = registry.find(r => r.path === rootDir);
+  const results: { name: string; stats: { files: number; nodes: number; processes: number } }[] = [];
+  if (!selfEntry) {
+    results.push({ name: 'opencodewiki', stats: { ...await getCodegraphStatsFor(rootDir), processes: 0 } });
+  }
   for (const entry of registry) {
     if (!results.find(r => r.name === entry.name)) {
       // Use cached stats from registry if available; otherwise query live
@@ -739,10 +755,9 @@ app.post('/api/wiki/generate', async (req, res) => {
   const { repoName } = req.body;
   if (!repoName) { res.status(400).json({ error: 'Missing repoName' }); return; }
 
+  const selfRepo = await resolveSelfRepo();
   const registry = await loadRegistry();
-  const entry = repoName === 'opencodewiki'
-    ? { name: 'opencodewiki', path: rootDir }
-    : registry.find(r => r.name === repoName);
+  const entry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
 
   if (!entry) { res.status(404).json({ error: `Repo "${repoName}" not found` }); return; }
 
@@ -761,10 +776,9 @@ app.post('/api/wiki/generate', async (req, res) => {
 /** Get wiki info for a repo: module tree + overview content. */
 app.get('/api/wiki/:repoName', async (req, res) => {
   const { repoName } = req.params;
+  const selfRepo = await resolveSelfRepo();
   const registry = await loadRegistry();
-  const entry = repoName === 'opencodewiki'
-    ? { name: 'opencodewiki', path: rootDir }
-    : registry.find(r => r.name === repoName);
+  const entry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
 
   const wikiDir = wikiOutputDir(entry.path);
@@ -777,10 +791,9 @@ app.get('/api/wiki/:repoName', async (req, res) => {
 app.get('/api/wiki/:repoName/:page', async (req, res) => {
   const repoName = req.params.repoName;
   const page = req.params.page;
+  const selfRepo = await resolveSelfRepo();
   const registry = await loadRegistry();
-  const entry = repoName === 'opencodewiki'
-    ? { name: 'opencodewiki', path: rootDir }
-    : registry.find(r => r.name === repoName);
+  const entry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
 
   const outputDir = wikiOutputDir(entry.path);
@@ -791,17 +804,17 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
 });
 
 const knownRepos = async () => {
+  const self = await resolveSelfRepo();
   const reg = await loadRegistry();
   const names = reg.map(r => r.name);
-  if (!names.includes('opencodewiki')) names.unshift('opencodewiki');
+  if (!names.includes(self.name)) names.unshift(self.name);
   return names;
 };
 
 async function sendWikiViewer(repoName: string, _req: any, res: any) {
+  const selfRepo = await resolveSelfRepo();
   const reg = await loadRegistry();
-  const entry = repoName === 'opencodewiki'
-    ? { name: 'opencodewiki', path: rootDir }
-    : reg.find(r => r.name === repoName);
+  const entry = repoName === selfRepo.name ? selfRepo : reg.find(r => r.name === repoName);
   if (!entry) { res.status(404).type('text').send('Repo not found'); return; }
   const repoPath = entry.path;
   const wikiDir = wikiOutputDir(repoPath);
