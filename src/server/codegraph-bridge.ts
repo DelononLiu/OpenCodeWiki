@@ -976,8 +976,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     if (!iso) return '';
     return iso.slice(0, 10);
   }
-    });
-  }
 })();
 </script>
 </body></html>`;
