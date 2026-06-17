@@ -622,7 +622,7 @@ const searchImpact = async (symbol: string, repo?: string) => {
 };
 
 const resolveRepo = async (repoName?: string) => {
-  if (!repoName) return { storagePath: path.join(rootDir, 'opencodewiki'), name: 'opencodewiki' };
+  if (!repoName) return { storagePath: rootDir, name: 'opencodewiki' };
   const registry = await loadRegistry();
   const entry = registry.find(r => r.name === repoName);
   if (entry) return { storagePath: entry.path, name: repoName };
