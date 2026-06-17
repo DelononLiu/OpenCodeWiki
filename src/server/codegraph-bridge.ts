@@ -31,6 +31,20 @@ const registryFile = path.join(opencodewikiDir, 'registry.json');
 interface RegistryEntry {
   name: string;
   path: string;
+  vcs?: 'git' | 'svn';
+  indexedAt?: string;
+  files?: number;
+  nodes?: number;
+  edges?: number;
+}
+
+/** Detect VCS type by checking for .git / .svn directory. */
+function detectVcs(repoPath: string): 'git' | 'svn' | undefined {
+  try {
+    if (fsSync.existsSync(path.join(repoPath, '.git'))) return 'git';
+    if (fsSync.existsSync(path.join(repoPath, '.svn'))) return 'svn';
+  } catch {}
+  return undefined;
 }
 
 async function loadRegistry(): Promise<RegistryEntry[]> {
@@ -592,7 +606,25 @@ const listRepos = async () => {
   const results = [{ name: 'opencodewiki', stats: await getCodegraphStatsFor(rootDir) }];
   for (const entry of registry) {
     if (!results.find(r => r.name === entry.name)) {
-      const stats = await getCodegraphStatsFor(entry.path);
+      // Use cached stats from registry if available; otherwise query live
+      let stats: { files: number; nodes: number; edges: number };
+      if (entry.indexedAt && entry.files !== undefined) {
+        stats = { files: entry.files, nodes: entry.nodes ?? 0, edges: entry.edges ?? 0 };
+      } else {
+        stats = await getCodegraphStatsFor(entry.path);
+        // Persist stats to registry
+        if (stats.files > 0) {
+          entry.indexedAt = new Date().toISOString();
+          entry.files = stats.files;
+          entry.nodes = stats.nodes;
+          entry.edges = stats.edges;
+        }
+      }
+      // Backfill VCS detection for existing repos missing it
+      if (!entry.vcs) {
+        entry.vcs = detectVcs(entry.path);
+        if (entry.vcs) await saveRegistry(registry);
+      }
       results.push({ name: entry.name, stats: { files: stats.files, nodes: stats.nodes, processes: 0 } });
     }
   }
@@ -619,11 +651,16 @@ app.post('/api/repos', async (req, res) => {
     res.status(409).json({ error: 'Repo "' + name + '" already registered' });
     return;
   }
-  const entry: RegistryEntry = { name, path: absPath };
+  const vcs = detectVcs(absPath);
+  const stats = await getCodegraphStatsFor(absPath);
+  const entry: RegistryEntry = {
+    name, path: absPath, vcs,
+    indexedAt: stats.files > 0 ? new Date().toISOString() : undefined,
+    files: stats.files, nodes: stats.nodes, edges: stats.edges,
+  };
   registry.push(entry);
   await saveRegistry(registry);
-  const stats = await getCodegraphStatsFor(absPath);
-  res.status(201).json({ ...entry, stats });
+  res.status(201).json({ ...entry });
 });
 
 app.delete('/api/repos/:name', async (req, res) => {

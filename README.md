@@ -39,8 +39,18 @@ npm run index -- ~/Code/example
 
 # 5. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎
 #     首次自动运行 gitnexus analyze，然后生成 Wiki
-#     输出到 .gitnexus/wiki/，纯 Markdown 可脱离工具阅读
+#     输出到 .codegraph/wiki/，纯 Markdown 可脱离工具阅读
 npm run wiki -- ~/Code/example
+
+#     reindex 强制重建索引
+npm run reindex -- myproject          # 按仓库名
+npm run reindex -- ~/Code/myproject   # 按路径
+
+#     wiki 高级用法：
+npm run wiki -- ~/Code/example --force              # 强制重新生成
+npm run wiki -- ~/Code/example --lang zh             # 生成后 LLM 翻译为中文
+npm run wiki -- ~/Code/example --extra-pages         # 额外生成 external-api / core / hot-modules 页面
+npm run wiki -- ~/Code/example --force --lang zh --extra-pages  # 全部选项
 
 # 6. 启动服务
 npm run dev

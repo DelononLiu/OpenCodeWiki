@@ -153,17 +153,11 @@ function getDb(): DatabaseSync {
   // Enable WAL mode for concurrent read performance
   _db.exec('PRAGMA journal_mode=WAL');
   _db.exec(SQL_CREATE_TABLES);
-  // Migrate: add domain column if missing
-  try {
+  // Migrate: add domain column if missing (old db created before domain was introduced)
+  const cols = _db.prepare("PRAGMA table_info('qa_entries')").all() as any[];
+  if (!cols.some((c: any) => c.name === 'domain')) {
     _db.exec("ALTER TABLE qa_entries ADD COLUMN domain TEXT NOT NULL DEFAULT 'general'");
-  } catch {}
-  try {
-    _db.exec('CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain)');
-  } catch {}
-  // Backfill: set domain='general' for existing NULL/empty entries
-  try {
-    _db.exec("UPDATE qa_entries SET domain = 'general' WHERE domain IS NULL OR domain = ''");
-  } catch {}
+  }
   return _db;
 }
 
