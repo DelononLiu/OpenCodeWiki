@@ -1,8 +1,36 @@
 # opencodewiki
 
-基于 Tree‑sitter 的开源代码问答系统。
+团队级代码知识库。基于 Tree-sitter 的代码索引 + LLM 驱动的问答系统。
 
-引擎 [codegraph](https://github.com/colbymchenry/codegraph) 作为 git submodule 管理（`engine/codegraph/`），方便本地修改和版本固定。
+引擎 [codegraph](https://github.com/colbymchenry/codegraph) 作为 git submodule 管理（`engine/codegraph/`）。
+
+## 两个阶段
+
+OpenCodeWiki 的使用分为两个独立阶段：
+
+### 阶段一：索引 & Wiki 生成（管理员操作）
+
+将代码仓库**预先索引**，生成结构化知识图谱和 Wiki 文档。这一步是离线批处理，只在代码变更后需要重新执行。
+
+| 命令 | 用途 |
+|------|------|
+| `npm run index <path>` | 首次 setup：`codegraph init --index` + 注册到 registry |
+| `npm run reindex <name>` | 已有仓库强制重建索引 |
+| `npm run wiki <path>` | 生成 Wiki 文档（基于 GitNexus 引擎） |
+
+索引后的仓库记录在 `~/.opencodewiki/registry.json`，包含文件数、节点数、边数、VCS 类型等元数据。
+
+Wiki 支持 `--force`（强制重生成）、`--lang zh`（LLM 翻译为中文）、`--extra-pages`（额外生成 external-api / core / hot-modules 页面）。
+
+### 阶段二：QA 查询（用户使用）
+
+启动服务后，用户通过 Web 界面提问。OpenCodeWiki 读取预建索引，通过 codegraph MCP 工具搜索代码、分析影响范围，LLM 结合搜索结果生成答案。
+
+```bash
+npm run dev    # 启动服务 → http://localhost:4747
+```
+
+问答页面：http://localhost:4747/qa
 
 ## 目录
 
@@ -21,57 +49,39 @@
 ## 快速开始
 
 ```bash
-# 1. 克隆项目（含子模块）
-git clone --recurse-submodules https://github.com/your/opencodewiki.git
-# 已克隆的也可以：
-# git submodule update --init --depth 1
-
-# 2. 安装依赖
+# 1. 安装
+git clone --recurse-submodules <repo-url>
 npm install
 
-# 3. 配置 LLM 密钥
+# 2. 配置 LLM
 mkdir -p ~/.opencodewiki
 # 编辑 ~/.opencodewiki/config.json:
 # {"apiKey":"sk-xxx","baseUrl":"https://api.openai.com/v1","model":"gpt-4o-mini"}
 
-# 4. 初始化仓库（codegraph init + index + 注册）
-npm run index -- ~/Code/example
+# === 阶段一：索引 ===
 
-# 5. (可选) 生成 Wiki 文档 — 使用 GitNexus 引擎
-#     首次自动运行 gitnexus analyze，然后生成 Wiki
-#     输出到 .codegraph/wiki/，纯 Markdown 可脱离工具阅读
-npm run wiki -- ~/Code/example
+# 3. 初始化仓库索引
+npm run index -- ~/Code/myproject
 
-#     reindex 强制重建索引
-npm run reindex -- myproject          # 按仓库名
-npm run reindex -- ~/Code/myproject   # 按路径
+# 4. (可选) 生成 Wiki
+npm run wiki -- ~/Code/myproject --lang zh
 
-#     wiki 高级用法：
-npm run wiki -- ~/Code/example --force              # 强制重新生成
-npm run wiki -- ~/Code/example --lang zh             # 生成后 LLM 翻译为中文
-npm run wiki -- ~/Code/example --extra-pages         # 额外生成 external-api / core / hot-modules 页面
-npm run wiki -- ~/Code/example --force --lang zh --extra-pages  # 全部选项
+# === 阶段二：查询 ===
 
-# 6. 启动服务
+# 5. 启动服务
 npm run dev
-# OpenCodeWiki server running on http://localhost:4747
+# → 打开 http://localhost:4747/qa 开始提问
 ```
 
 ## 引擎更新
 
 ```bash
 cd engine/codegraph
-git pull origin master          # 拉新版本
-npm install && npm run build    # 重新构建
+git pull origin main
+npm install && npm run build
 cd ../..
-git add engine/codegraph
-git commit -m "chore: update codegraph to <新版本>"
-```
-
-更新后重新初始化索引：
-```bash
-node engine/codegraph/dist/bin/codegraph.js init
-node engine/codegraph/dist/bin/codegraph.js index
+git add engine/codegraph && git commit -m "chore: update codegraph"
+# 更新后 rebuild 索引: npm run reindex -- <repo-name>
 ```
 
 ## 页面
