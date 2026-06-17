@@ -90,6 +90,7 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .question-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .question-text{font-weight:700;font-size:18px;color:var(--color-text-primary);line-height:1.4}
 .fast-badge{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:999px;background:var(--bg-secondary);color:var(--color-text-secondary);white-space:nowrap;flex-shrink:0}
+.time-badge{font-size:10px;font-weight:500;padding:2px 8px;border-radius:999px;background:var(--bg-secondary);color:var(--color-text-secondary);white-space:nowrap;flex-shrink:0;margin-left:6px}
 .domain-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--color-blue);color:var(--color-blue);background:rgba(59,130,246,.08);white-space:nowrap;flex-shrink:0;text-transform:capitalize;margin-right:4px}
 .dark .domain-badge{background:rgba(96,150,255,.12)}
 
@@ -351,7 +352,7 @@ function createSessionBlock(question) {
       <span class="question-text">${escapeHtml(question)}</span>
       <span>
         <span class="domain-badge" id="domainBadge-${blockId}" style="display:none"></span>
-        <span class="fast-badge">Deep</span>
+        <span class="time-badge" id="timeBadge-${blockId}" style="display:none"></span>
       </span>
     </div>
     <div class="answer-card">
@@ -840,6 +841,7 @@ async function sendMessage(e) {
   setLoading(true);
   abortController = new AbortController();
   let assistantContent = '';
+  const _t0 = performance.now();
 
   try {
     const payload = { question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId };
@@ -906,6 +908,10 @@ async function sendMessage(e) {
           } else if (data.type === 'error') {
             showError(data.message || 'An error occurred');
           } else if (data.type === 'done') {
+            const _elapsed = performance.now() - _t0;
+            const _sec = Math.floor(_elapsed / 1000);
+            const _badge = document.getElementById('timeBadge-' + currentBlockId);
+            if (_badge) { _badge.textContent = _sec + 's'; _badge.style.display = ''; }
           }
         } catch (e) {
         }
