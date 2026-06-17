@@ -583,7 +583,7 @@ const resolveRepo = async (repoName?: string) => {
   if (!repoName) return { storagePath: path.join(rootDir, 'opencodewiki'), name: 'opencodewiki' };
   const registry = await loadRegistry();
   const entry = registry.find(r => r.name === repoName);
-  if (entry) return { storagePath: path.join(entry.path, repoName), name: repoName };
+  if (entry) return { storagePath: entry.path, name: repoName };
   return { storagePath: path.join(rootDir, repoName), name: repoName };
 };
 

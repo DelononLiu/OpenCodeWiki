@@ -612,12 +612,12 @@ function domainProcessingFlow(domain: Domain): string {
 function structureGuide(): string {
   return `## 回答模板
 
-请根据用户问题的性质，自行选择最合适的回答结构。以下列出所有可用的结构模板，参考其中一种来组织回答：
+请根据用户问题的性质，自行选择最合适的回答结构。以下列出所有可用的结构模板，参考其中一种来组织回答。**答复的第一句话必须加粗，作为摘要。**
 
 ### 模板 A：故障排查
 适用于编译错误、运行时崩溃、段错误、日志异常、链接错误等排查类问题。
 
-- 1 句话直接指出错误或异常（不加标题）。
+- **1 句话直接指出错误或异常（不加标题）。**
 - ## 错误信息 — 关键错误输出放在代码块中；如有堆栈只需关键帧。
 - ## 原因分析 — 用 bullet list 说明触发条件和根因，避免长篇大论。
 - ## 解决方案 — 可操作的具体步骤，按推荐程度列出。
@@ -625,7 +625,7 @@ function structureGuide(): string {
 ### 模板 B：代码解释
 适用于"这段代码做了什么"、"这个函数功能是什么"、"逻辑是怎么走的"等解释类问题。
 
-- 1 句话概括代码行为（不加标题）。
+- **1 句话概括代码行为（不加标题）。**
 - ## 功能说明 — 用自然语言解释作用，说明输入/输出/核心逻辑。
 - ## 源码走读 — 沿关键路径逐段分析，配合代码片段标注行号。
 - ## 影响范围 — 调用方/被调用方/边界情况/副作用。
@@ -633,7 +633,7 @@ function structureGuide(): string {
 ### 模板 C：代码审查
 适用于"这样写有什么问题"、"有优化空间吗"、"哪里可能出 bug"等审查类问题。
 
-- 1 句话指出问题或改进点（不加标题）。
+- **1 句话指出问题或改进点（不加标题）。**
 - ## 问题分析 — 按正确性/性能/可维护性/安全维度分析，解释为什么是问题。
 - ## 代码位置 — 文件:行号，涉及多处分别列出。
 - ## 改进建议 — 最好有 before/after 对比，多方案时简述 trade-off。
@@ -641,16 +641,16 @@ function structureGuide(): string {
 ### 模板 D：配置用法
 适用于"这个配置项什么意思"、"API 怎么调"、"参数怎么设"等用法类问题。
 
-- 1 句话说明配置或用法的目标（不加标题）。
+- **1 句话说明配置或用法的目标（不加标题）。**
 - ## 步骤 — numbered list 列出操作顺序。
 - ## 参数说明 — 表格：参数名 | 类型 | 默认值 | 说明，只列关键参数。
 - ## 示例 — 完整配置或调用示例（代码块），必要时加注释。
 
-### 模板 E：架构分析
+### 模板 E：模块分析
 适用于"整体架构是什么"、"模块间怎么交互"、"数据流怎么走"等设计类问题。
 
-- 1 句话概括整体架构或设计（不加标题）。
-- ## 整体架构 — 优先使用 mermaid 图，说明分层或核心组件。
+- **1 句话概括整体设计（不加标题）。**
+- ## 结构设计 — 优先使用 mermaid 图，说明分层或核心组件。
 - ## 核心流程 — 关键数据流或调用链，说明数据流转和关键节点。
 - ## 模块关系 — 依赖关系或通信方式，跨边界时注意接口约定。`;
 }
@@ -710,7 +710,7 @@ export function createQaEndpoint(
       for (const repo of repos) {
         resolveRepo(repo.name).then(entry => {
           if (entry) {
-            const repoBase = path.dirname(entry.storagePath);
+            const repoBase = entry.storagePath;
             initRepoClient(repo.name, repoBase);
           }
         });
@@ -841,7 +841,7 @@ export function createQaEndpoint(
           try {
             const repoEntry = await resolveRepo(r.name);
             if (!repoEntry) { log('warn', 'cross-repo search: repo not resolved', { repo: r.name }); return; }
-            repoBaseMap!.set(r.name, path.dirname(repoEntry.storagePath));
+            repoBaseMap!.set(r.name, repoEntry.storagePath);
             const result = await search(searchQuery, r.name);
             if (!result || !result.sources?.length) {
               log('info', 'cross-repo search: no results for repo', { repo: r.name });
@@ -905,7 +905,7 @@ export function createQaEndpoint(
         const { sources: searchResults, flows: rawFlows = '' } = await search(searchQuery, repoName);
         flowsText = rawFlows;
         if (searchResults.length > 0) {
-          const repoBase = entry ? path.dirname(entry.storagePath) : null;
+          const repoBase = entry ? entry.storagePath : null;
           const topResults = searchResults.slice(0, 5);
           const lines: string[] = [];
           for (const r of topResults) {
@@ -1057,9 +1057,10 @@ export function createQaEndpoint(
       '- If unsure, say so.\n' +
       '- 禁止写文件，所有内容直接输出。\n' +
       '- 禁止使用 Explore Task。\n' +
+      '- **回答输出格式必须严格遵循下方 ## 回答模板 中的一种模板（A/B/C/D/E），不允许自由发挥。**\n' +
       '- **问题相关信息搜索链路：codegraph_search（语义搜索符号）→ codegraph_context（单符号深度分析）→ codegraph_impact（影响范围）→ grep（纯文本 fallback/提取）**\n' + 
       '- 每个回答至少包含 2 个引用，最多包含 6 个引用。\n' +
-      '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' +
+      (!ACP_ENABLED ? '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' : '') +
       (isCrossRepo
         ? '- 引用格式：在句子末尾用 (repoName:relative/path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n'
         : '- 引用格式：在句子末尾用 (relative/path/file.ts:line)，如 "该函数接收两个参数 (opencodewiki/src/core/search/hybrid-search.ts:175)"\n') +
@@ -1076,12 +1077,12 @@ export function createQaEndpoint(
       : '') +
       '\n' + domainFlow + '\n\n' +
       structure + '\n\n' +
-      '## SEARCH CONTEXT\n' +
+      (uploadedContext ? uploadedContext + '\n' : '') +
+      (!ACP_ENABLED ? '## SEARCH CONTEXT\n' +
       '以下是搜索到的代码文件，你的引用必须来自此列表：\n\n' +
       '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
-      (uploadedContext ? uploadedContext + '\n' : '') +
       '---\n' +
-      '注意：回答时必须遵守上方 RULES 中的引用格式。引用路径必须是 SEARCH CONTEXT 中列出的精确路径。\n';
+      '注意：回答时必须遵守上方 RULES 中的引用格式。引用路径必须是 SEARCH CONTEXT 中列出的精确路径。\n' : '');
 
     if (ACP_ENABLED) {
       let acpRepoName: string | undefined;
@@ -1091,7 +1092,7 @@ export function createQaEndpoint(
         if (ACP_CROSS_ROOT) {
           acpRepoName = CROSS_REPO_ACP_CLIENT;
           const firstBase = [...repoBaseMap.values()][0];
-          acpRepoBase = path.dirname(path.dirname(firstBase));
+          acpRepoBase = path.dirname(firstBase);
           log('info', 'ACP cross-repo using parent dir', { name: acpRepoName, base: acpRepoBase });
         } else {
           acpRepoName = [...repoBaseMap.keys()][0];
@@ -1099,7 +1100,7 @@ export function createQaEndpoint(
         }
       } else {
         acpRepoName = entry?.name;
-        acpRepoBase = entry ? path.dirname(entry.storagePath) : undefined;
+        acpRepoBase = entry ? entry.storagePath : undefined;
       }
 
       let acpSessionId = session.acpSessionId;
@@ -1139,7 +1140,7 @@ export function createQaEndpoint(
               if (content && !aborted) {
                 session.messages.push({ role: 'assistant', content });
                 session.updatedAt = new Date().toISOString();
-                const repoBase = entry ? path.dirname(entry.storagePath) : null;
+                const repoBase = entry ? entry.storagePath : null;
                 const resolvedSources = await resolveAnswerSources(content, sources, repoBase, repoBaseMap);
                 const finalSources = resolvedSources.length > sources.length ? resolvedSources : sources;
                 session.sources = finalSources;
@@ -1255,7 +1256,7 @@ export function createQaEndpoint(
       if (assistantContent) {
         session.messages.push({ role: 'assistant', content: assistantContent });
         session.updatedAt = new Date().toISOString();
-        const repoBase = entry ? path.dirname(entry.storagePath) : null;
+        const repoBase = entry ? entry.storagePath : null;
         const resolvedSources = await resolveAnswerSources(assistantContent, sources, repoBase, repoBaseMap);
         const finalSources = resolvedSources.length > sources.length ? resolvedSources : sources;
         session.sources = finalSources;
