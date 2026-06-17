@@ -1023,6 +1023,7 @@ function toggleTheme() {
 input.addEventListener('input', updateSendBtn);
 input.addEventListener('input', autoResize);
 input.addEventListener('keydown', function(e) {
+  if (e.defaultPrevented) return;
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage(e);

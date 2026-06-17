@@ -235,9 +235,9 @@ try {
     if (!_dd.classList.contains('open') || _items.length === 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); _idx = Math.min(_idx + 1, _items.length - 1); _highlight(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); _idx = Math.max(_idx - 1, -1); _highlight(); }
-    else if (e.key === 'Enter' && _idx >= 0) { e.preventDefault(); e.stopImmediatePropagation(); _select(_idx); }
+    else if (e.key === 'Enter' && _idx >= 0) { e.preventDefault(); _select(_idx); }
     else if (e.key === 'Escape') { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true; }
-  });
+  }, true);  // capture phase: 确保在页面keydown之前执行，e.defaultPrevented能被页面handler检测到
 
   function _highlight() {
     var items = _dd.querySelectorAll('.qa-suggest-item');
@@ -249,7 +249,7 @@ try {
     if (index >= 0 && index < _items.length) {
       _inp.value = _items[index].question;
       _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true;
-      _inp.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof updateSendBtn === 'function') updateSendBtn();
       if (typeof autoResize === 'function') autoResize();
       _inp.focus();
     }

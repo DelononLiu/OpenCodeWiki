@@ -847,6 +847,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
       location.href = '/qa?' + params.toString();
     }
     document.getElementById('wikiQaInput').addEventListener('keydown', function(e) {
+      if (e.defaultPrevented) return;
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); redirectToQa(); }
     });
     document.getElementById('wikiSendBtn').addEventListener('click', function(e) {
