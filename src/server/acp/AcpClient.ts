@@ -49,26 +49,27 @@ function loadConfigFile(): AcpConfig {
  *
  * Returns { agentName, agentArgs, env } where agentName is the binary/command.
  */
-export function resolveAgentConfig(acpAgent?: string): { agentName: string; agentArgs: string[]; env: Record<string, string> } {
+export function resolveAgentConfig(acpAgent?: string, cwd?: string): { agentName: string; agentArgs: string[]; env: Record<string, string> } {
   const fileCfg = loadConfigFile();
   const raw = acpAgent
     || process.env.OPENCODEWIKI_ACP_AGENT
     || fileCfg.acpAgent
     || 'kilo';
 
-  const cwd = process.env.OPENCODEWIKI_ACP_CWD || fileCfg.acpCwd || process.cwd();
+  // cwd priority: explicit param > env var > config file > process.cwd()
+  const resolvedCwd = cwd || process.env.OPENCODEWIKI_ACP_CWD || fileCfg.acpCwd || process.cwd();
 
   if (raw === 'kilo') {
     return {
       agentName: 'kilo',
-      agentArgs: ['acp', '--port', '0', '--cwd', cwd],
+      agentArgs: ['acp', '--port', '0', '--cwd', resolvedCwd],
       env: {},
     };
   }
   if (raw === 'claude') {
     return {
       agentName: 'claude-agent-acp',
-      agentArgs: ['acp', '--port', '0', '--cwd', cwd],
+      agentArgs: [],  // claude-agent-acp uses stdin/stdout ndjson, no CLI args needed
       env: {},
     };
   }
@@ -160,14 +161,19 @@ export class AcpClient {
       let resolvedEnv: Record<string, string> = {};
 
       if (!resolvedName) {
-        const cfg = resolveAgentConfig();
+        const cfg = resolveAgentConfig(undefined, this._cwd);
         resolvedName = cfg.agentName;
         resolvedArgs = cfg.agentArgs;
         resolvedEnv = cfg.env;
       } else {
-        // If called with explicit name but no args, build default ACP args
+        // If called with explicit name but no args, build default ACP args.
+        // claude-agent-acp uses stdin/stdout (no args); kilo uses --port/--cwd.
         if (!resolvedArgs || resolvedArgs.length === 0) {
-          resolvedArgs = ['acp', '--port', '0', '--cwd', this._cwd];
+          if (resolvedName.includes('claude')) {
+            resolvedArgs = [];
+          } else {
+            resolvedArgs = ['acp', '--port', '0', '--cwd', this._cwd];
+          }
         }
       }
 

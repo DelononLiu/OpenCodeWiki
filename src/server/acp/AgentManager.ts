@@ -20,7 +20,7 @@ export const ACP_AGENTS = {
   },
   claude: {
     command: 'claude-agent-acp',
-    args: (cwd: string) => ['acp', '--port', '0', '--cwd', cwd],
+    args: (_cwd: string) => [],  // uses stdin/stdout ndjson, no CLI args needed
     env: {} as Record<string, string>,
   },
 } as const;
