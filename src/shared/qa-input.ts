@@ -186,6 +186,7 @@ try {
   var _items = [];
   var _idx = -1;
   var _comp = false;
+  var _dismissed = false;   // 选中推荐或按ESC后，不再弹出推荐列表，直到输入框为空
 
   function _esc(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -197,9 +198,10 @@ try {
   _inp.addEventListener('input', function(){
     clearTimeout(_timer);
     if (_comp) return;
+    if (_dismissed) return;
     var val = this.value.trim();
     if (val.length < _min) {
-      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; return;
+      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = false; return;
     }
     _timer = setTimeout(function(){
       _dd.innerHTML = '<div class="qa-suggest-empty">Searching...</div>';
@@ -234,7 +236,7 @@ try {
     if (e.key === 'ArrowDown') { e.preventDefault(); _idx = Math.min(_idx + 1, _items.length - 1); _highlight(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); _idx = Math.max(_idx - 1, -1); _highlight(); }
     else if (e.key === 'Enter' && _idx >= 0) { e.preventDefault(); _select(_idx); }
-    else if (e.key === 'Escape') { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; }
+    else if (e.key === 'Escape') { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true; }
   });
 
   function _highlight() {
@@ -246,7 +248,7 @@ try {
   function _select(index) {
     if (index >= 0 && index < _items.length) {
       _inp.value = _items[index].question;
-      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1;
+      _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true;
       _inp.dispatchEvent(new Event('input', { bubbles: true }));
       if (typeof autoResize === 'function') autoResize();
       _inp.focus();
