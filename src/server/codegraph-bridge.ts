@@ -1001,7 +1001,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
         var tag = e.mode === 'lightweight' ? '🔍' : '⚡';
         var cal = e.isCalibrated ? '<span class="qa-list-badge">✅ 标准答案</span>' : '';
         var q = escapeHtml(e.question);
-        var DOMAIN_LABELS = { 'general':'通用','log-analysis':'日志分析','stack-analysis':'堆栈分析','static-analysis':'静态分析','build-issue':'编译构建','program-analysis':'程序分析' };
+        var DOMAIN_LABELS = { 'general':'通用','log-analysis':'日志分析','stack-analysis':'堆栈分析','bug-analysis':'缺陷分析','build-issue':'编译构建','program-analysis':'程序分析' };
         var domBadge = (e.domain && e.domain !== 'general') ? '<span class="qa-list-domain-badge">' + (DOMAIN_LABELS[e.domain] || e.domain) + '</span>' : '';
         html += '<a class="qa-list-item" href="/qa?' + encodeURIComponent(REPO) + '&qid=' + e.qid + '">' +
           '<div class="qa-list-header">' +

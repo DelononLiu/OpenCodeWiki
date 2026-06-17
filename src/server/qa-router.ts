@@ -57,7 +57,7 @@ router.get('/entries', (req, res) => {
     repo: repo || undefined,
     mode,
     status: status || undefined,
-    domain: (domain && ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined),
+    domain: (domain && ['general', 'log-analysis', 'stack-analysis', 'bug-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined),
     sort,
     page: page && !isNaN(page) ? page : undefined,
     limit: limit && !isNaN(limit) ? limit : undefined,
@@ -266,7 +266,7 @@ router.get('/search', (req, res) => {
     return;
   }
   const entries = store.searchEntries(query, 10, repo,
-    (domain && ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined));
+    (domain && ['general', 'log-analysis', 'stack-analysis', 'bug-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined));
   res.json({ entries, total: entries.length });
 });
 

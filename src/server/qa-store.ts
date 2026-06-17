@@ -13,15 +13,15 @@ import fs from 'fs';
 
 // ── Types ──────────────────────────────────────────────────────
 
-export type Domain = 'general' | 'log-analysis' | 'stack-analysis' | 'static-analysis' | 'build-issue' | 'program-analysis';
+export type Domain = 'general' | 'log-analysis' | 'stack-analysis' | 'bug-analysis' | 'build-issue' | 'program-analysis';
 
-export const DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'];
+export const DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'bug-analysis', 'build-issue', 'program-analysis'];
 
 export const DOMAIN_LABELS: Record<Domain, string> = {
   general: '通用',
   'log-analysis': '日志分析',
   'stack-analysis': '堆栈分析',
-  'static-analysis': '静态分析',
+  'bug-analysis': '缺陷分析',
   'build-issue': '编译构建',
   'program-analysis': '程序分析',
 };

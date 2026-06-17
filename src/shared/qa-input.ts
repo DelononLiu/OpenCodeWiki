@@ -110,7 +110,7 @@ export function qaInputHtml(cfg: QaInputConfig): string {
       <div class="type-bar" id="${cfg.idMap.domainBar}">
         <button class="type-chip" data-domain="log-analysis" data-label="日志分析">日志分析</button>
         <button class="type-chip" data-domain="stack-analysis" data-label="堆栈分析">堆栈分析</button>
-        <button class="type-chip" data-domain="static-analysis" data-label="静态分析">静态分析</button>
+        <button class="type-chip" data-domain="bug-analysis" data-label="缺陷分析">缺陷分析</button>
         <span class="more-wrapper">
           <button class="type-chip" id="${cfg.idMap.domainMoreBtn}" data-domain="">更多&#9660;</button>
           <div class="more-dropdown" id="${cfg.idMap.domainMoreDropdown}">

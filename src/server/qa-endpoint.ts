@@ -532,12 +532,12 @@ export function classifyDomain(question: string): Domain {
   const q = question.trim().toLowerCase();
   // Build / compile issues
   if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency|链接|ld\b|ar\b|objdump|nm\b)/.test(q)) return 'build-issue';
-  // Static code analysis
-  if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|静态分析|格式检查|代码规范|规范检查|代码分析|data flow|control flow|调用图|call graph|循环复杂度|cyclomatic|复杂度)/.test(q)) return 'static-analysis';
+  // Bug / defect analysis
+  if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|bug|缺陷|漏洞|格式检查|代码规范|规范检查|代码分析|循环复杂度|cyclomatic|复杂度|安全漏洞|安全分析)/.test(q)) return 'bug-analysis';
   // Stack trace / crash analysis
   if (/(堆栈|栈回溯|stack trace|call stack|segfault|段错误|null pointer|空指针|crash dump|core dump|异常退出|panic|crash|崩溃|OOM|内存泄漏|死锁|deadlock|线程|thread|并发|concurrent)/.test(q)) return 'stack-analysis';
   // Program analysis (runtime behavior, data flow, control flow)
-  if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用链|call graph)/.test(q)) return 'program-analysis';
+  if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用链|调用图|call graph)/.test(q)) return 'program-analysis';
   // Log analysis
   if (/(日志|日志分析|异常日志|服务日志|access log|nginx log|application log|syslog|日志文件|log\b)/.test(q)) return 'log-analysis';
   return 'general';
@@ -569,16 +569,17 @@ function domainProcessingFlow(domain: Domain): string {
 3. codegraph_context 查看关键符号的完整定义
 4. 重点分析：编译选项配置、依赖版本约束、链接脚本、条件编译宏`,
 
-    'static-analysis': `## 领域处理流程
+    'bug-analysis': `## 领域处理流程
 
-这是一个 **静态分析 / 代码质量** 问题，按以下方式处理：
+这是一个 **缺陷分析** 问题，按以下方式处理：
 1. 用问题中涉及的符号名进行 codegraph_search
 2. codegraph_context 获取函数/类的完整定义
 3. 从以下维度审查代码：
    - 类型安全（类型转换、空指针、未初始化变量）
    - 资源管理（内存泄漏、句柄未释放）
    - 逻辑正确性（边界条件、竞态、空集合操作）
-   - 可维护性（命名、复杂度、重复代码）`,
+   - 可维护性（命名、复杂度、重复代码）
+   - 安全漏洞（注入、越界、权限绕过）`,
 
     'stack-analysis': `## 领域处理流程
 
@@ -965,7 +966,7 @@ export function createQaEndpoint(
     saveSession(session);
 
     // Resolve domain: explicit > backward-compat questionType > auto-classify
-    const VALID_DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'];
+    const VALID_DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'bug-analysis', 'build-issue', 'program-analysis'];
     let domain: Domain = 'general';
     if (reqDomain && VALID_DOMAINS.includes(reqDomain as Domain)) {
       domain = reqDomain as Domain;
