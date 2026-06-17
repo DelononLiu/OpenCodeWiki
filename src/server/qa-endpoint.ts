@@ -704,6 +704,8 @@ export function createQaEndpoint(
   }>,
   search: (query: string, repo?: string) => Promise<{ sources: any[]; flows?: string }>,
   listRepos?: () => Promise<{ name: string }[]>,
+  searchCallers?: (symbol: string, repo?: string) => Promise<string>,
+  searchImpact?: (symbol: string, repo?: string) => Promise<string>,
 ) {
   // Eager init: pre-start ACP clients for all indexed repos
   if (ACP_ENABLED && listRepos) {
@@ -720,7 +722,7 @@ export function createQaEndpoint(
   }
 
   return async (req: any, res: any) => {
-    const question = req.body?.question?.trim();
+    let question = req.body?.question?.trim();
     const history: { role: string; content: string }[] = req.body?.history ?? [];
     const repoName = req.body?.repo ?? (req.query?.repo as string | undefined);
     let sessionId: string | undefined = req.body?.sessionId;
@@ -786,7 +788,11 @@ export function createQaEndpoint(
       qid = session.qid;
     }
 
-    const isCrossRepo = !repoName && !!listRepos;
+    // Cross-repo mode: @cross tag forces it, otherwise auto when no repo specified
+    const hasCrossTag = /@cross\b/i.test(question);
+    const isCrossRepo = !!listRepos && (hasCrossTag || !repoName);
+    // Strip @cross tag from question for clean search/prompt
+    if (hasCrossTag) question = question.replace(/@cross\b\s*/gi, '');
     let wikiContext = '';
     let entry = undefined;
     if (isCrossRepo) {
@@ -830,6 +836,7 @@ export function createQaEndpoint(
 
     let sources: any[] = [];
     let searchContent = '';
+    let crossImpactContent = '';
     let flowsText = '';
     let repoBaseMap: Map<string, string> | undefined = undefined;
     try {
@@ -902,6 +909,33 @@ export function createQaEndpoint(
           }
         }
         searchContent = lines.join('\n');
+
+        // Cross-repo impact: for repos with search hits, run callers + impact analysis
+        if (hasCrossTag && searchCallers && allRepoResults.length > 0) {
+          const hitRepos = allRepoResults.map(r => r.repoName);
+          // Extract top symbol from first repo's results
+          const topSymbol = allRepoResults[0]?.sources?.[0]?.name
+            || allRepoResults[0]?.sources?.[0]?.filePath?.split('/').pop()?.replace(/\.[^.]+$/, '')
+            || searchQuery.split(' ')[0];
+          log('info', 'cross-repo impact starting', { repos: hitRepos.slice(0, 3), symbol: topSymbol });
+
+          const impactParts: string[] = [];
+          await Promise.allSettled(hitRepos.slice(0, 3).map(async (repo) => {
+            try {
+              const [callers, impact] = await Promise.all([
+                searchCallers(topSymbol, repo),
+                searchImpact!(topSymbol, repo),
+              ]);
+              if (callers) impactParts.push(`### ${repo}:callers\n${callers.slice(0, 2000)}`);
+              if (impact) impactParts.push(`### ${repo}:impact\n${impact.slice(0, 2000)}`);
+            } catch {}
+          }));
+
+          if (impactParts.length > 0) {
+            crossImpactContent = '## CROSS-REPO IMPACT\n' + impactParts.join('\n\n');
+            log('info', 'cross-repo impact done', { parts: impactParts.length });
+          }
+        }
       } else {
         const { sources: searchResults, flows: rawFlows = '' } = await search(searchQuery, repoName);
         flowsText = rawFlows;
@@ -1083,7 +1117,8 @@ export function createQaEndpoint(
       '以下是搜索到的代码文件，你的引用必须来自此列表：\n\n' +
       '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
       '---\n' +
-      '注意：回答时必须遵守上方 RULES 中的引用格式。引用路径必须是 SEARCH CONTEXT 中列出的精确路径。\n' : '');
+      '注意：回答时必须遵守上方 RULES 中的引用格式。引用路径必须是 SEARCH CONTEXT 中列出的精确路径。\n' : '') +
+      (crossImpactContent ? '\n' + crossImpactContent + '\n' : '');
 
     if (ACP_ENABLED) {
       let acpRepoName: string | undefined;

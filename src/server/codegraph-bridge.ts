@@ -593,6 +593,28 @@ const search = async (query: string, repo?: string) => {
   }
 };
 
+/** Run codegraph_callers for a symbol in a specific repo. */
+const searchCallers = async (symbol: string, repo?: string) => {
+  try {
+    const args: Record<string, unknown> = { symbol, limit: 15 };
+    const projectPath = searchRepoPath(repo);
+    if (projectPath) args.projectPath = projectPath;
+    const result = await handler.execute('codegraph_callers', args);
+    return result?.content?.[0]?.text || '';
+  } catch { return ''; }
+};
+
+/** Run codegraph_impact for a symbol in a specific repo. */
+const searchImpact = async (symbol: string, repo?: string) => {
+  try {
+    const args: Record<string, unknown> = { symbol, depth: 2 };
+    const projectPath = searchRepoPath(repo);
+    if (projectPath) args.projectPath = projectPath;
+    const result = await handler.execute('codegraph_impact', args);
+    return result?.content?.[0]?.text || '';
+  } catch { return ''; }
+};
+
 const resolveRepo = async (repoName?: string) => {
   if (!repoName) return { storagePath: path.join(rootDir, 'opencodewiki'), name: 'opencodewiki' };
   const registry = await loadRegistry();
@@ -672,7 +694,7 @@ app.delete('/api/repos/:name', async (req, res) => {
   res.json({ removed: true });
 });
 
-const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos);
+const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact);
 app.post('/api/qa', qaHandler);
 
 app.get('/api/qa/session/:id', (req, res) => {
