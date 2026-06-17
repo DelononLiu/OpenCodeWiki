@@ -22,9 +22,10 @@ export interface QaInputConfig {
   suggestDebounceMs?: number; // debounce delay for suggestions (default 300)
   suggestMinChars?: number;  // minimum chars before triggering suggestions (default 2)
   idMap: {
-    typeBar: string;
-    moreBtn: string;
-    moreDropdown: string;
+    domainBar: string;
+    domainMoreBtn: string;
+    domainMoreDropdown: string;
+    domainInput: string;
     attachBtn: string;
     fileInput: string;
     sendBtn: string;
@@ -106,18 +107,19 @@ export function qaInputHtml(cfg: QaInputConfig): string {
         </svg>
       </button>
       <span class="footer-divider">|</span>
-      <div class="type-bar" id="${cfg.idMap.typeBar}">
-        <button class="type-chip" data-type="log-analysis">日志分析</button>
-        <button class="type-chip" data-type="stack-analysis">堆栈分析</button>
-        <button class="type-chip" data-type="static-analysis">静态分析</button>
+      <div class="type-bar" id="${cfg.idMap.domainBar}">
+        <button class="type-chip" data-domain="log-analysis" data-label="日志分析">日志分析</button>
+        <button class="type-chip" data-domain="stack-analysis" data-label="堆栈分析">堆栈分析</button>
+        <button class="type-chip" data-domain="static-analysis" data-label="静态分析">静态分析</button>
         <span class="more-wrapper">
-          <button class="type-chip" id="${cfg.idMap.moreBtn}" data-type="">更多&#9660;</button>
-          <div class="more-dropdown" id="${cfg.idMap.moreDropdown}">
-            <button class="type-chip" data-type="build-issue">编译构建</button>
-            <button class="type-chip" data-type="program-analysis">程序分析</button>
+          <button class="type-chip" id="${cfg.idMap.domainMoreBtn}" data-domain="">更多&#9660;</button>
+          <div class="more-dropdown" id="${cfg.idMap.domainMoreDropdown}">
+            <button class="type-chip" data-domain="build-issue" data-label="编译构建">编译构建</button>
+            <button class="type-chip" data-domain="program-analysis" data-label="程序分析">程序分析</button>
           </div>
         </span>
       </div>
+      <input type="hidden" id="${cfg.idMap.domainInput}" value="">
       <button type="${cfg.formAction || cfg.onsubmit ? 'submit' : 'button'}" id="${cfg.idMap.sendBtn}">Ask</button>
     </div>
   </form>
@@ -126,36 +128,48 @@ export function qaInputHtml(cfg: QaInputConfig): string {
 
 export function qaInputInitScript(cfg: QaInputConfig): string {
   return `
-// ── QA Input: type bar init ──
+// ── QA Input: domain bar init ──
 (function(){
-  var ST = null;
-  var moreBtn = document.getElementById('${cfg.idMap.moreBtn}');
-  var moreDd = document.getElementById('${cfg.idMap.moreDropdown}');
-  document.querySelectorAll('#${cfg.idMap.typeBar} .type-chip').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var type = this.dataset.type;
-      if(this.id === '${cfg.idMap.moreBtn}'){ moreDd.classList.toggle('open'); return; }
-      moreDd.classList.remove('open');
-      if(ST === type){ ST = null;
-        document.querySelectorAll('#${cfg.idMap.typeBar} .type-chip').forEach(function(b){ b.classList.remove('active'); });
-      }else{ ST = type;
-        document.querySelectorAll('#${cfg.idMap.typeBar} .type-chip').forEach(function(b){ b.classList.toggle('active', b.dataset.type === type); });
-      }
-    });
+  var SD = null;
+  var moreBtn = document.getElementById('${cfg.idMap.domainMoreBtn}');
+  var moreDd = document.getElementById('${cfg.idMap.domainMoreDropdown}');
+  var domainInput = document.getElementById('${cfg.idMap.domainInput}');
+  var bar = document.getElementById('${cfg.idMap.domainBar}');
+  if (!bar) return;
+
+  function updateDomainInput() {
+    if (domainInput) domainInput.value = SD || '';
+  }
+
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('.type-chip');
+    if (!btn) return;
+    var dom = btn.dataset.domain;
+    if (btn.id === '${cfg.idMap.domainMoreBtn}'){ moreDd.classList.toggle('open'); return; }
+    moreDd.classList.remove('open');
+    if (SD === dom) {
+      SD = null;
+      bar.querySelectorAll('.type-chip').forEach(function(b){ b.classList.remove('active'); });
+    } else {
+      SD = dom;
+      bar.querySelectorAll('.type-chip').forEach(function(b){ b.classList.toggle('active', b.dataset.domain === dom); });
+    }
+    updateDomainInput();
   });
   document.addEventListener('click', function(e){
-    if(moreDd.classList.contains('open') && !e.target.closest('.more-wrapper')) moreDd.classList.remove('open');
+    if(moreDd && moreDd.classList.contains('open') && !e.target.closest('.more-wrapper')) moreDd.classList.remove('open');
   });
   // Restore from URL param
-  var _qt = new URLSearchParams(location.search).get('type');
-  if(_qt){
-    ST = _qt;
-    document.querySelectorAll('#${cfg.idMap.typeBar} .type-chip').forEach(function(b){
-      if(b.dataset.type === _qt) b.classList.add('active');
+  var _dm = new URLSearchParams(location.search).get('domain');
+  if(_dm){
+    SD = _dm;
+    bar.querySelectorAll('.type-chip').forEach(function(b){
+      if(b.dataset.domain === _dm) b.classList.add('active');
     });
+    updateDomainInput();
   }
-  // Expose selectedType for page-specific send functions
-  window.__qaSelectedType = function(){ return ST; };
+  // Expose selectedDomain for page-specific send functions
+  window.__qaSelectedDomain = function(){ return SD; };
 })();
 
 // ── QA Input: question suggest autocomplete ──

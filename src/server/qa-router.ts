@@ -48,6 +48,7 @@ router.get('/entries', (req, res) => {
   const repo = req.query.repo as string | undefined;
   const mode = req.query.mode as 'lightweight' | 'deep' | undefined;
   const status = req.query.status as 'active' | 'archived' | undefined;
+  const domain = req.query.domain as string | undefined;
   const sort = req.query.sort as 'latest' | 'popular' | 'visit' | undefined;
   const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
@@ -56,6 +57,7 @@ router.get('/entries', (req, res) => {
     repo: repo || undefined,
     mode,
     status: status || undefined,
+    domain: (domain && ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined),
     sort,
     page: page && !isNaN(page) ? page : undefined,
     limit: limit && !isNaN(limit) ? limit : undefined,
@@ -78,6 +80,7 @@ router.post('/entry', (req, res) => {
       question: body.question,
       answer: body.answer ?? null,
       mode: body.mode === 'lightweight' ? 'lightweight' : 'deep',
+      domain: body.domain || undefined,
       parentQid: body.parentQid ? parseInt(body.parentQid, 10) : null,
       relatedQids: body.relatedQids || [],
       tags: body.tags || [],
@@ -102,6 +105,7 @@ router.patch('/entry/:qid', (req, res) => {
     module: body.module,
     answer: body.answer,
     status: body.status,
+    domain: body.domain,
     relatedQids: body.relatedQids,
     tags: body.tags,
   });
@@ -256,11 +260,13 @@ router.get('/calibrated', (_req, res) => {
 router.get('/search', (req, res) => {
   const query = (req.query.q as string || '').trim();
   const repo = req.query.repo as string | undefined;
+  const domain = req.query.domain as string | undefined;
   if (!query) {
     res.status(400).json({ error: 'Missing search query' });
     return;
   }
-  const entries = store.searchEntries(query, 10, repo);
+  const entries = store.searchEntries(query, 10, repo,
+    (domain && ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'].includes(domain) ? domain as any : undefined));
   res.json({ entries, total: entries.length });
 });
 

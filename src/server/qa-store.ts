@@ -13,6 +13,19 @@ import fs from 'fs';
 
 // ── Types ──────────────────────────────────────────────────────
 
+export type Domain = 'general' | 'log-analysis' | 'stack-analysis' | 'static-analysis' | 'build-issue' | 'program-analysis';
+
+export const DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'];
+
+export const DOMAIN_LABELS: Record<Domain, string> = {
+  general: '通用',
+  'log-analysis': '日志分析',
+  'stack-analysis': '堆栈分析',
+  'static-analysis': '静态分析',
+  'build-issue': '编译构建',
+  'program-analysis': '程序分析',
+};
+
 export interface QaEntry {
   id: string;
   qid: number;
@@ -27,6 +40,7 @@ export interface QaEntry {
   relatedQids: number[];
   tags: string[];
   sources: any[];
+  domain: Domain;
   createdAt: string;
   updatedAt: string;
   answeredAt: string | null;
@@ -52,6 +66,7 @@ export interface QaEntrySummary {
   repo: string;
   module: string | null;
   parentQid: number | null;
+  domain: Domain;
   createdAt: string;
   updatedAt: string;
   answeredAt: string | null;
@@ -69,6 +84,7 @@ export interface QaListQuery {
   repo?: string;
   mode?: 'lightweight' | 'deep';
   status?: 'active' | 'archived';
+  domain?: Domain;
   page?: number;
   limit?: number;
   sort?: 'latest' | 'popular' | 'visit';
@@ -86,6 +102,7 @@ CREATE TABLE IF NOT EXISTS qa_entries (
     question      TEXT NOT NULL,
     answer        TEXT,
     mode          TEXT NOT NULL DEFAULT 'deep' CHECK(mode IN ('lightweight','deep')),
+    domain        TEXT NOT NULL DEFAULT 'general',
     status        TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
     parent_qid    INTEGER,
     related_qids  TEXT,
@@ -114,6 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_qa_session ON qa_entries(session_id);
 CREATE INDEX IF NOT EXISTS idx_qa_parent ON qa_entries(parent_qid);
 CREATE INDEX IF NOT EXISTS idx_qa_mode ON qa_entries(mode);
 CREATE INDEX IF NOT EXISTS idx_qa_created ON qa_entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain);
 CREATE INDEX IF NOT EXISTS idx_ca_entry ON calibrated_answers(qa_entry_id);
 `;
 
@@ -135,6 +153,17 @@ function getDb(): DatabaseSync {
   // Enable WAL mode for concurrent read performance
   _db.exec('PRAGMA journal_mode=WAL');
   _db.exec(SQL_CREATE_TABLES);
+  // Migrate: add domain column if missing
+  try {
+    _db.exec("ALTER TABLE qa_entries ADD COLUMN domain TEXT NOT NULL DEFAULT 'general'");
+  } catch {}
+  try {
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain)');
+  } catch {}
+  // Backfill: set domain='general' for existing NULL/empty entries
+  try {
+    _db.exec("UPDATE qa_entries SET domain = 'general' WHERE domain IS NULL OR domain = ''");
+  } catch {}
   return _db;
 }
 
@@ -162,6 +191,7 @@ function rowToQaEntry(row: any): QaEntry {
     relatedQids: parseJsonArray(row.related_qids),
     tags: parseJsonArray(row.tags),
     sources: parseJsonArray(row.sources),
+    domain: row.domain || 'general',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     answeredAt: row.answered_at,
@@ -178,6 +208,7 @@ function rowToSummary(row: any): QaEntrySummary {
     repo: row.repo,
     module: row.module,
     parentQid: row.parent_qid,
+    domain: row.domain || 'general',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     answeredAt: row.answered_at,
@@ -223,6 +254,7 @@ export function createEntry(data: {
   question: string;
   answer?: string | null;
   mode: 'lightweight' | 'deep';
+  domain?: Domain;
   parentQid?: number | null;
   relatedQids?: number[];
   tags?: string[];
@@ -232,14 +264,15 @@ export function createEntry(data: {
   const id = randomUUID();
   const qid = nextQid();
   const now = new Date().toISOString();
+  const domain = data.domain || 'general';
 
   db.prepare(`
-    INSERT INTO qa_entries (id, qid, session_id, repo, module, question, answer, mode, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO qa_entries (id, qid, session_id, repo, module, question, answer, mode, domain, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, qid, data.sessionId, data.repo,
     data.module ?? null, data.question,
-    data.answer ?? null, data.mode,
+    data.answer ?? null, data.mode, domain,
     data.parentQid ?? null,
     toJsonArray(data.relatedQids),
     toJsonArray(data.tags),
@@ -252,7 +285,7 @@ export function createEntry(data: {
     id, qid, sessionId: data.sessionId,
     repo: data.repo, module: data.module ?? null,
     question: data.question, answer: data.answer ?? null,
-    mode: data.mode, status: 'active',
+    mode: data.mode, domain: domain as Domain, status: 'active',
     parentQid: data.parentQid ?? null,
     relatedQids: data.relatedQids ?? [],
     tags: data.tags ?? [],
@@ -332,6 +365,10 @@ export function listEntries(query: QaListQuery): { entries: QaEntrySummary[]; to
     conditions.push('e.status = ?');
     params.push(query.status);
   }
+  if (query.domain) {
+    conditions.push('e.domain = ?');
+    params.push(query.domain);
+  }
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -366,6 +403,7 @@ export function updateEntry(qid: number, data: {
   module?: string | null;
   answer?: string | null;
   status?: 'active' | 'archived';
+  domain?: Domain;
   relatedQids?: number[];
   tags?: string[];
 }): boolean {
@@ -385,6 +423,10 @@ export function updateEntry(qid: number, data: {
   if (data.status !== undefined) {
     sets.push('status = ?');
     params.push(data.status);
+  }
+  if (data.domain !== undefined) {
+    sets.push('domain = ?');
+    params.push(data.domain);
   }
   if (data.relatedQids !== undefined) {
     sets.push('related_qids = ?');
@@ -574,7 +616,7 @@ export function searchCalibratedEntries(query: string, limit = 5): QaEntrySummar
 /**
  * Search entries by question text (lightweight, for in-page search / autocomplete).
  */
-export function searchEntries(query: string, limit = 10, repo?: string): QaEntrySummary[] {
+export function searchEntries(query: string, limit = 10, repo?: string, domain?: Domain): QaEntrySummary[] {
   const db = getDb();
   const like = `%${query.replace(/[%_]/g, '\\$&')}%`;
   let sql = `
@@ -587,8 +629,20 @@ export function searchEntries(query: string, limit = 10, repo?: string): QaEntry
     sql += ' AND e.repo = ?';
     params.push(repo);
   }
+  if (domain) {
+    sql += ' AND e.domain = ?';
+    params.push(domain);
+  }
   sql += ' ORDER BY e.visit_count DESC, e.created_at DESC LIMIT ?';
   params.push(limit);
   const rows = db.prepare(sql).all(...params);
   return (rows as any[]).map(rowToSummary);
+}
+
+// ── Domain backfill ──────────────────────────────────────────────
+
+export function backfillDomain(): number {
+  const db = getDb();
+  const result = db.prepare("UPDATE qa_entries SET domain = 'general' WHERE domain IS NULL OR domain = ''").run();
+  return (result as any).changes || 0;
 }

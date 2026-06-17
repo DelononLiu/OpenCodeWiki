@@ -183,8 +183,8 @@ function homeRedirectToQa(q, filePath) {
   if (!q) return;
   redirectOverlay.style.display = 'flex';
   var params = new URLSearchParams({ q: q, sessionId: _homeSessionId });
-  var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
-  if (_st) params.set('type', _st);
+  var _dm = window.__qaSelectedDomain ? window.__qaSelectedDomain() : null;
+  if (_dm) params.set('domain', _dm);
   if (filePath) params.set('file', filePath);
   setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
 }

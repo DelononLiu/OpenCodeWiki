@@ -90,6 +90,8 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .question-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .question-text{font-weight:700;font-size:18px;color:var(--color-text-primary);line-height:1.4}
 .fast-badge{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:999px;background:var(--bg-secondary);color:var(--color-text-secondary);white-space:nowrap;flex-shrink:0}
+.domain-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--color-blue);color:var(--color-blue);background:rgba(59,130,246,.08);white-space:nowrap;flex-shrink:0;text-transform:capitalize;margin-right:4px}
+.dark .domain-badge{background:rgba(96,150,255,.12)}
 
 .answer-content{font-size:14px;line-height:1.7;word-wrap:break-word}
 .answer-content .table-wrapper{overflow-x:auto;margin:10px 0}
@@ -347,7 +349,10 @@ function createSessionBlock(question) {
   block.innerHTML = `
     <div class="question-title">
       <span class="question-text">${escapeHtml(question)}</span>
-      <span class="fast-badge">Deep</span>
+      <span>
+        <span class="domain-badge" id="domainBadge-${blockId}" style="display:none"></span>
+        <span class="fast-badge">Deep</span>
+      </span>
     </div>
     <div class="answer-card">
       <div class="answer-content" id="answer-${blockId}"></div>
@@ -822,14 +827,24 @@ async function sendMessage(e) {
   messages.push({ role: 'user', content: text });
 
   currentBlockId = createSessionBlock(text);
+  // Show domain badge if a domain was selected
+  var _curDom = window.__qaSelectedDomain ? window.__qaSelectedDomain() : null;
+  if (_curDom) {
+    var DOMAIN_LABELS = { /* domain labels for display */
+      'general': '通用', 'log-analysis': '日志分析', 'stack-analysis': '堆栈分析',
+      'static-analysis': '静态分析', 'build-issue': '编译构建', 'program-analysis': '程序分析'
+    };
+    var dbEl = document.getElementById('domainBadge-' + currentBlockId);
+    if (dbEl) { dbEl.textContent = DOMAIN_LABELS[_curDom] || _curDom; dbEl.style.display = 'inline'; }
+  }
   setLoading(true);
   abortController = new AbortController();
   let assistantContent = '';
 
   try {
     const payload = { question: text, history: messages.slice(0, -1), repo: currentRepo, sessionId: currentSessionId };
-    var _st = window.__qaSelectedType ? window.__qaSelectedType() : null;
-    if (_st) payload.questionType = _st;
+    var _dm = window.__qaSelectedDomain ? window.__qaSelectedDomain() : null;
+    if (_dm) payload.domain = _dm;
     if (attachedSnapshot.length > 0) {
       payload.attachedFiles = attachedSnapshot;
     }

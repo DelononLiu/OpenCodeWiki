@@ -6,6 +6,7 @@ import type { ServerResponse } from 'http';
 import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 import * as qaStore from './qa-store.js';
+import type { Domain } from './qa-store.js';
 
 /** Sanitize filename to prevent path traversal */
 function safeName(name: string): string {
@@ -525,68 +526,133 @@ async function resolveCrossRepoSources(
   return merged;
 }
 
-type QuestionType = 'general'
-  | 'build-issue' | 'static-analysis' | 'stack-analysis' | 'program-analysis' | 'log-analysis';
+// ── Domain classification ────────────────────────────────────────
 
-function classifyQuestion(question: string): QuestionType {
+export function classifyDomain(question: string): Domain {
   const q = question.trim().toLowerCase();
   // Build / compile issues
-  if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency)/.test(q)) return 'build-issue';
+  if (/(编译|构建|构建失败|编译错误|build|compile|make\b|cmake|gradle|maven|bazel|link error|链接错误|依赖|dependency|链接|ld\b|ar\b|objdump|nm\b)/.test(q)) return 'build-issue';
   // Static code analysis
-  if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|静态分析|格式检查|代码规范|规范检查)/.test(q)) return 'static-analysis';
+  if (/(lint|eslint|sonar|tslint|prettier|代码质量|code smell|静态分析|格式检查|代码规范|规范检查|代码分析|data flow|control flow|调用图|call graph|循环复杂度|cyclomatic|复杂度)/.test(q)) return 'static-analysis';
   // Stack trace / crash analysis
-  if (/(堆栈|栈回溯|stack trace|call stack|segfault|段错误|null pointer|空指针|crash dump|core dump|异常退出|panic)/.test(q)) return 'stack-analysis';
-  // Program analysis
-  if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用图|call graph|循环复杂度|cyclomatic)/.test(q)) return 'program-analysis';
+  if (/(堆栈|栈回溯|stack trace|call stack|segfault|段错误|null pointer|空指针|crash dump|core dump|异常退出|panic|crash|崩溃|OOM|内存泄漏|死锁|deadlock|线程|thread|并发|concurrent)/.test(q)) return 'stack-analysis';
+  // Program analysis (runtime behavior, data flow, control flow)
+  if (/(程序分析|数据流|控制流|data flow|control flow|program analysis|运行时|runtime behavior|调用链|call graph)/.test(q)) return 'program-analysis';
   // Log analysis
   if (/(日志|日志分析|异常日志|服务日志|access log|nginx log|application log|syslog|日志文件|log\b)/.test(q)) return 'log-analysis';
   return 'general';
 }
 
-function structureGuide(type: QuestionType): string {
-  const guides: Record<QuestionType, string[]> = {
-    general: [
-      '- Start with a 1-sentence direct answer (no heading).',
-      '- Organize the rest into ## sections by topic.',
-      '- Prefer bullet points and short paragraphs.',
-    ],
-    'build-issue': [
-      '- 直接指出错误信息（1 句话，无标题）。',
-      '- Use ## 错误信息 with the exact error text in a code block.',
-      '- Use ## 可能原因 as a bullet list explaining what triggers it.',
-      '- Use ## 解决方案 with actionable code blocks or commands.',
-      '- Keep it concise — no lengthy architecture discussion.',
-    ],
-    'static-analysis': [
-      '- 直接指出问题（1 句话，无标题）。',
-      '- Use ## 问题 describing the code quality or correctness issue.',
-      '- Use ## 文件位置 referencing the exact path and line.',
-      '- Use ## 建议修复 with before/after code snippets.',
-      '- Make recommendations actionable. Use code blocks.',
-    ],
-    'stack-analysis': [
-      '- 直接指出异常类型和关键信息（1 句话，无标题）。',
-      '- Use ## 异常类型 with the exception class and message in a code block.',
-      '- Use ## 调用链 showing only the critical frames from the trace.',
-      '- Use ## 根因 identifying the exact source line or condition.',
-      '- Focus on root cause — do not dump the full trace.',
-    ],
-    'program-analysis': [
-      '- 直接描述程序行为（1 句话，无标题）。',
-      '- Use ## 行为描述 explaining what the code does in plain language.',
-      '- Use ## 源码分析 walking through the relevant code path with snippets.',
-      '- Use ## 影响 explaining consequences, edge cases, or risks.',
-      '- Keep analysis focused on the specific code path.',
-    ],
-    'log-analysis': [
-      '- 1 句话总结日志内容（无标题）。',
-      '- Use ## 日志摘要 highlighting key timestamps and events.',
-      '- Use ## 异常提取 listing errors, warnings, and unusual patterns.',
-      '- Use ## 根因建议 with diagnostic steps or fix suggestions.',
-      '- Do not reproduce the full log — only critical lines.',
-    ],
+/**
+ * classifyQuestion() — backward compatible alias.
+ */
+export function classifyQuestion(question: string): Domain {
+  return classifyDomain(question);
+}
+
+// ── Answer structure templates (LLM self-selects) ────────────────
+
+function domainProcessingFlow(domain: Domain): string {
+  const flows: Record<Domain, string> = {
+    general: `## 领域处理流程
+
+采用通用搜索策略：
+1. codegraph_search 语义搜索定位问题相关的符号
+2. codegraph_context 获取关键符号的完整定义
+3. 综合搜索到的信息组织回答`,
+
+    'build-issue': `## 领域处理流程
+
+这是一个 **编译构建** 问题，按以下方式处理：
+1. 提取错误信息中的关键标识符（函数名、宏、链接符号、目标名）
+2. codegraph_search 搜索这些关键词，优先命中构建文件（CMakeLists.txt、Makefile、package.json、Cargo.toml 等）
+3. codegraph_context 查看关键符号的完整定义
+4. 重点分析：编译选项配置、依赖版本约束、链接脚本、条件编译宏`,
+
+    'static-analysis': `## 领域处理流程
+
+这是一个 **静态分析 / 代码质量** 问题，按以下方式处理：
+1. 用问题中涉及的符号名进行 codegraph_search
+2. codegraph_context 获取函数/类的完整定义
+3. 从以下维度审查代码：
+   - 类型安全（类型转换、空指针、未初始化变量）
+   - 资源管理（内存泄漏、句柄未释放）
+   - 逻辑正确性（边界条件、竞态、空集合操作）
+   - 可维护性（命名、复杂度、重复代码）`,
+
+    'stack-analysis': `## 领域处理流程
+
+这是一个 **堆栈 / 崩溃分析** 问题，按以下方式处理：
+1. 从堆栈中提取关键帧的函数名——从应用程序代码层开始，过滤掉框架/库层
+2. 用 codegraph_search 定位每个关键函数
+3. 用 codegraph_context 查看函数完整定义
+4. 用 codegraph_callees 追溯调用来源
+5. 分析根因方向：空指针访问、缓冲区越界、未初始化变量、资源耗尽、断言失败`,
+
+    'program-analysis': `## 领域处理流程
+
+这是一个 **程序分析 / 运行时行为** 问题，按以下方式处理：
+1. 用问题中的核心符号或概念进行 codegraph_search
+2. codegraph_context 获取关键定义
+3. 用 codegraph_impact 分析影响范围
+4. 用 codegraph_callers / codegraph_callees 追踪调用链
+5. 说明数据流转路径和关键控制节点`,
+
+    'log-analysis': `## 领域处理流程
+
+这是一个 **日志分析** 问题，按以下方式处理：
+1. 提取日志中的关键信息：错误码、异常类型、时间戳、关键词
+2. 用提取到的错误关键词进行 codegraph_search
+3. 定位日志输出点附近的逻辑处理代码
+4. 分析：什么条件下产生该日志、后续处理流程是什么、是否有已知的问题模式`,
   };
-  return guides[type].join('\n');
+  return flows[domain] || flows.general;
+}
+
+function structureGuide(): string {
+  return `## 回答模板
+
+请根据用户问题的性质，自行选择最合适的回答结构。以下列出所有可用的结构模板，参考其中一种来组织回答：
+
+### 模板 A：故障排查
+适用于编译错误、运行时崩溃、段错误、日志异常、链接错误等排查类问题。
+
+- 1 句话直接指出错误或异常（不加标题）。
+- ## 错误信息 — 关键错误输出放在代码块中；如有堆栈只需关键帧。
+- ## 原因分析 — 用 bullet list 说明触发条件和根因，避免长篇大论。
+- ## 解决方案 — 可操作的具体步骤，按推荐程度列出。
+
+### 模板 B：代码解释
+适用于"这段代码做了什么"、"这个函数功能是什么"、"逻辑是怎么走的"等解释类问题。
+
+- 1 句话概括代码行为（不加标题）。
+- ## 功能说明 — 用自然语言解释作用，说明输入/输出/核心逻辑。
+- ## 源码走读 — 沿关键路径逐段分析，配合代码片段标注行号。
+- ## 影响范围 — 调用方/被调用方/边界情况/副作用。
+
+### 模板 C：代码审查
+适用于"这样写有什么问题"、"有优化空间吗"、"哪里可能出 bug"等审查类问题。
+
+- 1 句话指出问题或改进点（不加标题）。
+- ## 问题分析 — 按正确性/性能/可维护性/安全维度分析，解释为什么是问题。
+- ## 代码位置 — 文件:行号，涉及多处分别列出。
+- ## 改进建议 — 最好有 before/after 对比，多方案时简述 trade-off。
+
+### 模板 D：配置用法
+适用于"这个配置项什么意思"、"API 怎么调"、"参数怎么设"等用法类问题。
+
+- 1 句话说明配置或用法的目标（不加标题）。
+- ## 步骤 — numbered list 列出操作顺序。
+- ## 参数说明 — 表格：参数名 | 类型 | 默认值 | 说明，只列关键参数。
+- ## 示例 — 完整配置或调用示例（代码块），必要时加注释。
+
+### 模板 E：架构分析
+适用于"整体架构是什么"、"模块间怎么交互"、"数据流怎么走"等设计类问题。
+
+- 1 句话概括整体架构或设计（不加标题）。
+- ## 整体架构 — 优先使用 mermaid 图，说明分层或核心组件。
+- ## 核心流程 — 关键数据流或调用链，说明数据流转和关键节点。
+- ## 模块关系 — 依赖关系或通信方式，跨边界时注意接口约定。`;
 }
 
 function hasChinese(text: string): boolean {
@@ -658,6 +724,7 @@ export function createQaEndpoint(
     const repoName = req.body?.repo ?? (req.query?.repo as string | undefined);
     let sessionId: string | undefined = req.body?.sessionId;
     const attachedFiles: { fileName: string; size: number }[] = req.body?.attachedFiles ?? [];
+    const reqDomain: string | undefined = req.body?.domain;
     const questionType: string | undefined = req.body?.questionType;
 
     if (!question) {
@@ -897,12 +964,25 @@ export function createQaEndpoint(
     session.updatedAt = new Date().toISOString();
     saveSession(session);
 
-    const VALID_TYPES: QuestionType[] = ['general',
-      'build-issue', 'static-analysis', 'stack-analysis', 'program-analysis', 'log-analysis'];
-    const qType: QuestionType = (questionType && VALID_TYPES.includes(questionType as QuestionType))
-      ? (questionType as QuestionType)
-      : classifyQuestion(question);
-    const structure = structureGuide(qType);
+    // Resolve domain: explicit > backward-compat questionType > auto-classify
+    const VALID_DOMAINS: Domain[] = ['general', 'log-analysis', 'stack-analysis', 'static-analysis', 'build-issue', 'program-analysis'];
+    let domain: Domain = 'general';
+    if (reqDomain && VALID_DOMAINS.includes(reqDomain as Domain)) {
+      domain = reqDomain as Domain;
+    } else if (questionType && VALID_DOMAINS.includes(questionType as Domain)) {
+      domain = questionType as Domain;
+    } else {
+      domain = classifyDomain(question);
+    }
+    const structure = structureGuide();
+    const domainFlow = domainProcessingFlow(domain);
+
+    // Persist domain to #Q entry
+    if (qid) {
+      try {
+        qaStore.updateEntry(qid, { domain });
+      } catch {}
+    }
 
     const sourceRefs = sources.map(s =>
       s.filePath + (s.startLine ? ':' + s.startLine + (s.endLine && s.endLine !== s.startLine ? '-' + s.endLine : '') : '')
@@ -968,12 +1048,7 @@ export function createQaEndpoint(
     }
 
     const systemPrompt = 'You are opencodewiki, a code analyst. Answer the question in DeepWiki style.\n\n' +
-      '## SEARCH CONTEXT\n' +
-      'The following files were found across repositories. ONLY reference files from this list:\n\n' +
-      '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
-      (uploadedContext ? uploadedContext + '\n' : '') +
       '## RULES\n' +
-      structure + '\n' +
       '- Always answer in Chinese.\n' +
       '- Use mermaid diagrams for architecture flows when relevant.\n' +
       '- Use code blocks for commands or examples.\n' +
@@ -984,7 +1059,7 @@ export function createQaEndpoint(
       '- 禁止使用 Explore Task。\n' +
       '- **问题相关信息搜索链路：codegraph_search（语义搜索符号）→ codegraph_context（单符号深度分析）→ codegraph_impact（影响范围）→ grep（纯文本 fallback/提取）**\n' + 
       '- 每个回答至少包含 2 个引用，最多包含 6 个引用。\n' +
-      '- **引用必须使用上方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' +
+      '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' +
       (isCrossRepo
         ? '- 引用格式：在句子末尾用 (repoName:relative/path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n'
         : '- 引用格式：在句子末尾用 (relative/path/file.ts:line)，如 "该函数接收两个参数 (opencodewiki/src/core/search/hybrid-search.ts:175)"\n') +
@@ -992,13 +1067,21 @@ export function createQaEndpoint(
       '- **重要：每个括号内只放一个文件+一个范围，绝对禁止逗号分隔多个范围。** 错误示例：(file.ts:1,5,10) 或 (file.ts:1-3,5-8)。如果要引用多个范围，请分开成多个括号引用。\n' +
       (isCrossRepo
         ? '- 引用文件路径使用 仓库名+相对路径 格式，如 opencodewiki:src/server/bm25-index.ts:60。**绝对禁止只写文件名**\n'
-        : '- 引用文件路径使用相对路径，如 opencodewiki/src/core/search/bm25-index.ts:60。**绝对禁止只写文件名**，错误示例：bm25-index.ts:60。引用必须紧贴句子末尾，不要插在句子中间。\n') + 
+        : '- 引用文件路径使用相对路径，如 opencodewiki/src/core/search/bm25-index.ts:60。**绝对禁止只写文件名**，错误示例：bm25-index.ts:60。引用必须紧贴句子末尾，不要插在句子中间。\n') +
       '> 引用不要用反引号包裹！错误示例：\`(file.ts:1)\`。正确：(file.ts:1)。\n\n' +
       (isCrossRepo ?
       '- **跨仓库模式：引用必须包含仓库名！** 格式为 (repoName:path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n' +
       '- 每个引用都必须标注来源仓库，绝对禁止省略 repoName。\n' +
       '- 回答可以覆盖多个仓库，每个引用要准确标注来自哪个仓库。\n'
-      : '');
+      : '') +
+      '\n' + domainFlow + '\n\n' +
+      structure + '\n\n' +
+      '## SEARCH CONTEXT\n' +
+      '以下是搜索到的代码文件，你的引用必须来自此列表：\n\n' +
+      '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
+      (uploadedContext ? uploadedContext + '\n' : '') +
+      '---\n' +
+      '注意：回答时必须遵守上方 RULES 中的引用格式。引用路径必须是 SEARCH CONTEXT 中列出的精确路径。\n';
 
     if (ACP_ENABLED) {
       let acpRepoName: string | undefined;
