@@ -766,7 +766,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .nav-item:hover{background:var(--hover)}
 .nav-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .nav-item.overview{font-weight:600;margin-bottom:4px}
-.nav-group-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 12px 4px;user-select:none}
+.nav-divider{height:1px;background:var(--border);margin:8px 12px}
 .content h1{font-size:28px;font-weight:700;margin-bottom:8px;line-height:1.3}
 .content h2{font-size:22px;font-weight:600;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .content h3{font-size:17px;font-weight:600;margin:24px 0 8px}
@@ -880,12 +880,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="hot-modules" href="#hot-modules">热点模块</a>';
     html += '</div>';
 
+    html += '<div class="nav-divider"></div>';
+
     // ── 💬 问答 ──
     html += '<div class="nav-group-label">💬 问答</div>';
     html += '<div class="nav-section">';
     html += '<a class="nav-item" data-page="qa-latest" href="#qa-latest">最新问答</a>';
     html += '<a class="nav-item" data-page="qa-hot" href="#qa-hot">最热问答</a>';
     html += '</div>';
+
+    if (TREE.length > 0) {
+      html += '<div class="nav-divider"></div>';
+    }
 
     // ── 📦 模块 ──
     if (TREE.length > 0) {
