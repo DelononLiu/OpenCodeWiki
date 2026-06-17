@@ -790,6 +790,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:2px 0 12px rgba(0,0,0,.1)}.content{margin-left:0;padding:24px 20px;padding-top:56px}.menu-toggle{display:block}}
 .empty-state{text-align:center;padding:80px 20px;color:var(--text-muted)}
 .empty-state h2{font-size:20px;margin-bottom:8px;border:none}
+.qa-list{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.qa-list-item{display:block;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius);text-decoration:none;color:var(--text);transition:all .15s}
+.qa-list-item:hover{border-color:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.qa-list-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.qa-list-qid{font-size:11px;font-weight:600;color:var(--primary)}
+.qa-list-badge{font-size:10px;color:#16a34a;font-weight:500}
+.qa-list-question{font-size:14px;font-weight:500;line-height:1.4}
+.qa-list-meta{font-size:11px;color:var(--text-muted);margin-top:4px}
 .qa-entry{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:680px;z-index:20;padding:0 16px}
 /* QA_INPUT_CSS */
 </style></head>
@@ -853,13 +861,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     navigateTo(activePage);
   });
 
+  function escapeHtml(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
   function renderNav() {
     var container = document.getElementById('navTree');
-    var html = '<div class="nav-section">';
-    html += '<a class="nav-item overview" data-page="overview" href="#overview">Overview</a>';
+    var html = '';
+
+    // ── 📖 Wiki ──
+    html += '<div class="nav-group-label">📖 Wiki</div>';
+    html += '<div class="nav-section">';
+    html += '<a class="nav-item" data-page="overview" href="#overview">Overview</a>';
+    html += '<a class="nav-item" data-page="external-api" href="#external-api">外部API</a>';
+    html += '<a class="nav-item" data-page="core" href="#core">Core</a>';
+    html += '<a class="nav-item" data-page="hot-modules" href="#hot-modules">热点模块</a>';
     html += '</div>';
+
+    // ── 💬 问答 ──
+    html += '<div class="nav-group-label">💬 问答</div>';
+    html += '<div class="nav-section">';
+    html += '<a class="nav-item" data-page="qa-latest" href="#qa-latest">最新问答</a>';
+    html += '<a class="nav-item" data-page="qa-hot" href="#qa-hot">最热问答</a>';
+    html += '</div>';
+
+    // ── 📦 模块 ──
     if (TREE.length > 0) {
-      html += '<div class="nav-group-label">Modules</div>';
+      html += '<div class="nav-group-label">📦 模块</div>';
       html += '<div class="nav-section">';
       for (var i = 0; i < TREE.length; i++) {
         html += '<a class="nav-item" data-page="' + TREE[i].slug + '" href="#' + TREE[i].slug + '">' + TREE[i].name + '</a>';
@@ -884,12 +914,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     if (match) match.classList.add('active');
     history.replaceState(null, '', '#' + encodeURIComponent(slug));
 
+    // Q&A list pages — fetch from #Q API, render inline
+    if (slug === 'qa-latest' || slug === 'qa-hot') {
+      renderQaList(slug === 'qa-hot' ? 'visit' : 'latest');
+      return;
+    }
+
     var el = document.getElementById('content');
     el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
 
-    var url = slug === 'overview'
-      ? '/api/wiki/' + encodeURIComponent(REPO) + '/overview'
-      : '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
@@ -900,6 +934,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
       }
     }).catch(function() {
       el.innerHTML = '<div class="empty-state"><h2>Failed to load page</h2></div>';
+    });
+  }
+
+  function renderQaList(sort) {
+    var el = document.getElementById('content');
+    el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
+
+    var url = '/api/qa/entries?repo=' + encodeURIComponent(REPO) + '&sort=' + sort + '&limit=20';
+
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.entries || data.entries.length === 0) {
+        el.innerHTML = '<div class="empty-state"><h2>' + (sort === 'latest' ? '暂无最新问答' : '暂无热门问答') + '</h2></div>';
+        return;
+      }
+      var title = sort === 'latest' ? '最新问答' : '最热问答';
+      var html = '<h1>' + title + '</h1>';
+      html += '<div class="qa-list">';
+      for (var i = 0; i < data.entries.length; i++) {
+        var e = data.entries[i];
+        var tag = e.mode === 'lightweight' ? '🔍' : '⚡';
+        var cal = e.isCalibrated ? '<span class="qa-list-badge">✅ 标准答案</span>' : '';
+        var q = escapeHtml(e.question);
+        html += '<a class="qa-list-item" href="/qa?' + encodeURIComponent(REPO) + '&qid=' + e.qid + '">' +
+          '<div class="qa-list-header">' +
+          '  <span class="qa-list-qid">' + tag + ' #Q' + e.qid + '</span>' +
+          '  ' + cal +
+          '</div>' +
+          '<div class="qa-list-question">' + q + '</div>' +
+          '<div class="qa-list-meta">' + formatDate(e.createdAt) + ' · ' + e.visitCount + ' 次访问</div>' +
+          '</a>';
+      }
+      html += '</div>';
+      el.innerHTML = html;
+    }).catch(function() {
+      el.innerHTML = '<div class="empty-state"><h2>加载失败</h2></div>';
+    });
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    return iso.slice(0, 10);
+  }
     });
   }
 })();
