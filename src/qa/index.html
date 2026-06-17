@@ -136,7 +136,7 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
 .related-qa-item .qtext{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .related-qa-empty{padding:20px 14px;font-size:12px;color:var(--color-text-secondary);text-align:center}
 .file-list-item{margin-top:0!important}
-.file-list-item{font-size:13px;color:var(--color-text-primary);user-select:none}
+.file-list-item{font-size:13px;color:var(--color-text-primary)}
 .file-list-item .file-item-header{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;transition:background .1s}
 .file-list-item .file-item-header:hover{background:var(--bg-secondary)}
 .file-list-item .expand-icon{font-size:8px;color:var(--color-text-secondary);transition:transform .15s;flex-shrink:0;width:12px;text-align:center}
@@ -330,6 +330,7 @@ let currentSessionId = null;
 let currentQid = null;
 let _globalRefCounter = 0;
 const _sourceMap = {};
+const _refToMergedItem = {};
 
 function createSessionBlock(question) {
   blockCounter++;
@@ -419,6 +420,60 @@ function populateFileList(blockId, sources) {
     src.refId = _globalRefCounter++;
   }
 
+  // ── Merge adjacent code blocks from the same file ──
+  (function() {
+    if (!sources || sources.length < 2) return;
+    // Group by filePath
+    var groups = {};
+    for (var si = 0; si < sources.length; si++) {
+      var s = sources[si];
+      if (!groups[s.filePath]) groups[s.filePath] = [];
+      groups[s.filePath].push(s);
+    }
+    var merged = [];
+    var groupKeys = Object.keys(groups);
+    for (var gi = 0; gi < groupKeys.length; gi++) {
+      var items = groups[groupKeys[gi]];
+      items.sort(function(a, b) { return (a.startLine || 0) - (b.startLine || 0); });
+      var cur = items[0];
+      cur._refIds = [cur.refId];
+      for (var si2 = 1; si2 < items.length; si2++) {
+        var nxt = items[si2];
+        // Skip if nxt range is fully contained within cur (duplicate)
+        if (nxt.startLine && cur.startLine && nxt.startLine >= cur.startLine &&
+            (nxt.endLine || nxt.startLine) <= (cur.endLine || cur.startLine)) {
+          cur._refIds.push(nxt.refId);
+          continue;
+        }
+        // Merge if gap <= 3 lines or overlapping
+        if ((nxt.startLine || 0) - (cur.endLine || cur.startLine || 0) <= 3) {
+          // Merge snippet: just concatenate (gap marker added below)
+          if (nxt.snippet && cur.snippet) cur.snippet += '\n' + nxt.snippet;
+          else if (nxt.snippet && !cur.snippet) cur.snippet = nxt.snippet;
+          cur.endLine = Math.max(cur.endLine || cur.startLine || 0, nxt.endLine || nxt.startLine || 0);
+          cur._refIds.push(nxt.refId);
+        } else {
+          merged.push(cur);
+          cur = nxt;
+          cur._refIds = [cur.refId];
+        }
+      }
+      merged.push(cur);
+    }
+    // Build _refToMergedItem mapping for navigateToSource
+    for (var mi = 0; mi < merged.length; mi++) {
+      var ids = merged[mi]._refIds;
+      for (var ri = 0; ri < ids.length; ri++) {
+        _refToMergedItem[ids[ri]] = merged[mi];
+      }
+    }
+    // Replace sources with merged list
+    sources.length = 0;
+    for (var mi2 = 0; mi2 < merged.length; mi2++) {
+      sources.push(merged[mi2]);
+    }
+  })();
+
   // Filter snippet to only show lines within startLine-endLine range
   function filterSnippetLines(snippet, startLine, endLine) {
     if (!snippet || !startLine) return snippet;
@@ -438,6 +493,9 @@ function populateFileList(blockId, sources) {
     return filtered.join('\n');
   }
 
+  // Clear stale merged-item references before repopulating
+  for (var _k in _refToMergedItem) delete _refToMergedItem[_k];
+
   // Add block separator between question rounds (first round has no separator)
   if (container.children.length > 0) {
     const sep = document.createElement('div');
@@ -454,7 +512,8 @@ function populateFileList(blockId, sources) {
     const fid = blockId + '-f' + i;
     const sid = blockId + '-s' + i;
     const filteredSnippet = filterSnippetLines(src.snippet, src.startLine, src.endLine);
-    html += '<div class="file-list-item expanded" id="' + fid + '" data-source-id="' + src.refId + '">';
+    var _idsAttr = src._refIds ? src._refIds.join(',') : ('' + src.refId);
+    html += '<div class="file-list-item expanded" id="' + fid + '" data-source-id="' + src.refId + '" data-source-ids="' + _idsAttr + '">';
     html += '<div class="file-item-header" onclick="toggleFile(\'' + fid + '\')">';
     html += '<span class="expand-icon">\u25b6</span>';
     html += '<span class="file-item-name">' + escapeHtml(src.fileName) + '</span>';
@@ -469,7 +528,15 @@ function populateFileList(blockId, sources) {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
   while (tmp.firstChild) {
-    container.appendChild(tmp.firstChild);
+    var _el = tmp.firstChild;
+    container.appendChild(_el);
+    // Map all refIds to this DOM element for navigateToSource
+    if (_el.getAttribute && _el.getAttribute('data-source-ids')) {
+      var _allIds = _el.getAttribute('data-source-ids').split(',');
+      for (var _ri = 0; _ri < _allIds.length; _ri++) {
+        _refToMergedItem[_allIds[_ri]] = _el;
+      }
+    }
   }
 }
 
@@ -499,7 +566,7 @@ function setTyping(typing) {
 
 function navigateToSource(blockId, refId) {
   const panel = document.getElementById('rightPanel');
-  const fileItem = document.getElementById('filesGlobal').querySelector('.file-list-item[data-source-id="' + refId + '"]');
+  var fileItem = _refToMergedItem[refId] || document.getElementById('filesGlobal').querySelector('.file-list-item[data-source-id="' + refId + '"]');
   console.log('[nav] refId=' + refId + ' found=', !!fileItem, 'label=', fileItem?.querySelector('.file-item-name')?.textContent, 'lines=', fileItem?.querySelector('.file-item-lines')?.textContent);
   if (!fileItem) return false;
 
