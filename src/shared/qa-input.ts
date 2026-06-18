@@ -28,20 +28,46 @@ export interface QaInputConfig {
     fileInput: string;
     sendBtn: string;
     qaInput: string;
+    qaHighlight?: string;  // highlight overlay div ID
     typeInput?: string;     // hidden input for type (wiki: wikiQaType)
     suggestDropdown?: string; // suggestion dropdown container ID
   };
 }
 
+const DOMAIN_CMD_MAP: Record<string, string> = {
+  bug: 'bug-analysis',
+  defect: 'bug-analysis',
+  log: 'log-analysis',
+  stack: 'stack-analysis',
+  crash: 'stack-analysis',
+  build: 'build-issue',
+  compile: 'build-issue',
+  explain: 'program-analysis',
+  analyze: 'program-analysis',
+};
+
+const DOMAIN_LABEL_MAP: Record<string, string> = {
+  'log-analysis': '日志分析',
+  'stack-analysis': '堆栈分析',
+  'bug-analysis': '缺陷分析',
+  'build-issue': '编译构建',
+  'program-analysis': '程序分析',
+};
+
 export function qaInputStyles(v: QaInputVars): string {
   return `
 .qa-input-wrap{display:flex;flex-direction:column;background:${v.bgSurface};border:1px solid ${v.border};border-radius:14px;padding:6px 8px;transition:border-color .15s,box-shadow .15s;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .qa-input-wrap:focus-within{border-color:${v.blue};box-shadow:0 0 0 3px rgba(37,99,235,.18)}
-.qa-input-wrap textarea,.qa-input-wrap input.qa-text-input{width:100%;border:none;background:transparent;outline:none;font-size:16px;color:${v.text};resize:none;overflow:hidden;padding:6px 4px;line-height:1.5;min-height:52px;font-family:inherit;box-sizing:border-box}
-.qa-input-wrap textarea::placeholder,.qa-input-wrap input.qa-text-input::placeholder{color:${v.textMuted}}
-.qa-input-wrap textarea::-webkit-scrollbar{width:4px}
-.qa-input-wrap textarea::-webkit-scrollbar-thumb{background:${v.textMuted};border-radius:2px}
-.qa-input-wrap textarea::-webkit-scrollbar-button{display:none}
+.qa-input-layer{position:relative;width:100%}
+.qa-input-layer textarea,.qa-input-layer input.qa-text-input,.qa-input-layer .qa-highlight{width:100%;border:none;outline:none;font-size:16px;line-height:1.5;min-height:52px;padding:6px 4px;font-family:inherit;box-sizing:border-box;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word}
+.qa-input-layer .qa-highlight{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;color:${v.text};overflow:hidden;min-height:52px}
+.qa-input-layer textarea,.qa-input-layer input.qa-text-input{position:relative;z-index:1;background:transparent;resize:none;color:transparent;caret-color:${v.text}}
+.qa-input-layer textarea::placeholder,.qa-input-layer input.qa-text-input::placeholder{color:${v.textMuted}}
+.qa-input-layer textarea::-webkit-scrollbar{width:4px}
+.qa-input-layer textarea::-webkit-scrollbar-thumb{background:${v.textMuted};border-radius:2px}
+.qa-input-layer textarea::-webkit-scrollbar-button{display:none}
+.cmd-pill{display:inline;padding:1px 6px;border-radius:6px;font-size:14px;font-weight:500;background:${v.blue};color:#fff;line-height:1.8}
+.cmd-pill.repo{background:#6366f1}
 .qa-input-footer{display:flex;align-items:center;gap:6px;padding:4px 0 2px;margin:0 2px}
 .qa-input-footer .footer-attach{background:none;border:none;color:${v.textMuted};cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center;flex-shrink:0}
 .qa-input-footer .footer-attach:hover{color:${v.blue}}
@@ -69,6 +95,8 @@ export function qaInputHtml(cfg: QaInputConfig): string {
     ? `<textarea id="${cfg.idMap.qaInput}" rows="2" placeholder="${cfg.placeholder || '输入代码库相关问题...'}" autocomplete="off"></textarea>`
     : `<input class="qa-text-input" type="text" id="${cfg.idMap.qaInput}" name="q" placeholder="${cfg.placeholder || 'Ask anything about this codebase...'}" autocomplete="off">`;
 
+  const highlightId = cfg.idMap.qaHighlight || (cfg.idMap.qaInput + '_hl');
+
   const hiddenRepo = cfg.repoName
     ? `<input type="hidden" name="repo" value="${cfg.repoName}">`
     : '';
@@ -82,9 +110,13 @@ export function qaInputHtml(cfg: QaInputConfig): string {
     ? `onsubmit="${cfg.onsubmit}"`
     : '';
 
-  const suggestWrap = cfg.idMap.suggestDropdown
-    ? `<div class="qa-suggest-wrap">${inputTag}<div class="qa-suggest-dropdown" id="${cfg.idMap.suggestDropdown}"></div></div>`
+  const inputWithLayer = cfg.idMap.qaHighlight !== undefined
+    ? `<div class="qa-input-layer"><div class="qa-highlight" id="${highlightId}"></div>${inputTag}</div>`
     : inputTag;
+
+  const suggestWrap = cfg.idMap.suggestDropdown
+    ? `<div class="qa-suggest-wrap">${inputWithLayer}<div class="qa-suggest-dropdown" id="${cfg.idMap.suggestDropdown}"></div></div>`
+    : inputWithLayer;
 
   return `
 <div class="qa-input-wrap">
@@ -116,13 +148,66 @@ export function qaInputHtml(cfg: QaInputConfig): string {
 }
 
 export function qaInputInitScript(cfg: QaInputConfig): string {
+  const highlightId = cfg.idMap.qaHighlight || (cfg.idMap.qaInput + '_hl');
+
   return `
 // ── QA Input: domain bar init ──
 (function(){
   var SD = null;
+  var SR = null; // selected repo
   var domainInput = document.getElementById('${cfg.idMap.domainInput}');
   var bar = document.getElementById('${cfg.idMap.domainBar}');
+  var inp = document.getElementById('${cfg.idMap.qaInput}');
+  var hl = document.getElementById('${highlightId}');
+  var repoList = []; // fetched from /api/repos
+
   if (!bar) return;
+
+  // ── /command and @repo highlight ──
+  if (inp && hl) {
+    // Fetch known repo names
+    try { fetch('/api/repos').then(function(r){return r.json()}).then(function(list){ repoList = (list||[]).map(function(x){return x.name}); }).catch(function(){}); } catch(e) {}
+
+    function renderHighlight() {
+      var raw = inp.value;
+      if (!raw) { hl.innerHTML = ''; return; }
+      // /command at start
+      var html = raw.replace(
+        /(?:^|\\s)(\\/[a-zA-Z]+)/g,
+        function(m, cmd) {
+          var key = cmd.slice(1).toLowerCase();
+          var label = DOMAIN_CMD_LABEL[key] || key;
+          return '<span class="cmd-pill">' + esc(label) + '</span>';
+        }
+      );
+      // @repo
+      html = html.replace(
+        /(?:^|\\s)(@[a-zA-Z0-9._-]+)/g,
+        function(m, at) {
+          var name = at.slice(1);
+          return '<span class="cmd-pill repo">' + esc(name) + '</span>';
+        }
+      );
+      hl.innerHTML = html;
+    }
+
+    inp.addEventListener('input', function() {
+      renderHighlight();
+      // Parse /command → set domain
+      var m = inp.value.match(/^\\s*\\/([a-zA-Z]+)/);
+      if (m) {
+        var key = m[1].toLowerCase();
+        var dom = DOMAIN_CMD_MAP[key];
+        if (dom && dom !== SD) {
+          SD = dom;
+          bar.querySelectorAll('.type-chip').forEach(function(b){ b.classList.toggle('active', b.dataset.domain === dom); });
+          updateDomainInput();
+        }
+      }
+    });
+
+    renderHighlight();
+  }
 
   function updateDomainInput() {
     if (domainInput) domainInput.value = SD || '';
@@ -152,7 +237,21 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
   }
   // Expose selectedDomain for page-specific send functions
   window.__qaSelectedDomain = function(){ return SD; };
+  window.__qaSelectedRepo = function(){ return SR; };
 })();
+
+// ── QA Input: /@ command maps ──
+var DOMAIN_CMD_MAP = ${JSON.stringify(DOMAIN_CMD_MAP)};
+var DOMAIN_CMD_LABEL = ${JSON.stringify(
+  Object.fromEntries(
+    Object.entries(DOMAIN_CMD_MAP).map(([cmd, dom]) => [cmd, DOMAIN_LABEL_MAP[dom] || dom])
+  )
+)};
+var DOMAIN_LABEL_MAP = ${JSON.stringify(DOMAIN_LABEL_MAP)};
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ── QA Input: question suggest autocomplete ──
 try {
@@ -168,11 +267,7 @@ try {
   var _items = [];
   var _idx = -1;
   var _comp = false;
-  var _dismissed = false;   // 选中推荐或按ESC后，不再弹出推荐列表，直到输入框为空
-
-  function _esc(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
+  var _dismissed = false;
 
   _inp.addEventListener('compositionstart', function(){ _comp = true; });
   _inp.addEventListener('compositionend', function(){ _comp = false; this.dispatchEvent(new Event('input', {bubbles:true})); });
@@ -198,13 +293,13 @@ try {
           var html = '';
           for (var i = 0; i < _items.length; i++) {
             var q = _items[i].question;
-            var esc = _esc(q);
+            var escQ = esc(q);
             var lq = q.toLowerCase();
             var lv = val.toLowerCase();
             var pos = lq.indexOf(lv);
             var display = pos >= 0
-              ? esc.slice(0, pos) + '<span class="qa-suggest-match">' + esc.slice(pos, pos + val.length) + '</span>' + esc.slice(pos + val.length)
-              : esc;
+              ? escQ.slice(0, pos) + '<span class="qa-suggest-match">' + escQ.slice(pos, pos + val.length) + '</span>' + escQ.slice(pos + val.length)
+              : escQ;
             html += '<div class="qa-suggest-item" data-index="' + i + '">' + display + '</div>';
           }
           _dd.innerHTML = html;
@@ -219,7 +314,7 @@ try {
     else if (e.key === 'ArrowUp') { e.preventDefault(); _idx = Math.max(_idx - 1, -1); _highlight(); }
     else if (e.key === 'Enter' && _idx >= 0) { e.preventDefault(); _select(_idx); }
     else if (e.key === 'Escape') { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true; }
-  }, true);  // capture phase: 确保在页面keydown之前执行，e.defaultPrevented能被页面handler检测到
+  }, true);
 
   function _highlight() {
     var items = _dd.querySelectorAll('.qa-suggest-item');
@@ -233,6 +328,7 @@ try {
       _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = true;
       if (typeof updateSendBtn === 'function') updateSendBtn();
       if (typeof autoResize === 'function') autoResize();
+      if (inp && hl) { var e = document.createEvent('Event'); e.initEvent('input', true, false); inp.dispatchEvent(e); }
       _inp.focus();
     }
   }
