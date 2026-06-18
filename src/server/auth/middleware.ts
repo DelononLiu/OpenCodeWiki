@@ -15,7 +15,7 @@ declare module 'express' {
   }
 }
 
-const PUBLIC_PATHS = new Set(['/login', '/favicon.ico']);
+const PUBLIC_PATHS = new Set(['/login', '/favicon.ico', '/api/me']);
 const PUBLIC_PREFIXES = ['/auth/', '/vendor/'];
 
 function isPublicPath(path: string): boolean {

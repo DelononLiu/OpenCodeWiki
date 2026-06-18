@@ -18,10 +18,11 @@
 --tag-bg:#e8e8ec;
 --input-bg:#f7f7f9;
 }
+/* USER_BAR_CSS */
 body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex}
 
 /* Layout */
-.sidebar{width:280px;flex-shrink:0;background:var(--sidebar-bg);display:flex;flex-direction:column;border-right:1px solid var(--border);height:100vh;transition:width .25s ease,padding .25s ease}
+.sidebar{width:280px;flex-shrink:0;background:var(--sidebar-bg);display:flex;flex-direction:column;border-right:1px solid var(--border);height:100vh;transition:width .25s ease,padding .25s ease;position:relative}
 .sidebar-header{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;min-height:52px}
 .sidebar-logo{font-size:16px;font-weight:700;color:var(--blue);flex:1}
 .sidebar-list{flex:1;overflow-y:auto;padding:0 8px}
@@ -92,6 +93,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 <div class="sidebar" id="qaSidebar">
   <div class="sidebar-header">
     <span class="sidebar-logo">OpenCodeWiki</span>
+    <!-- USER_BAR_HTML -->
   </div>
   <div class="sidebar-list" id="sidebarList">
     <div class="sidebar-empty">Loading...</div>
@@ -401,6 +403,7 @@ document.getElementById('qaSidebar').classList.add('collapsed');
 loadRepos();
 loadLatestSessions();
 document.getElementById('fileInput').addEventListener('change', function(e) { handleHomeFiles(e.target.files); });
+/* USER_BAR_JS */
 </script>
 
 </body>

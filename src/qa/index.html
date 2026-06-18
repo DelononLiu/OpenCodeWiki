@@ -173,6 +173,7 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
 
 .bottom-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:680px;z-index:20;padding:0 16px}
 /* QA_INPUT_CSS */
+/* USER_BAR_CSS */
 .file-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 6px 4px;max-height:80px;overflow-y:auto}
 .file-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 12px;border-radius:20px;font-size:12px;background:var(--bg-secondary);border:1px solid var(--color-border);color:var(--color-text-primary);max-width:220px}
 .file-chip .chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px}
@@ -236,6 +237,7 @@ a.file-ref:hover{text-decoration:underline;border-bottom-style:solid}
         <span class="header-qid" id="headerQid" style="display:none"></span>
       </div>
       <div class="header-right">
+        <!-- USER_BAR_HTML -->
         <button class="btn" onclick="toggleQaSidebar()">History</button>
         <button class="btn" onclick="goToWiki()">Wiki</button>
         <button class="btn btn-icon" id="themeToggle" onclick="toggleTheme()">&#127769;</button>
@@ -1269,6 +1271,7 @@ function loadQaSidebarSessions() {
 
 // Load sidebar sessions on page load
 loadQaSidebarSessions();
+/* USER_BAR_JS */
 </script>
 </body>
 </html>

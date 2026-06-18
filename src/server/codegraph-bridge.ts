@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
 import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
 import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-input.js';
+import { userBarStyles, userBarHtml, userBarInitScript } from '../shared/user-bar.js';
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
@@ -437,6 +438,9 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
     content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
     content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--color-text-primary)', text2: 'var(--color-text-secondary)', text3: 'var(--color-text-secondary)', blue: 'var(--color-blue)', border: 'var(--color-border)', surface: 'var(--bg-surface)', tagBg: 'var(--bg-secondary)' }));
+    content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
+    content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Q&A page not found');
@@ -451,6 +455,9 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
     content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
     content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('/* USER_BAR_CSS */', userBarStyles());
+    content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
+    content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Home page not found');
@@ -720,6 +727,12 @@ app.delete('/api/repos/:name', async (req, res) => {
   res.json({ removed: true });
 });
 
+// ── Current user API ──
+app.get('/api/me', (req, res) => {
+  if (!(req as any).user) return res.json(null);
+  res.json((req as any).user);
+});
+
 const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope());
 app.post('/api/qa', qaHandler);
 
@@ -883,6 +896,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .qa-list-meta{font-size:11px;color:var(--text-muted);margin-top:4px}
 .qa-entry{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:100%;max-width:680px;z-index:20;padding:0 16px}
 /* QA_INPUT_CSS */
+/* USER_BAR_CSS */
 </style></head>
 <body>
 
@@ -893,6 +907,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     OpenCodeWiki
   </a>
   <span class="header-repo">${repoName}</span>
+  <!-- USER_BAR_HTML -->
 </div>
 <div class="layout">
 <nav class="sidebar" id="sidebar">
@@ -1069,6 +1084,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     return iso.slice(0, 10);
   }
 })();
+/* USER_BAR_JS */
 </script>
 </body></html>`;
   const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
@@ -1076,6 +1092,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
   html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
   html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
+  html = html.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--text)', text2: 'var(--text-muted)', text3: 'var(--text-muted)', blue: 'var(--primary)', border: 'var(--border)', surface: 'var(--bg)', tagBg: 'var(--sidebar-bg)' }));
+  html = html.replace('<!-- USER_BAR_HTML -->', userBarHtml());
+  html = html.replace('/* USER_BAR_JS */', userBarInitScript());
   res.type('html').send(html);
 }
 
