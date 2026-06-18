@@ -177,7 +177,7 @@ export class AcpClient {
         }
       }
 
-      log('info', 'Connecting ACP agent', { name: resolvedName, args: resolvedArgs?.join(' ') });
+      // startAgent() inside logs its own spawn line
       const { process, input, output } = await this.agentManager.startAgent(
         resolvedName,
         resolvedArgs ?? [],
@@ -207,7 +207,6 @@ export class AcpClient {
       });
 
       this._connected = true;
-      log('info', 'ACP connected', { protocolVersion: initResult.protocolVersion });
       return true;
     } catch (err) {
       this._lastError = (err as Error)?.message || String(err);

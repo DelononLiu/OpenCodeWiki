@@ -104,16 +104,19 @@ export class AgentManager {
 
     const resolvedPath = resolveCommand(command);
     this._command = resolvedPath;
-    log('info', `Spawning ACP agent`, { command, resolved: resolvedPath, args: args.join(' ') });
+    log('info', 'ACP agent ready', { cmd: resolvedPath + (args.length ? ' ' + args.join(' ') : '') });
 
     const spawnedEnv = { ...process.env, ...envOverride };
 
     const agentProcess = spawn(resolvedPath, args, {
-      stdio: ['pipe', 'pipe', 'inherit'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: spawnedEnv,
     });
 
     this._childProcess = agentProcess;
+
+    // Discard agent stderr to avoid noise (e.g. "Session not found")
+    agentProcess.stderr?.on('data', () => {});
 
     // Convert Node.js streams to Web Streams for ACP SDK
     const input = Writable.toWeb(agentProcess.stdin!) as WritableStream<Uint8Array>;
