@@ -561,13 +561,16 @@ function domainProcessingFlow(domain: Domain): string {
 2. codegraph_context 获取关键符号的完整定义
 3. 综合搜索到的信息组织回答`,
 
-    'build-issue': `## 领域处理流程
+        'build-issue': `## 领域处理流程
 
 这是一个 **编译构建** 问题，按以下方式处理：
-1. 提取错误信息中的关键标识符（函数名、宏、链接符号、目标名）
-2. codegraph_search 搜索这些关键词，优先命中构建文件（CMakeLists.txt、Makefile、package.json、Cargo.toml 等）
-3. codegraph_context 查看关键符号的完整定义
-4. 重点分析：编译选项配置、依赖版本约束、链接脚本、条件编译宏`,
+1. **先确认是否真的是编译问题**：检查错误信息是否指向代码本身的语法/链接/配置问题
+   - 如果是环境配置、版本不匹配、外部依赖问题，说明原因并给出修复方向
+   - 如果是代码层面的编译错误，继续以下步骤
+2. 提取错误信息中的关键标识符（函数名、宏、链接符号、目标名）
+3. codegraph_search 搜索这些关键词，优先命中构建文件（CMakeLists.txt、Makefile、package.json、Cargo.toml 等）
+4. codegraph_context 查看关键符号的完整定义
+5. 重点分析：编译选项配置、依赖版本约束、链接脚本、条件编译宏`,
 
     'bug-analysis': `## 领域处理流程
 
@@ -584,14 +587,17 @@ function domainProcessingFlow(domain: Domain): string {
    - 可维护性（命名、复杂度、重复代码）
    - 安全漏洞（注入、越界、权限绕过）`,
 
-    'stack-analysis': `## 领域处理流程
+        'stack-analysis': `## 领域处理流程
 
 这是一个 **堆栈 / 崩溃分析** 问题，按以下方式处理：
-1. 从堆栈中提取关键帧的函数名——从应用程序代码层开始，过滤掉框架/库层
-2. 用 codegraph_search 定位每个关键函数
-3. 用 codegraph_context 查看函数完整定义
-4. 用 codegraph_callees 追溯调用来源
-5. 分析根因方向：空指针访问、缓冲区越界、未初始化变量、资源耗尽、断言失败`,
+1. **先确认崩溃是否由代码逻辑引起**：检查堆栈帧是否指向项目自有代码，排除第三方库/系统调用误报
+   - 如果崩溃在第三方库或系统调用中且无项目代码参与，说明外部原因并结束
+   - 如果指向项目代码，继续以下步骤
+2. 从堆栈中提取关键帧的函数名——从应用程序代码层开始，过滤掉框架/库层
+3. 用 codegraph_search 定位每个关键函数
+4. 用 codegraph_context 查看函数完整定义
+5. 用 codegraph_callees 追溯调用来源
+6. 分析根因方向：空指针访问、缓冲区越界、未初始化变量、资源耗尽、断言失败`,
 
     'program-analysis': `## 领域处理流程
 
@@ -602,13 +608,16 @@ function domainProcessingFlow(domain: Domain): string {
 4. 用 codegraph_callers / codegraph_callees 追踪调用链
 5. 说明数据流转路径和关键控制节点`,
 
-    'log-analysis': `## 领域处理流程
+        'log-analysis': `## 领域处理流程
 
 这是一个 **日志分析** 问题，按以下方式处理：
-1. 提取日志中的关键信息：错误码、异常类型、时间戳、关键词
-2. 用提取到的错误关键词进行 codegraph_search
-3. 定位日志输出点附近的逻辑处理代码
-4. 分析：什么条件下产生该日志、后续处理流程是什么、是否有已知的问题模式`,
+1. **先判断日志级别和性质**：区分是报错（error/fatal）还是警告/信息，确认是否需要关注
+   - 如果是 INFO/WARN 级别的例行日志且无异常模式，说明无需处理并结束
+   - 如果是 ERROR/FATAL 或明显异常模式，继续以下步骤
+2. 提取日志中的关键信息：错误码、异常类型、时间戳、关键词
+3. 用提取到的错误关键词进行 codegraph_search
+4. 定位日志输出点附近的逻辑处理代码
+5. 分析：什么条件下产生该日志、后续处理流程是什么、是否有已知的问题模式`,
   };
   return flows[domain] || flows.general;
 }
