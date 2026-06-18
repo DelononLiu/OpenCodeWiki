@@ -1183,16 +1183,17 @@ export function createQaEndpoint(
       '- 每个回答最多包含 6 个引用。如果没有搜到相关内容，请如实说「未搜到相关代码」，不要编造文件路径。\n' +
       (!ACP_ENABLED ? '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' : '') +
       (isCrossRepo
-        ? '- 引用格式：在句子末尾用 (repoName:relative/path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n'
-        : '- 引用格式：在句子末尾用 (relative/path/file.ts:line)，如 "该函数接收两个参数 (opencodewiki/src/core/search/hybrid-search.ts:175)"\n') +
+        ? '- 引用格式：在句子末尾用 (repoName:relative/path/file.ts:line)，如 (repoName:relative/path/file.ts:42)\n'
+        : '- 引用格式：在句子末尾用 (relative/path/file.ts:line)，如 "该函数接收两个参数 (repoName/src/core/search.ts:175)"\n') +
       '- 范围引用用 (path:start-end)，如 (schema.ts:4-9)\n' +
       '- **重要：每个括号内只放一个文件+一个范围，绝对禁止逗号分隔多个范围。** 错误示例：(file.ts:1,5,10) 或 (file.ts:1-3,5-8)。如果要引用多个范围，请分开成多个括号引用。\n' +
       (isCrossRepo
-        ? '- 引用文件路径使用 仓库名+相对路径 格式，如 opencodewiki:src/server/bm25-index.ts:60。**绝对禁止只写文件名**\n'
-        : '- 引用文件路径使用相对路径，如 opencodewiki/src/core/search/bm25-index.ts:60。**绝对禁止只写文件名**，错误示例：bm25-index.ts:60。引用必须紧贴句子末尾，不要插在句子中间。\n') +
+        ? '- 引用文件路径使用 仓库名+相对路径 格式，如 repoName:src/server/file.ts:60。**绝对禁止只写文件名**\n'
+        : '- 引用文件路径使用相对路径，如 repoName/src/core/file.ts:60。**绝对禁止只写文件名**，错误示例：bm25-index.ts:60。引用必须紧贴句子末尾，不要插在句子中间。\n') +
       '> 引用不要用反引号包裹！错误示例：\`(file.ts:1)\`。正确：(file.ts:1)。\n\n' +
+      '- **重要：引用中的 repoName 必须来自下方 PIPELINE ANALYSIS / SEARCH CONTEXT 中列出的实际仓库名，不要使用示例中的 repoName 占位符。**\n' +
       (isCrossRepo ?
-      '- **跨仓库模式：引用必须包含仓库名！** 格式为 (repoName:path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n' +
+      '- **跨仓库模式：引用必须包含仓库名！** 格式为 (repoName:path/file.ts:line)，如 (repoName:relative/path/file.ts:42)\n' +
       '- 每个引用都必须标注来源仓库，绝对禁止省略 repoName。\n' +
       '- 回答可以覆盖多个仓库，每个引用要准确标注来自哪个仓库。\n'
       : '') +

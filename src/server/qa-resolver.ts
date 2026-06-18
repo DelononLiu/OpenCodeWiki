@@ -212,7 +212,8 @@ export class QaResolver {
       lines.push(`### ${repo}`);
       for (const m of repoMatches) {
         const kindTag = m.kind !== 'unknown' ? ` [${m.kind}]` : '';
-        const loc = `${m.filePath}${m.startLine ? ':' + m.startLine : ''}`;
+        const repoPrefix = m.repo ? `${m.repo}:` : '';
+        const loc = `${repoPrefix}${m.filePath}${m.startLine ? ':' + m.startLine : ''}`;
         lines.push(`- **${m.name || path.basename(m.filePath)}**${kindTag} — ${loc} (score: ${m.score})`);
         if (m.snippet) {
           lines.push('```');
