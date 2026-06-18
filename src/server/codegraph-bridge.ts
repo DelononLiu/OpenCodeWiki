@@ -11,6 +11,7 @@ import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-inpu
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
+import { setupAuth } from './auth/index.js';
 
 // Codegraph is optional — the server can run without it (search/QA will be degraded)
 let ToolHandler: any, CodeGraph: any;
@@ -129,6 +130,9 @@ const rawUploadParser = express.raw({
   type: 'application/octet-stream',
   limit: '500mb',
 });
+
+// Initialize auth (if configured)
+await setupAuth(app);
 
 const UPLOAD_BASE = path.join(os.homedir(), '.opencodewiki', 'uploads');
 

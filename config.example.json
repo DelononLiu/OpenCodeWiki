@@ -1,0 +1,44 @@
+{
+  "apiKey": "",
+  "baseUrl": "https://api.openai.com/v1",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "acpEnabled": true,
+  "acpAgent": "claude",
+  "acpCrossRoot": false,
+
+  "auth": {
+    "enabled": true,
+
+    "sessionSecret": "用 openssl rand -hex 64 生成",
+
+    "adminEmails": ["admin@example.com"],
+
+    "providers": {
+      "local": {
+        "type": "form",
+        "label": "密码登录",
+        "users": [
+          { "email": "admin@test.local", "password": "admin123", "name": "管理员" },
+          { "email": "dev@test.local", "password": "dev123", "name": "开发者" }
+        ]
+      },
+
+      "sso": {
+        "label": "公司 SSO",
+        "issuer": "https://login.microsoftonline.com/{tenant}/v2.0",
+        "clientId": "",
+        "clientSecret": "",
+        "scopes": ["openid", "profile", "email"]
+      },
+
+      "gitlab": {
+        "label": "GitLab",
+        "issuer": "https://gitlab.company.com",
+        "clientId": "",
+        "clientSecret": "",
+        "scopes": ["openid", "profile", "email"]
+      }
+    }
+  }
+}
