@@ -434,7 +434,7 @@ async function sendQaPage(_req: any, res: any) {
   try {
     let content = await fs.readFile(qaIndexFile, 'utf-8');
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
-    const QA_IDS = { domainBar: 'qaDomainBar', domainMoreBtn: 'qaDomainMoreBtn', domainMoreDropdown: 'qaDomainMoreDropdown', domainInput: 'qaDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput', suggestDropdown: 'qaSuggestDropdown' };
+    const QA_IDS = { domainBar: 'qaDomainBar', domainInput: 'qaDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput', suggestDropdown: 'qaSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
     content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
     content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
@@ -451,7 +451,7 @@ async function sendHomePage(_req: any, res: any) {
   try {
     let content = await fs.readFile(homeIndexFile, 'utf-8');
     const HOME_VARS = { bgSurface: 'var(--surface)', bgSecondary: 'var(--tag-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text3)', blue: 'var(--blue)' };
-    const HOME_IDS = { domainBar: 'homeDomainBar', domainMoreBtn: 'homeDomainMoreBtn', domainMoreDropdown: 'homeDomainMoreDropdown', domainInput: 'homeDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput', suggestDropdown: 'homeSuggestDropdown' };
+    const HOME_IDS = { domainBar: 'homeDomainBar', domainInput: 'homeDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput', suggestDropdown: 'homeSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
     content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
     content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
@@ -1088,7 +1088,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 </script>
 </body></html>`;
   const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
-  const WIKI_IDS = { domainBar: 'wikiDomainBar', domainMoreBtn: 'wikiDomainMoreBtn', domainMoreDropdown: 'wikiDomainMoreDropdown', domainInput: 'wikiDomainInput', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType', suggestDropdown: 'wikiSuggestDropdown' };
+  const WIKI_IDS = { domainBar: 'wikiDomainBar', domainInput: 'wikiDomainInput', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', typeInput: 'wikiQaType', suggestDropdown: 'wikiSuggestDropdown' };
   html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
   html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
   html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));

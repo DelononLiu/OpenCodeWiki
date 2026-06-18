@@ -23,8 +23,6 @@ export interface QaInputConfig {
   suggestMinChars?: number;  // minimum chars before triggering suggestions (default 2)
   idMap: {
     domainBar: string;
-    domainMoreBtn: string;
-    domainMoreDropdown: string;
     domainInput: string;
     attachBtn: string;
     fileInput: string;
@@ -52,10 +50,6 @@ export function qaInputStyles(v: QaInputVars): string {
 .qa-input-footer .type-chip{padding:2px 8px;border:0.5px solid ${v.border};border-radius:10px;background:transparent;font-size:11px;color:${v.textMuted};cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none}
 .qa-input-footer .type-chip:hover{border-color:${v.blue};color:${v.blue}}
 .qa-input-footer .type-chip.active{background:${v.blue};color:#fff;border-color:${v.blue}}
-.qa-input-footer .more-wrapper{position:relative;display:inline-flex}
-.qa-input-footer .more-dropdown{position:absolute;bottom:calc(100% + 4px);left:0;display:none;flex-direction:column;gap:2px;background:${v.bgSurface};border:1px solid ${v.border};border-radius:8px;padding:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:50;min-width:80px}
-.qa-input-footer .more-dropdown.open{display:flex}
-.qa-input-footer .more-dropdown .type-chip{white-space:nowrap}
 .qa-input-footer button{padding:4px 16px;background:${v.blue};color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;flex-shrink:0}
 .qa-input-footer button:hover{opacity:.88}
 .qa-input-footer button:disabled{opacity:.35;cursor:not-allowed}
@@ -111,13 +105,8 @@ export function qaInputHtml(cfg: QaInputConfig): string {
         <button type="button" class="type-chip" data-domain="log-analysis" data-label="日志分析">日志分析</button>
         <button type="button" class="type-chip" data-domain="stack-analysis" data-label="堆栈分析">堆栈分析</button>
         <button type="button" class="type-chip" data-domain="bug-analysis" data-label="缺陷分析">缺陷分析</button>
-        <span class="more-wrapper">
-          <button type="button" class="type-chip" id="${cfg.idMap.domainMoreBtn}" data-domain="">更多&#9660;</button>
-          <div class="more-dropdown" id="${cfg.idMap.domainMoreDropdown}">
-            <button type="button" class="type-chip" data-domain="build-issue" data-label="编译构建">编译构建</button>
-            <button type="button" class="type-chip" data-domain="program-analysis" data-label="程序分析">程序分析</button>
-          </div>
-        </span>
+        <button type="button" class="type-chip" data-domain="build-issue" data-label="编译构建">编译构建</button>
+        <button type="button" class="type-chip" data-domain="program-analysis" data-label="程序分析">程序分析</button>
       </div>
       <input type="hidden" id="${cfg.idMap.domainInput}" value="">
       <button type="${cfg.formAction || cfg.onsubmit ? 'submit' : 'button'}" id="${cfg.idMap.sendBtn}">Ask</button>
@@ -131,8 +120,6 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
 // ── QA Input: domain bar init ──
 (function(){
   var SD = null;
-  var moreBtn = document.getElementById('${cfg.idMap.domainMoreBtn}');
-  var moreDd = document.getElementById('${cfg.idMap.domainMoreDropdown}');
   var domainInput = document.getElementById('${cfg.idMap.domainInput}');
   var bar = document.getElementById('${cfg.idMap.domainBar}');
   if (!bar) return;
@@ -145,8 +132,6 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
     var btn = e.target.closest('.type-chip');
     if (!btn) return;
     var dom = btn.dataset.domain;
-    if (btn.id === '${cfg.idMap.domainMoreBtn}'){ moreDd.classList.toggle('open'); return; }
-    moreDd.classList.remove('open');
     if (SD === dom) {
       SD = null;
       bar.querySelectorAll('.type-chip').forEach(function(b){ b.classList.remove('active'); });
@@ -155,9 +140,6 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
       bar.querySelectorAll('.type-chip').forEach(function(b){ b.classList.toggle('active', b.dataset.domain === dom); });
     }
     updateDomainInput();
-  });
-  document.addEventListener('click', function(e){
-    if(moreDd && moreDd.classList.contains('open') && !e.target.closest('.more-wrapper')) moreDd.classList.remove('open');
   });
   // Restore from URL param
   var _dm = new URLSearchParams(location.search).get('domain');
