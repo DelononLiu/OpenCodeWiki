@@ -162,13 +162,25 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
   var $LAB = ${JSON.stringify(CMD_LABEL)};
 
   // ── Highlight overlay ──
+  var _pending = false, _lastHl = '';
   function render() {
-    if (!hl) return;
-    var raw = inp.value;
-    if (!raw) { hl.innerHTML = ''; return; }
-    var h = raw.replace(/(?:^|\\s)(\\/[a-zA-Z]+)/g, function(m,c){ return '<span class="cmd-pill">' + esc(c) + '</span>'; });
-    h = h.replace(/(?:^|\\s)(@[a-zA-Z0-9._-]+)/g, function(m,a){ return '<span class="cmd-pill repo">' + esc(a) + '</span>'; });
-    hl.innerHTML = h;
+    if (!hl || _pending) return;
+    _pending = true;
+    requestAnimationFrame(function(){
+      _pending = false;
+      var raw = inp.value;
+      if (!raw) {
+        if (_lastHl) { hl.textContent = ''; _lastHl = ''; }
+        return;
+      }
+      if (/[\/@]/.test(raw)) {
+        var h = esc(raw).replace(/(?:^|\\s)(\\/[a-zA-Z]+)/g, '<span class="cmd-pill">$1</span>');
+        h = h.replace(/(?:^|\\s)(@[a-zA-Z0-9._-]+)/g, '<span class="cmd-pill repo">$1</span>');
+        if (h !== _lastHl) { hl.innerHTML = h; _lastHl = h; }
+      } else {
+        if (raw !== _lastHl) { hl.textContent = raw; _lastHl = raw; }
+      }
+    });
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function cmdLabel(k) { return $LAB[k] || k; }
@@ -304,18 +316,17 @@ try {
     var val = this.value.trim();
     if (val.length < _min) { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = false; return; }
     _timer = setTimeout(function(){
-      _dd.innerHTML = '<div class="qa-suggest-empty">Searching...</div>';
-      _dd.classList.add('open');
       fetch(_api + '?q=' + encodeURIComponent(val) + '&limit=5')
         .then(function(r){ if (!r.ok) throw Error(); return r.json(); })
         .then(function(data){
           _items = data.suggestions || []; _idx = -1;
-          if (!_items.length) { _dd.classList.remove('open'); _dd.innerHTML = ''; return; }
+          if (!_items.length) return;
           _dd.innerHTML = _items.map(function(q,i){
             var es = esc(q.question), lq = q.question.toLowerCase(), lv = val.toLowerCase(), p = lq.indexOf(lv);
             return '<div class="qa-suggest-item" data-index="' + i + '">' + (p >= 0 ? es.slice(0,p) + '<span class="qa-suggest-match">' + es.slice(p,p+val.length) + '</span>' + es.slice(p+val.length) : es) + '</div>';
           }).join('');
-        }).catch(function(){ _dd.innerHTML = '<div class="qa-suggest-error">Unavailable</div>'; });
+          _dd.classList.add('open');
+        }).catch(function(){});
     }, _deb);
   });
 
