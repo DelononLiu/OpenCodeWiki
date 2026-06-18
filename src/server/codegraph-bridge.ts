@@ -733,7 +733,7 @@ app.get('/api/me', (req, res) => {
   res.json((req as any).user);
 });
 
-const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope());
+const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope(), handler);
 app.post('/api/qa', qaHandler);
 
 app.get('/api/qa/session/:id', (req, res) => {

@@ -7,6 +7,8 @@ import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 import * as qaStore from './qa-store.js';
 import type { Domain } from './qa-store.js';
+import { QaResolver } from './qa-resolver.js';
+import type { IntentResult, PipelineMatch, RepoInfo } from './qa-resolver.js';
 
 /** Sanitize filename to prevent path traversal */
 function safeName(name: string): string {
@@ -719,6 +721,7 @@ export function createQaEndpoint(
   searchCallers?: (symbol: string, repo?: string) => Promise<string>,
   searchImpact?: (symbol: string, repo?: string) => Promise<string>,
   crossRepoScope?: string[],  // if set, cross-repo queries are limited to these repo names
+  handler?: any,  // codegraph handler — enables pipeline mode
 ) {
   // Eager init: pre-start ACP clients for all indexed repos
   if (ACP_ENABLED && listRepos) {
@@ -1010,7 +1013,58 @@ export function createQaEndpoint(
       log('error', 'search failed', { error: (e as Error)?.message });
     }
 
+    // ── Pipeline: Intent Analysis + codegraph 工具编排 ──────────
+    let pipelineContext = '';
+    let pipelineIntent: string | undefined;
+    if (handler) {
+      try {
+        const resolver = new QaResolver(
+          (tool: string, args: any) => handler.execute(tool, args),
+        );
+
+        // Step 1: 意图分析 (纯规则, 快速)
+        const intentResult = resolver.analyzeIntent(question);
+        pipelineIntent = intentResult.intent;
+        log('info', 'pipeline intent', { intent: intentResult.intent, symbols: intentResult.symbols, searchTerms: intentResult.searchTerms });
+
+        // Step 2: 构建 repo 列表
+        const repos: RepoInfo[] = [];
+        if (isCrossRepo && repoBaseMap) {
+          for (const [name, storagePath] of repoBaseMap) {
+            repos.push({ name, storagePath });
+          }
+        } else if (entry) {
+          repos.push({ name: entry.name || repoName || 'default', storagePath: entry.storagePath });
+        }
+
+        // Step 3: 按意图编排 codegraph 工具链
+        const mode: 'llm' | 'acp' = ACP_ENABLED ? 'acp' : 'llm';
+        const matches = await resolver.search(intentResult, repos, mode);
+        log('info', 'pipeline search complete', { matches: matches.length, mode });
+
+        // Step 4: 构建上下文 (LLM 模式完整注入, ACP 模式精简线索)
+        pipelineContext = mode === 'llm'
+          ? resolver.buildLLMContext(matches, intentResult)
+          : resolver.buildACPContext(matches, intentResult);
+        if (pipelineContext) {
+          log('info', 'pipeline context', { len: pipelineContext.length, mode });
+          // 打印搜索结果列表供分析
+          log('info', '=== PIPELINE SEARCH CONTEXT ===');
+          log('info', pipelineContext);
+          log('info', '=== END PIPELINE SEARCH CONTEXT ===');
+        }
+      } catch (pipelineErr) {
+        log('warn', 'pipeline error (non-fatal)', { error: (pipelineErr as Error)?.message });
+      }
+    }
+
     log('info', 'built sources count=' + sources.length);
+
+    // ── 搜不到时走 LLM 引导用户补充信息 ──
+    if (!ACP_ENABLED && handler && !pipelineContext && hasLLM) {
+      log('info', 'pipeline found no results — asking LLM to guide user');
+      pipelineContext = '## NOTE\n未在代码库中搜索到与问题相关的内容。请告知用户未找到相关代码，并引导用户提供更具体的信息（如函数名、错误信息、文件路径等）以便进一步定位。';
+    }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -1126,7 +1180,7 @@ export function createQaEndpoint(
       '- 禁止使用 Explore Task。\n' +
       '- **回答输出格式必须严格遵循下方 ## 回答模板 中的一种模板（A/B/C/D/E），不允许自由发挥。**\n' +
       '- **问题相关信息搜索链路：codegraph_search（语义搜索符号）→ codegraph_context（单符号深度分析）→ codegraph_impact（影响范围）→ grep（纯文本 fallback/提取）**\n' + 
-      '- 每个回答至少包含 2 个引用，最多包含 6 个引用。\n' +
+      '- 每个回答最多包含 6 个引用。如果没有搜到相关内容，请如实说「未搜到相关代码」，不要编造文件路径。\n' +
       (!ACP_ENABLED ? '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' : '') +
       (isCrossRepo
         ? '- 引用格式：在句子末尾用 (repoName:relative/path/file.ts:line)，如 (opencodewiki:src/server/proxy.ts:42)\n'
@@ -1145,7 +1199,8 @@ export function createQaEndpoint(
       '\n' + domainFlow + '\n\n' +
       structure + '\n\n' +
       (uploadedContext ? uploadedContext + '\n' : '') +
-      (!ACP_ENABLED ? '## SEARCH CONTEXT\n' +
+      (pipelineContext ? pipelineContext + '\n\n---\n注意：以上是 PIPELINE 分析结果，你的引用必须来自上述文件路径。\n\n' :
+      !ACP_ENABLED ? '## SEARCH CONTEXT\n' +
       '以下是搜索到的代码文件，你的引用必须来自此列表：\n\n' +
       '- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n' +
       '---\n' +
