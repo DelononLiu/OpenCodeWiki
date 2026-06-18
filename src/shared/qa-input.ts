@@ -66,7 +66,7 @@ export function qaInputStyles(v: QaInputVars): string {
 .qa-input-layer textarea::-webkit-scrollbar{width:4px}
 .qa-input-layer textarea::-webkit-scrollbar-thumb{background:${v.textMuted};border-radius:2px}
 .qa-input-layer textarea::-webkit-scrollbar-button{display:none}
-.cmd-pill{display:inline;padding:1px 7px;border-radius:6px;font-size:14px;font-weight:500;background:${v.blue};color:#fff;line-height:1.9}
+.cmd-pill{background:${v.blue};color:#fff;border-radius:5px}
 .cmd-pill.repo{background:${v.blue}}
 .cmd-dropdown{position:absolute;top:30px;left:4px;right:4px;display:none;background:${v.bgSurface};border:1px solid ${v.border};border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:10;max-height:160px;overflow-y:auto;font-size:12px}
 .cmd-dropdown.open{display:block}
@@ -166,8 +166,8 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
     if (!hl) return;
     var raw = inp.value;
     if (!raw) { hl.innerHTML = ''; return; }
-    var h = raw.replace(/(?:^|\\s)(\\/[a-zA-Z]+)/g, function(m,c){ return '<span class="cmd-pill">' + esc(cmdLabel(c.slice(1))) + '</span>'; });
-    h = h.replace(/(?:^|\\s)(@[a-zA-Z0-9._-]+)/g, function(m,a){ return '<span class="cmd-pill repo">' + esc(a.slice(1)) + '</span>'; });
+    var h = raw.replace(/(?:^|\\s)(\\/[a-zA-Z]+)/g, function(m,c){ return '<span class="cmd-pill">' + esc(c) + '</span>'; });
+    h = h.replace(/(?:^|\\s)(@[a-zA-Z0-9._-]+)/g, function(m,a){ return '<span class="cmd-pill repo">' + esc(a) + '</span>'; });
     hl.innerHTML = h;
   }
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -184,7 +184,9 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
     if (!items.length) { hide(); return; }
     dd.innerHTML = items.map(function(x,i){ return '<div class="cmd-item" data-i="' + i + '"><span class="cmd-key">' + esc(x.key) + '</span><span class="cmd-label">' + esc(x.label) + '</span><span class="cmd-desc">' + esc(x.desc) + '</span></div>'; }).join('');
     dd._items = items;
+    cmdIdx = 0;
     dd.classList.add('open');
+    cmdHighlight();
   }
 
   function showRepo(partial) {
@@ -195,25 +197,49 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
     if (!items.length) { hide(); return; }
     dd.innerHTML = items.map(function(x,i){ return '<div class="cmd-item" data-i="' + i + '"><span class="cmd-key" style="background:none">@</span><span class="cmd-label">' + esc(x) + '</span></div>'; }).join('');
     dd._items = items;
+    cmdIdx = 0;
     dd.classList.add('open');
+    cmdHighlight();
   }
 
-  function hide() { if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; dd._items = null; CMDS_CACHE = null; } }
+  var cmdIdx = -1;
+  function hide() { if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; dd._items = null; CMDS_CACHE = null; cmdIdx = -1; } }
+
+  function cmdSelect(idx) {
+    if (!dd || !dd._items || !CMDS_CACHE) return;
+    var sel = dd._items[idx];
+    if (!sel) return;
+    if (CMDS_CACHE === 'cmd') {
+      inp.value = inp.value.replace(/(?:^|\\s)\\/[^\\s]*$/, ' ' + sel.key + ' ');
+    } else {
+      inp.value = inp.value.replace(/(?:^|\\s)@[^\\s]*$/, ' @' + sel + ' ');
+    }
+    hide(); render(); inp.focus();
+  }
+
+  function cmdHighlight() {
+    if (!dd) return;
+    var items = dd.querySelectorAll('.cmd-item');
+    items.forEach(function(el, i){ el.classList.toggle('highlighted', i === cmdIdx); });
+  }
+
+  // ── Keyboard: ArrowDown/Up/Enter/Escape for cmd dropdown ──
+  inp.addEventListener('keydown', function(e){
+    if (!dd || !dd.classList.contains('open') || !dd._items) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdIdx = Math.min(cmdIdx + 1, dd._items.length - 1); cmdHighlight(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); cmdIdx = Math.max(cmdIdx - 1, -1); cmdHighlight(); return; }
+    if (e.key === 'Enter') {
+      if (cmdIdx >= 0) { e.preventDefault(); e.stopImmediatePropagation(); cmdSelect(cmdIdx); return; }
+      e.preventDefault(); hide(); return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); hide(); return; }
+  }, true);  // capture phase: prevent submit before page-level handlers see it
 
   if (dd) {
     dd.addEventListener('mousedown', function(e){
       var item = e.target.closest('.cmd-item');
       if (!item || !dd._items || !CMDS_CACHE) return;
-      var sel = dd._items[parseInt(item.dataset.i)];
-      if (!sel) return;
-      if (CMDS_CACHE === 'cmd') {
-        // Replace the partial /xxx at end of input
-        inp.value = inp.value.replace(/(?:^|\\s)\\/[a-zA-Z]*$/, ' ' + sel.key + ' ');
-      } else {
-        // Replace the partial @xxx at end of input
-        inp.value = inp.value.replace(/(?:^|\\s)@[a-zA-Z0-9._-]*$/, ' @' + sel + ' ');
-      }
-      hide(); render(); inp.focus();
+      cmdSelect(parseInt(item.dataset.i));
     });
   }
 
@@ -272,6 +298,9 @@ try {
   _inp.addEventListener('input', function(){
     clearTimeout(_timer);
     if (_comp || _dismissed) return;
+    // Don't show suggest while cmd dropdown is open (typing / or @)
+    var cmdDd = document.getElementById(this.id + '_dd');
+    if (cmdDd && cmdDd.classList.contains('open')) return;
     var val = this.value.trim();
     if (val.length < _min) { _dd.classList.remove('open'); _dd.innerHTML = ''; _items = []; _idx = -1; _dismissed = false; return; }
     _timer = setTimeout(function(){
