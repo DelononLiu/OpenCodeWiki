@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx tsx src/server/codegraph-bridge.ts",
+    "dev": "bash scripts/start.sh",
     "start": "bash scripts/start.sh",
-    "dev:direct": "npx tsx src/server/codegraph-bridge.ts",
     "build": "npx tsc",
     "wiki": "node scripts/wiki.mjs",
     "index": "node scripts/setup-repo.mjs",
