@@ -111,13 +111,14 @@ const INTENT_MAP: { intent: Intent; patterns: RegExp[]; priority: number }[] = [
     ],
   },
   {
-    // "架构是什么" "模块关系" "有哪些类型" "分类枚举"
+    // "架构是什么" "模块关系" "分类枚举"
     intent: 'what-structure',
     priority: 4,
     patterns: [
       /架构|设计|结构|模块|关系|overview|module|component|整体|类图|关系图|流程|dependenc|模块图|拓扑|体系|层次|分层/i,
+      /(?:关系|列表|结构|枚举|归类|架构)/i,
       /^(?:what\s+is\s+the\s+)?(?:architecture|design|structure|overview)\s+/i,
-      /(?:类型|分类|类别|种类|枚举|类别|属于|归属|范畴)/i,
+      /(?:分类|类别|种类|枚举|类别|属于|归属|范畴)/i,
       /(?:几类|哪些类|哪几类|哪些类型|哪些种|哪几种)/i,
       /有(?:哪些|哪几种|几类)/i,
     ],
