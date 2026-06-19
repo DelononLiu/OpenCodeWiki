@@ -1064,11 +1064,13 @@ export function createQaEndpoint(
         // 注入向量搜索（由 codegraph-bridge.ts 先设置全局变量）
         const vs = (globalThis as any).__vectorStore;
         if (vs) resolver.setVectorSearch(vs);
+        if (llmConfig?.apiKey) resolver.setLLMConfig({ apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model });
 
-        // Step 1: 意图分析 (纯规则, 快速)
-        const intentResult = resolver.analyzeIntent(question);
+        // Step 1: 意图分析（带仓库信息，让 LLM 同时判断 scope）
+        const allRepoList = listRepos ? (await listRepos()).map(r => r.name) : [];
+        const intentResult = await resolver.analyzeIntent(question, allRepoList);
         pipelineIntent = intentResult.intent;
-        log('info', '  ▸ intent', { intent: intentResult.intent, terms: intentResult.searchTerms.slice(0, 5) });
+        log('info', '  ▸ intent', { intent: intentResult.intent, scope: intentResult.reasoning?.includes('scope:') ? intentResult.reasoning.split('scope:')[1] : '-', terms: intentResult.searchTerms.slice(0, 5) });
 
         // Step 2: 构建 repo 列表
         const repos: RepoInfo[] = [];

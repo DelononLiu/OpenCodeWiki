@@ -24,6 +24,13 @@ export interface VectorSearchAPI {
   rrfMerge(ftsResults: {nodeId: string}[], vecResults: {nodeId: string; distance: number}[], k?: number): {nodeId: string; rrfScore: number}[];
 }
 
+/** LLM 配置接口 */
+export interface LLMConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
 // ── Types ────────────────────────────────────────────────────────
 
 export type Intent = 'what-is' | 'where-is' | 'how-to' | 'why-error' | 'what-structure' | 'what-impact';
@@ -177,6 +184,7 @@ function reasonIncludesCrossRepo(q: string): boolean {
 
 export class QaResolver {
   private vs: VectorSearchAPI | null = null;
+  private llm: LLMConfig | null = null;
 
   constructor(
     private executeTool: (tool: string, args: any) => Promise<{ content: [{ text: string }] }>,
@@ -185,20 +193,44 @@ export class QaResolver {
   /** 注入向量搜索服务（可选，不注入时纯 FTS5）*/
   setVectorSearch(vs: VectorSearchAPI) { this.vs = vs; }
 
+  /** 注入 LLM 配置（可选，用于低置信度时 LLM 兜底分类）*/
+  setLLMConfig(cfg: LLMConfig) { this.llm = cfg; }
+
   // ═══════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════
 
   /**
    * Step 1: 意图分析
-   * 纯规则匹配（支持多意图命中时按 priority 排序），无 LLM 开销。
-   * 未匹配任何意图时默认 what-is（最通用的"解释代码"意图）。
+   * LLM 分类为主，规则为异常降级。
    */
-  analyzeIntent(question: string): IntentResult {
-    const intent = this.classifyIntent(question);
+  async analyzeIntent(question: string, repoDescs?: string[]): Promise<IntentResult> {
+    let intent: Intent;
+    let reasoning = '';
+
+    if (this.llm && repoDescs) {
+      const result = await this.classifyByLLM(question, repoDescs);
+      reasoning = 'llm';
+      if (result) {
+        intent = result.intent;
+        reasoning += ' scope:' + result.scope;
+      } else {
+        intent = this.classifyIntentWithScore(question).intent;
+        reasoning = 'llm-rule-fallback';
+      }
+    } else if (this.llm) {
+      // 无 repo 信息时只做 intent 分类
+      const llmIntent = await this.classifyByLLM(question, []);
+      if (llmIntent) { intent = llmIntent.intent; reasoning = 'llm'; }
+      else { intent = this.classifyIntentWithScore(question).intent; reasoning = 'llm-rule-fallback'; }
+    } else {
+      intent = this.classifyIntentWithScore(question).intent;
+      reasoning = 'rule';
+    }
+
     const symbols = this.extractSymbols(question);
     const searchTerms = this.buildSearchTerms(intent, symbols, question);
-    return { intent, symbols, searchTerms, reasoning: 'rule-based' };
+    return { intent, symbols, searchTerms, reasoning };
   }
 
   // ═══════════════════════════════════════════════════
@@ -213,43 +245,15 @@ export class QaResolver {
    * Step 2: 按意图编排 codegraph 工具链搜索
    */
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
-    const q = question.toLowerCase();
-    const matchedRepos = allRepos.filter(r => q.includes(r.toLowerCase()));
-    const repoCount = matchedRepos.length;
-
-    // 1. 问题中提到了多个仓库 → cross-compare
-    if (repoCount >= 2) {
-      return { scope: 'cross-compare', repos: matchedRepos, reasoning: `提问中提及 ${repoCount} 个仓库：${matchedRepos.join(', ')}` };
+    switch (intent.intent) {
+      case 'what-is':        return this.searchWhatIs(intent, repos, mode);
+      case 'where-is':       return this.searchWhereIs(intent, repos, mode);
+      case 'how-to':         return this.searchHowTo(intent, repos, mode);
+      case 'why-error':      return this.searchWhyError(intent, repos, mode);
+      case 'what-structure': return this.searchWhatStructure(intent, repos, mode);
+      case 'what-impact':    return this.searchWhatImpact(intent, repos, mode);
+      default:               return this.searchWhatIs(intent, repos, mode);
     }
-
-    // 2. 影响/调用链 关键词 → impact / cross-call
-    if (/影响|改了|改了.*会|调用链|call\s+chain|impact|谁在调用|改了.*影响/.test(q)) {
-      if (repoCount === 1) return { scope: 'impact', repos: matchedRepos, reasoning: '影响分析，锁定目标仓库' };
-      return { scope: 'cross-call', repos: matchedRepos, reasoning: '跨库调用链追踪' };
-    }
-
-    // 3. 对比类关键词 → cross-compare
-    if (/对比|区别|差异|区别|不同|vs|比较|difference|different/.test(q)) {
-      return { scope: repoCount >= 1 ? 'cross-compare' : 'global-search', repos: matchedRepos, reasoning: '对比分析' };
-    }
-
-    // 4. 模糊搜索关键词 → global-search
-    if (/有没有|哪些|哪里[^定]|where|search|find|怎么.*实现|如何.*实现/.test(q)) {
-      return { scope: 'global-search', repos: matchedRepos, reasoning: '全局搜索' };
-    }
-
-    // 5. 有明确仓库名 → single
-    if (repoCount === 1) {
-      return { scope: 'single', repos: matchedRepos, reasoning: `问题提到 ${matchedRepos[0]}，锁定单库` };
-    }
-
-    // 6. 多库交叉引用（跨库导入/调用）
-    if (reasonIncludesCrossRepo(q)) {
-      return { scope: 'cross-call', repos: allRepos, reasoning: '可能存在跨库引用' };
-    }
-
-    // 7. 默认：单库（路由由 qa-endpoint 处理）
-    return { scope: 'single', repos: [allRepos[0] || ''], reasoning: '默认单库' };
   }
 
   /**
@@ -664,7 +668,7 @@ export class QaResolver {
             const { DatabaseSync } = await import('node:sqlite');
             const db = new DatabaseSync(codegraphDb);
             const vecMatches: PipelineMatch[] = vecResults.map(v => {
-              const row = db.prepare('SELECT name, file_path, start_line, kind FROM nodes WHERE id = ?').get(v.nodeId);
+              const row: any = db.prepare('SELECT name, file_path, start_line, kind FROM nodes WHERE id = ?').get(v.nodeId);
               return {
                 name: row?.name || '',
                 filePath: row?.file_path || '',
@@ -799,20 +803,76 @@ export class QaResolver {
   //  Intent analysis helpers
   // ═══════════════════════════════════════════════════
 
-  /** 多规则匹配：命中多个时按 priority 取最高 */
-  private classifyIntent(question: string): Intent {
+  /** 多规则匹配 + 置信度打分 */
+  private classifyIntentWithScore(question: string): { intent: Intent; score: number } {
     const q = question.trim();
-    let best: Intent = 'what-is';  // 默认兜底
+    let best: Intent = 'what-is';
     let bestPriority = -1;
+    let matchedCount = 0;
+    let totalPatterns = 0;
 
     for (const rule of INTENT_MAP) {
-      if (rule.patterns.some(p => p.test(q)) && rule.priority > bestPriority) {
+      const matched = rule.patterns.filter(p => p.test(q));
+      totalPatterns += rule.patterns.length;
+      if (matched.length > 0 && rule.priority > bestPriority) {
         best = rule.intent;
         bestPriority = rule.priority;
+        matchedCount = Math.max(matchedCount, matched.length);
       }
     }
 
-    return best;
+    // 置信度 = 匹配到的规则比例 × 优先级因子
+    const priorityFactor = Math.min(1, (bestPriority + 1) / 6);
+    const matchRatio = totalPatterns > 0 ? matchedCount / Math.max(1, totalPatterns / INTENT_MAP.length) : 0;
+    const score = Math.min(0.95, Math.max(0.2, (matchRatio * 0.5 + priorityFactor * 0.5)));
+
+    return { intent: best, score };
+  }
+
+  /** LLM 分类——返回 intent + scope，异常时返回 null */
+  private async classifyByLLM(question: string, repoDescs: string[]): Promise<{ intent: Intent; scope: string } | null> {
+    if (!this.llm) return null;
+    const repoInfo = repoDescs.length > 0
+      ? `可用仓库：\n${repoDescs.map(r => `- ${r}`).join('\n')}`
+      : '';
+    try {
+      const res = await fetch(this.llm.baseUrl + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.llm.apiKey },
+        body: JSON.stringify({
+          model: this.llm.model,
+          messages: [
+            { role: 'system', content: `你是一个代码意图分析师。根据问题和可用仓库，返回 JSON 格式：
+
+意图（intent）：what-is（功能解释）| where-is（定位）| how-to（用法）| why-error（排错）| what-structure（架构）| what-impact（影响分析）
+
+范围（scope）：single（只搜提问中提到的仓库）| cross-compare（跨库对比）| cross-call（跨库调用链）| global-search（全库搜索）
+
+${repoInfo}
+
+返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"}` },
+            { role: 'user', content: question },
+          ],
+          max_tokens: 200,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      try {
+        const parsed = JSON.parse(text);
+        const validIntents: Intent[] = ['what-is', 'where-is', 'how-to', 'why-error', 'what-structure', 'what-impact'];
+        const intent = validIntents.find(i => parsed.intent?.includes(i));
+        if (!intent) return null;
+        return { intent, scope: parsed.scope || 'single' };
+      } catch {
+        return null;
+      }
+    } catch {
+      return null;
+    }
   }
 
   private extractSymbols(question: string): string[] {
