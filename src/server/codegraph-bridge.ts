@@ -517,6 +517,39 @@ app.post('/api/explore', async (req, res) => {
   res.json(result);
 });
 
+// ── Iteration 3: 增量索引 + 多库路由 API ──
+
+app.get('/api/repos', async (_req, res) => {
+  const registry = await loadRegistry();
+  const list = await Promise.all(registry.map(async (r) => {
+    let status = 'unknown';
+    try {
+      const cgStatus = await handler.execute('codegraph_status', { projectPath: r.path });
+      const text = cgStatus?.content?.[0]?.text || '';
+      if (text.includes('Index is up to date')) status = 'ready';
+      else if (text.includes('Files:')) status = 'indexed';
+      else status = 'noindex';
+    } catch {}
+    return { name: r.name, path: r.path, status, indexedAt: r.indexedAt, files: r.files, nodes: r.nodes };
+  }));
+  res.json(list);
+});
+
+app.post('/api/reindex', express.json(), async (req, res) => {
+  const { repo, full } = req.body || {};
+  const registry = await loadRegistry();
+  const entry = registry.find(r => r.name === repo || r.path === repo);
+  if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
+  try {
+    const cmd = full ? 'index' : 'sync';
+    const { execFileSync } = await import('child_process');
+    execFileSync('npx', ['codegraph', cmd, entry.path], { stdio: 'inherit', timeout: 600_000, cwd: entry.path });
+    res.json({ ok: true, repo: entry.name });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 async function loadSavedConfig(): Promise<Record<string, string>> {
   const configDir = path.join(os.homedir(), '.opencodewiki');
   const configFile = path.join(configDir, 'config.json');

@@ -10,6 +10,7 @@
     "wiki": "node scripts/wiki.mjs",
     "index": "node scripts/setup-repo.mjs",
     "reindex": "node scripts/reindex.mjs",
+    "watch": "node scripts/reindex.mjs --watch",
     "eval:qa": "node scripts/eval/runner.mjs",
     "eval:report": "node scripts/eval/report.mjs"
   },
