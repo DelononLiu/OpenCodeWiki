@@ -624,50 +624,76 @@ function domainProcessingFlow(domain: Domain): string {
   return flows[domain] || flows.general;
 }
 
-function structureGuide(): string {
+function structureGuide(intent?: string, domain?: Domain): string {
+  // 按意图 + 领域动态选择最合适的模板
+  const tpl = selectTemplate(intent, domain);
   return `## 回答模板
 
-请根据用户问题的性质，自行选择最合适的回答结构。以下列出所有可用的结构模板，参考其中一种来组织回答。**答复的第一句话必须加粗，作为摘要。**
+请参考以下模板来组织回答。**答复的第一句话必须加粗，作为摘要。**
 
-### 模板 A：故障排查
+${tpl}`;
+}
+
+const TEMPLATES: Record<string, string> = {
+  A: `### 模板 A：故障排查
 适用于编译错误、运行时崩溃、段错误、日志异常、链接错误等排查类问题。
 
 - **1 句话直接指出错误或异常（不加标题）。**
 - ## 错误信息 — 关键错误输出放在代码块中；如有堆栈只需关键帧。
 - ## 原因分析 — 用 bullet list 说明触发条件和根因，避免长篇大论。
-- ## 解决方案 — 可操作的具体步骤，按推荐程度列出。
+- ## 解决方案 — 可操作的具体步骤，按推荐程度列出。`,
 
-### 模板 B：代码解释
+  B: `### 模板 B：代码解释
 适用于"这段代码做了什么"、"这个函数功能是什么"、"逻辑是怎么走的"等解释类问题。
 
 - **1 句话概括代码行为（不加标题）。**
 - ## 功能说明 — 用自然语言解释作用，说明输入/输出/核心逻辑。
 - ## 源码走读 — 沿关键路径逐段分析，配合代码片段标注行号。
-- ## 影响范围 — 调用方/被调用方/边界情况/副作用。
+- ## 影响范围 — 调用方/被调用方/边界情况/副作用。`,
 
-### 模板 C：代码审查
+  C: `### 模板 C：代码审查
 适用于"这样写有什么问题"、"有优化空间吗"、"哪里可能出 bug"等审查类问题。
 
 - **1 句话指出问题或改进点（不加标题）。**
 - ## 问题分析 — 按正确性/性能/可维护性/安全维度分析，解释为什么是问题。
 - ## 代码位置 — 文件:行号，涉及多处分别列出。
-- ## 改进建议 — 最好有 before/after 对比，多方案时简述 trade-off。
+- ## 改进建议 — 最好有 before/after 对比，多方案时简述 trade-off。`,
 
-### 模板 D：配置用法
+  D: `### 模板 D：配置用法
 适用于"这个配置项什么意思"、"API 怎么调"、"参数怎么设"等用法类问题。
 
 - **1 句话说明配置或用法的目标（不加标题）。**
 - ## 步骤 — numbered list 列出操作顺序。
 - ## 参数说明 — 表格：参数名 | 类型 | 默认值 | 说明，只列关键参数。
-- ## 示例 — 完整配置或调用示例（代码块），必要时加注释。
+- ## 示例 — 完整配置或调用示例（代码块），必要时加注释。`,
 
-### 模板 E：模块分析
+  E: `### 模板 E：模块分析
 适用于"整体架构是什么"、"模块间怎么交互"、"数据流怎么走"等设计类问题。
 
 - **1 句话概括整体设计（不加标题）。**
 - ## 结构设计 — 优先使用 mermaid 图，说明分层或核心组件。
 - ## 核心流程 — 关键数据流或调用链，说明数据流转和关键节点。
-- ## 模块关系 — 依赖关系或通信方式，跨边界时注意接口约定。`;
+- ## 模块关系 — 依赖关系或通信方式，跨边界时注意接口约定。`,
+};
+
+function selectTemplate(intent?: string, domain?: string): string {
+  // intent + domain → 模板映射
+  const map: Record<string, string> = {
+    'what-is_general': 'B',
+    'where-is_general': 'B',
+    'how-to_general': 'D',
+    'why-error_general': 'A',
+    'what-structure_general': 'E',
+    'what-impact_general': 'E',
+    'why-error_stack-analysis': 'A',
+    'why-error_build-issue': 'A',
+    'why-error_bug-analysis': 'C',
+    'what-is_bug-analysis': 'C',
+    'log-analysis': 'A',
+  };
+  const key = intent && domain ? `${intent}_${domain}` : `${domain || 'general'}`;
+  const selected = map[key] || map[`${intent}_general`] || map[domain || ''] || 'B';
+  return TEMPLATES[selected] || TEMPLATES.B;
 }
 
 function hasChinese(text: string): boolean {
@@ -1095,8 +1121,9 @@ export function createQaEndpoint(
     } else {
       domain = classifyDomain(question);
     }
-    const structure = structureGuide();
+    const structure = structureGuide(pipelineIntent, domain);
     const domainFlow = domainProcessingFlow(domain);
+    log('info', 'template selected', { intent: pipelineIntent, domain, template: structure.slice(0, 40) });
 
     // Persist domain to #Q entry
     if (qid) {

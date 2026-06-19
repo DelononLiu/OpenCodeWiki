@@ -195,6 +195,21 @@ async function main() {
       }
     }
 
+    // ── 重排序：用查询嵌入对 top 结果做二次打分 ──
+    if (vs && fusedResults.length > 3) {
+      try {
+        const qVec = await vs.embedText(q.question);
+        const reScored = fusedResults.map(r => {
+          // 从候选节点的 name + filePath 构建文本
+          const text = [r.node?.name, r.node?.filePath].filter(Boolean).join(' ');
+          const score = 0; // placeholder — 等 cross-encoder 就绪
+          return { ...r, _rerankScore: score };
+        });
+        // 有实际重排序分数时按分数重排
+        // fusedResults = reScored.sort((a, b) => b._rerankScore - a._rerankScore);
+      } catch {}
+    }
+
     const metrics = evaluate(fusedResults, q);
 
     results.push({ ...q, metrics });
