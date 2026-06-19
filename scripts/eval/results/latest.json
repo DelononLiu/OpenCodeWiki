@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-06-19T11:50:38.594Z",
+  "timestamp": "2026-06-19T12:24:41.553Z",
   "set": "tiny",
   "isBaseline": false,
   "aggregated": {
     "avgRecall5": 0.6066666666666667,
     "avgRecall10": 0.665,
-    "avgMrr": 0.4905178571428571,
+    "avgMrr": 0.46551785714285704,
     "passCount": 10,
     "total": 10
   },
@@ -25,13 +25,13 @@
       "metrics": {
         "recall5": 1,
         "recall10": 1,
-        "mrr": 1,
+        "mrr": 0.75,
         "hitDetails": {
           "symbols": {
             "searchNodes": 1
           },
           "files": {
-            "src/db/queries.ts": 1
+            "src/db/queries.ts": 2
           }
         }
       }

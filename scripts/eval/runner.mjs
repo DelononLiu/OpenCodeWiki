@@ -158,7 +158,20 @@ async function main() {
     }
 
     // ── FTS5 搜索（codegraph） ──
-    const ftsResults = codegraphSearch(q.question, repoPath, 10);
+    let ftsResults = codegraphSearch(q.question, repoPath, 10);
+    // FTS5 无结果时用查询改写重试（驼峰拆词）
+    if (ftsResults.length === 0) {
+      try {
+        const { rewrite } = await import('./rewriter.mjs');
+        const variants = rewrite(q.question);
+        // 用每个变体尝试搜索，取第一个有结果的
+        for (const v of variants) {
+          if (v === q.question || v.length < 3) continue;
+          ftsResults = codegraphSearch(v, repoPath, 10);
+          if (ftsResults.length > 0) break;
+        }
+      } catch {}
+    }
 
     // ── 向量搜索 + RRF 融合 ──
     let fusedResults = ftsResults;
@@ -194,6 +207,33 @@ async function main() {
       } catch (e) {
         console.warn(`  ⚠ 向量搜索失败 ${q.repo}: ${e.message}`);
       }
+    }
+
+    // ── 图传播重打分：从 top 结果沿调用图传播 ──
+    if (fusedResults.length > 2) {
+      try {
+        const { DatabaseSync } = await import('node:sqlite');
+        const db = new DatabaseSync(repoPath + '/.codegraph/codegraph.db');
+        const boostScores = new Map();
+        // 只传播 top 3 的结果
+        for (const r of fusedResults.slice(0, 3)) {
+          const nodeId = r.node?.id;
+          if (!nodeId) continue;
+          const edges = db.prepare(
+            "SELECT target FROM edges WHERE source = ? AND kind IN ('calls', 'references') LIMIT 15"
+          ).all(nodeId);
+          for (const e of edges) {
+            boostScores.set(e.target, (boostScores.get(e.target) || 0) + 0.15);
+          }
+        }
+        db.close();
+        if (boostScores.size > 0) {
+          fusedResults = fusedResults.map(r => ({
+            ...r,
+            _graphScore: (r._rrfScore || 0) + (boostScores.get(r.node?.id || '') || 0),
+          })).sort((a, b) => (b._graphScore || 0) - (a._graphScore || 0));
+        }
+      } catch {}
     }
 
     // ── Ettin 重排序 ──
