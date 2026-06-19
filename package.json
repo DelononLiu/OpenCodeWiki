@@ -12,6 +12,7 @@
     "index": "node scripts/setup-repo.mjs",
     "reindex": "node scripts/reindex.mjs",
     "watch": "node scripts/reindex.mjs --watch",
+    "postinstall": "node scripts/postinstall.mjs",
     "eval:qa": "node scripts/eval/runner.mjs",
     "eval:report": "node scripts/eval/report.mjs"
   },
