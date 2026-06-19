@@ -162,10 +162,11 @@ async function main() {
 
     // ── 向量搜索 + RRF 融合 ──
     let fusedResults = ftsResults;
+    let vecResults = [];
     if (vs) {
       try {
         const queryVec = await vs.embedText(q.question);
-        const vecResults = vs.vectorSearch(q.repo, queryVec, 10);
+        vecResults = vs.vectorSearch(q.repo, queryVec, 10);
         if (vecResults.length > 0) {
           // 从 codegraph 加载向量结果对应的节点详情
           const nodesMap = await getNodesForRepo(repoPath);
@@ -195,20 +196,7 @@ async function main() {
       }
     }
 
-    // ── 重排序：用查询嵌入对 top 结果做二次打分 ──
-    if (vs && fusedResults.length > 3) {
-      try {
-        const qVec = await vs.embedText(q.question);
-        const reScored = fusedResults.map(r => {
-          // 从候选节点的 name + filePath 构建文本
-          const text = [r.node?.name, r.node?.filePath].filter(Boolean).join(' ');
-          const score = 0; // placeholder — 等 cross-encoder 就绪
-          return { ...r, _rerankScore: score };
-        });
-        // 有实际重排序分数时按分数重排
-        // fusedResults = reScored.sort((a, b) => b._rerankScore - a._rerankScore);
-      } catch {}
-    }
+    // ── 重排序占位（等 cross-encoder 就绪）──
 
     const metrics = evaluate(fusedResults, q);
 
