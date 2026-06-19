@@ -1,0 +1,1334 @@
+[
+  {
+    "id": "flask-0",
+    "repo": "flask",
+    "question": "What is the relationship between the ASCII-only encoding control parameter in the framework's JSON serialization provider and Unicode character representation in serialized output?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-1",
+    "repo": "flask",
+    "question": "What is the purpose of the registration tracking flag in the blueprint collection class that prevents setup methods from being called after the blueprint has been registered once?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-2",
+    "repo": "flask",
+    "question": "What is the modular component registration architecture that separates static asset serving from the main application framework while preserving consistent caching behavior across both components?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-3",
+    "repo": "flask",
+    "question": "What architectural decisions are reflected by the dual inheritance from both AssertionError and UnicodeError in the debug-mode exception class for unexpected unicode or binary data regarding separation between validation failures and encoding issues in Flask's layered architecture?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-4",
+    "repo": "flask",
+    "question": "What is the dependency chain in the test function that verifies subdomain routing through configuration, route registration, and request context creation?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-5",
+    "repo": "flask",
+    "question": "What mechanisms ensure that template processing functions registered during modular component registration are accessible when templates are rendered using the shared template environment?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-6",
+    "repo": "flask",
+    "question": "What does the method that enables the test helper class representing pathlib.Path objects return when invoked by the standard library path conversion function?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-7",
+    "repo": "flask",
+    "question": "What is the interaction between the parametrization of import and app name arguments in the exception-raising test and the exception handling semantics that ensures the application location function fails consistently?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-8",
+    "repo": "flask",
+    "question": "What is the dependency chain between the application loading helper, the Flask application instance, and the base Click testing runner that ensures proper CLI command execution in isolation?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "src/flask/testing.py:298",
+      "src/flask/testing.py:271",
+      "src/flask/cli.py:333",
+      "src/flask/testing.py:295"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-9",
+    "repo": "flask",
+    "question": "What is the dependency chain from recursive type tagging method calls within the tuple-to-JSON conversion method that could lead to infinite recursion when serializing nested tuples with circular references?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-10",
+    "repo": "flask",
+    "question": "What is the architectural pattern of the test class that isolates request context lifecycle management from streaming response generation logic?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-11",
+    "repo": "flask",
+    "question": "What hidden coupling exists between the decorator's state management and response lifecycle that causes issues with nested or conditional registration?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-12",
+    "repo": "flask",
+    "question": "How does the wrapper function that defers hash algorithm access until execution delay cryptographic availability validation until runtime to prevent import-time failures in restricted environments?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-13",
+    "repo": "flask",
+    "question": "How does the decorator that copies request contexts handle isolation of lightweight concurrent execution contexts while preserving session data across execution boundaries?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-14",
+    "repo": "flask",
+    "question": "How does the certificate parameter conversion method for the CLI certificate option implement a fallback chain to handle file paths, adhoc certificate strings, and SSLContext object imports?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-15",
+    "repo": "flask",
+    "question": "How does the deferred registration mechanism ensure that custom template filters registered through the blueprint's application-level filter registration method are accessible in the template rendering environment when the blueprint is mounted with a URL path prefix?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-16",
+    "repo": "flask",
+    "question": "How does the tagged JSON serializer class that handles bytes maintain data consistency and reversibility when encoding binary data through base64?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-17",
+    "repo": "flask",
+    "question": "How does the method that processes unhandled exceptions determine whether to re-raise them or convert them into HTTP 500 responses based on configuration state?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-18",
+    "repo": "flask",
+    "question": "How does the method that registers URL rules on blueprint objects defer registration by storing an anonymous function in the deferred setup functions list instead of immediately calling the setup state's registration method?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-19",
+    "repo": "flask",
+    "question": "How does the callback-based modification tracking in the session class that inherits from CallbackDict ensure consistency between in-memory session state and persisted cookie data across concurrent requests?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-20",
+    "repo": "flask",
+    "question": "How does the namespace object that stores application-level data during an application context maintain thread-safety and context isolation when accessed concurrently through the contextvars mechanism?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-21",
+    "repo": "flask",
+    "question": "How does the error handling strategy in the application context globals namespace class's attribute access, deletion, and removal methods balance between raising AttributeError for missing attributes and providing default values?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-22",
+    "repo": "flask",
+    "question": "How does the type-safe dictionary structure used as a view function return type annotation decouple JSON response serialization from HTTP status representation to maintain type safety?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-23",
+    "repo": "flask",
+    "question": "How does the subclass initialization hook in the HTTP method-dispatching view class resolve conflicting methods attributes when inheriting from multiple parent classes?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "tests/test_views.py:207",
+      "src/flask/views.py:165"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-24",
+    "repo": "flask",
+    "question": "Why does the class that handles UUID serialization in the tagged JSON serialization system enable bidirectional conversion between UUID instances and their hexadecimal string representations?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-25",
+    "repo": "flask",
+    "question": "Why does the asynchronous HTTP method view class inherit from the synchronous HTTP method dispatch base class rather than implementing async dispatch independently?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-26",
+    "repo": "flask",
+    "question": "Why does the CLI helper class that manages Flask application loading provide both a direct callable factory parameter and an import path parameter as alternative instantiation mechanisms?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-27",
+    "repo": "flask",
+    "question": "Why does the method that opens application package resources relative to the root path restrict file opening to read-only modes?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-28",
+    "repo": "flask",
+    "question": "Why does the CLI helper class that manages Flask application discovery implement lazy loading through a cached instance attribute rather than during initialization?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-29",
+    "repo": "flask",
+    "question": "Why does unconditionally setting the session access tracking attribute in dictionary access methods impact signed cookie string conversion performance during frequent read operations?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-30",
+    "repo": "flask",
+    "question": "Why would performance degradation occur if the custom template filter registration mechanism used in blueprint test cases were repeated across multiple distinct blueprint objects during application startup?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-31",
+    "repo": "flask",
+    "question": "Why does the test that validates blueprint names cannot contain dots ensure that creating a modular route component with names containing dot characters raises a ValueError?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-32",
+    "repo": "flask",
+    "question": "Why does repeated invocation of the method that instantiates cryptographic serializers within the session persistence handler create a performance bottleneck under high-concurrency conditions?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-33",
+    "repo": "flask",
+    "question": "Why does the pass-through dictionary tag class's JSON conversion method apply recursive tagging only to dictionary values while avoiding tagging keys?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-34",
+    "repo": "flask",
+    "question": "Why does the test that checks handler behavior when a stream handler exists on the root logger verify that the application logger's handlers list is empty after adding a stream handler to the root logger?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-35",
+    "repo": "flask",
+    "question": "Where does the application root path get transformed during initialization when instance-relative configuration mode is enabled before reaching the configuration storage object?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-36",
+    "repo": "flask",
+    "question": "Where does the control flow in the CLI group class's command retrieval method determine whether to return a directly registered command, an entry point loaded command, or an application CLI group command?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-37",
+    "repo": "flask",
+    "question": "Where in the serialization pipeline for the JSON tag class that handles Markup API objects are the lower-level helper functions that the conversion method delegates to?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-38",
+    "repo": "flask",
+    "question": "Where does the list serialization tag's item conversion method interact with the serializer's type dispatcher to recursively process nested list structures containing mixed types?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-39",
+    "repo": "flask",
+    "question": "Where is the control flow determining whether a routing rule receives OPTIONS, including branches evaluating the automatic options flag and the application configuration setting?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-40",
+    "repo": "flask",
+    "question": "Where in the error handler resolution method does the lookup sequence traverse blueprint scopes then HTTP status codes then exception class method resolution order?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-41",
+    "repo": "flask",
+    "question": "Where is the test class that validates URL generation with anchors, schemes, and HTTP methods defined?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-42",
+    "repo": "flask",
+    "question": "Where does the encoding parameter flow from the test function that verifies resource opening with encoding into the Flask application's method that opens files relative to the root path?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "tests/test_helpers.py:359",
+      "src/flask/app.py:330"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-43",
+    "repo": "flask",
+    "question": "Where does the base64-decoding method for byte sequence tags get invoked during the recursive untagging process after JSON parsing?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-44",
+    "repo": "flask",
+    "question": "Where does the inheritance chain between parent and child configuration classes affect configuration resolution when loading from a class object?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-45",
+    "repo": "flask",
+    "question": "Where in the request processing flow does the orchestration between the method that loads session data at request start and the method that persists session data at request end occur to handle concurrent requests with potential race conditions?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-46",
+    "repo": "flask",
+    "question": "Where does the route handler function that returns a list of dictionaries integrate with the framework's route decorator and static type checker configuration to validate return type annotations in the type checking test files?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "src/flask/app.py:1230",
+      "src/flask/typing.py:84",
+      "src/flask/sansio/scaffold.py:336",
+      "pyproject.toml:127"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "flask-47",
+    "repo": "flask",
+    "question": "Why does the linear traversal of the exception class hierarchy in _find_error_handler create performance overhead when handling errors in applications with deep exception inheritance chains and multiple registered error handlers?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-48",
+    "repo": "requests",
+    "question": "What is the semantic significance of the `no_proxy` keyword argument in `get_environ_proxies` overriding environment variable precedence, and what does returning a non-empty dictionary when this override is applied indicate?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-49",
+    "repo": "requests",
+    "question": "What assumptions about encoding representation does the test_pragmas method enforce when validating that get_encodings_from_content correctly extracts and normalizes character encoding declarations from HTTP content headers?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-50",
+    "repo": "requests",
+    "question": "What is the semantic distinction between InvalidSchema's dual inheritance from RequestException and ValueError in handling URL scheme validation failures, and how do these two parent exception types differ in the context of schema validation?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "sessions.py:792",
+      "adapters.py:63"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-51",
+    "repo": "requests",
+    "question": "What is the dependency chain between the TestRequests class and the requests library's exception hierarchy, and how do these exception types interact with the error-handling mechanisms in redirect and authentication scenarios?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-52",
+    "repo": "requests",
+    "question": "What is the architectural distinction in the TestGuessJSONUTF class between BOM-based encoding detection and raw byte-pattern detection that ensures correct UTF variant identification across the utility layer?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-53",
+    "repo": "requests",
+    "question": "What are the critical environmental prerequisites for the TestRequests test methods that involve SSL/TLS operations to execute without failures, and how do these methods depend on external system resources?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-54",
+    "repo": "requests",
+    "question": "What is the architectural responsibility of the request preparation layer in the requests library for normalizing heterogeneous file object metadata when constructing multipart form-data payloads?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-55",
+    "repo": "requests",
+    "question": "What is the dependency chain between HTTPError's inheritance from RequestException and the exception handling propagation through the requests library's dependency chain, and what role does this hierarchical relationship play in distinguishing HTTP-specific errors from connection-level failures in downstream error recovery mechanisms?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "models.py:1026",
+      "exceptions.py:55",
+      "exceptions.py:59"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-56",
+    "repo": "requests",
+    "question": "What is the semantic distinction between UnrewindableBodyError and StreamConsumedError in the requests exception hierarchy, and what specific conditions trigger each exception during HTTP request body handling?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "src/requests/exceptions.py:127",
+      "src/requests/exceptions.py:135",
+      "src/requests/utils.py:1071",
+      "src/requests/models.py:839",
+      "src/requests/sessions.py:255"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-57",
+    "repo": "requests",
+    "question": "What is the architectural design in RequestException that leverages conditional request object resolution through response introspection to maintain backward compatibility while managing the control flow of exception initialization across the requests library's exception hierarchy?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-58",
+    "repo": "requests",
+    "question": "What is the impact of removing the `merge_cookies` function calls on the authentication flow when a session has both pre-configured cookies and request-specific cookies that need to be transmitted together?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-59",
+    "repo": "requests",
+    "question": "What is the data integrity mechanism in the PreparedRequest class that maintains header normalization when CaseInsensitiveDict and to_native_string transformations are applied to heterogeneous input headers?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-60",
+    "repo": "requests",
+    "question": "How should the exception hierarchy in the requests library implement version validation logic to detect and handle mismatched dependency versions at runtime without breaking backward compatibility?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-61",
+    "repo": "requests",
+    "question": "How does the links method handle the case where the 'link' header contains multiple entries with identical 'rel' values, and what is the algorithmic consequence of using 'rel' as the dictionary key?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-62",
+    "repo": "requests",
+    "question": "How does the should_strip_auth method's special case for http->https upgrades on standard ports maintain backward compatibility while implementing RFC 7235 security principles?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-63",
+    "repo": "requests",
+    "question": "How does the parametrize decorator coordinate with the test function signature to implement the test case generation algorithm for _parse_content_type_header?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-64",
+    "repo": "requests",
+    "question": "How does the SessionRedirectMixin handle the interplay between cookie extraction, cookie merging, and cookie preparation across multiple redirect hops while maintaining cookie jar consistency?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-65",
+    "repo": "requests",
+    "question": "How does the resolve_redirects method balance the requirements of consuming response bodies for socket release, managing redirect history, and conditionally rewinding request bodies to handle both streaming and non-streaming scenarios?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-66",
+    "repo": "requests",
+    "question": "How does the SessionRedirectMixin coordinate the interaction between get_redirect_target, resolve_redirects, and rebuild_auth to maintain security boundaries while following HTTP redirects across different hosts?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-67",
+    "repo": "requests",
+    "question": "How does the Response class manage the dual-state content consumption pattern to prevent memory exhaustion while maintaining backward compatibility with both streaming and non-streaming access patterns?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-68",
+    "repo": "requests",
+    "question": "How does the Response class separate concerns between lazy content materialization and serialization state management to enable pickle support while maintaining streaming semantics?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-69",
+    "repo": "requests",
+    "question": "How does the register_hook method's dual handling of Callable and iterable hook parameters create a potential algorithmic inconsistency when deregister_hook attempts to remove hooks registered as part of an iterable collection?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-70",
+    "repo": "requests",
+    "question": "How does the Response class coordinate the lifecycle management of the underlying urllib3 raw connection through its context manager protocol and close() method to ensure resource cleanup while preventing double-close scenarios?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-71",
+    "repo": "requests",
+    "question": "How should the TLSServer class refactor its SSL context initialization and mutual TLS configuration to separate certificate loading concerns from verification mode setup, and what would be the architectural implications of extracting this logic into a dedicated SSLContextBuilder component?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-72",
+    "repo": "requests",
+    "question": "Why does the `prepare()` method enforce a strict ordering where `prepare_auth()` must be called after `prepare_body()` and `prepare_hooks()` must be called after `prepare_auth()`, rather than allowing these steps to be reordered or parallelized?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-73",
+    "repo": "requests",
+    "question": "Why does the repeated invocation of key.lower() across __setitem__, __getitem__, and __delitem__ impact performance when CaseInsensitiveDict is used with high-frequency lookups on large datasets, and what optimization strategy could reduce this computational overhead?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-74",
+    "repo": "requests",
+    "question": "What is the design rationale for storing `_body_position` as either `None`, an integer, or a sentinel `object()` instance rather than using a simple boolean flag to track whether body rewinding is possible?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-75",
+    "repo": "requests",
+    "question": "Why does the `prepare_body()` method raise `NotImplementedError` when both streaming data and files are provided, rather than attempting to merge or serialize them into a single multipart request?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-76",
+    "repo": "requests",
+    "question": "Why does the guess_filename function's validation logic prevent security vulnerabilities when extracting filenames from file-like objects in multipart form data handling?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-77",
+    "repo": "requests",
+    "question": "Why does the morsel_to_cookie function determine whether to convert a max-age attribute into an expires timestamp, and what is the underlying mechanism that transforms relative time values into absolute expiration times?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-78",
+    "repo": "requests",
+    "question": "Why would the repeated urlparse calls in MockRequest's __init__, get_host, and get_full_url methods impact performance when processing high-volume cookie jar operations, and what optimization strategy would minimize redundant URL parsing while preserving the read-only semantics of the wrapped request?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-79",
+    "repo": "requests",
+    "question": "Why does BaseAdapter's __init__ method invoke super().__init__() despite BaseAdapter appearing to be a root abstraction in the adapter hierarchy, and what design pattern does this choice reflect regarding future extensibility of the adapter framework?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-80",
+    "repo": "requests",
+    "question": "Why would the `host` method in `MockRequest` delegating to `get_host()` through a single-level indirection cause cumulative performance degradation when this method is invoked millions of times in a tight loop compared to direct attribute access, and how could this be optimized through caching or property memoization?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-81",
+    "repo": "requests",
+    "question": "Why does the ConnectionError exception class serve as a specialized error handler within the requests library's exception hierarchy to distinguish network-level connection failures from other RequestException subclasses during HTTP request processing?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-82",
+    "repo": "requests",
+    "question": "Where does the apparent_encoding method's control flow handle the absence of the chardet library, and what data path does self.content follow when chardet detection fails versus succeeds?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-83",
+    "repo": "requests",
+    "question": "Why does the test_transfer_enc_removal_on_redirect method specifically verify that Transfer-Encoding and Content-Type headers are removed during redirect resolution, and what would be the security or protocol implications if these headers persisted through a POST-to-GET redirect transition?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-84",
+    "repo": "requests",
+    "question": "Where does the ProxyError exception propagate through the exception hierarchy to influence control flow when a proxy connection failure occurs in the requests library?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-85",
+    "repo": "requests",
+    "question": "Where does the control flow in TestIsValidCIDR.test_invalid branch based on the parametrized value parameter to determine which validation path is executed within the is_valid_cidr function call?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-86",
+    "repo": "requests",
+    "question": "Why does the repeated key-lookup pattern in CaseInsensitiveDict impact performance when scaling to thousands of case-insensitive dictionary operations in a high-throughput HTTP request processing pipeline?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "sessions.py:116",
+      "models.py:582",
+      "cookies.py:55",
+      "auth.py:95"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-87",
+    "repo": "requests",
+    "question": "Where is the Server class implementation located that TestTestServer depends on, and how does the context manager protocol in that implementation coordinate with the threading and socket lifecycle management demonstrated across the test methods?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-88",
+    "repo": "requests",
+    "question": "Where in the morsel_to_cookie function implementation are the conditional branches that determine whether to parse the expires field as a timestamp string versus handling it as None or raising a TypeError?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-89",
+    "repo": "requests",
+    "question": "Where is the to_native_string function implementation located that test_to_native_string delegates to for performing the actual string conversion logic?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-90",
+    "repo": "requests",
+    "question": "Where in the requests library codebase are the lower-level validation and encoding mechanisms implemented that handle the simultaneous processing of both data and files parameters in POST requests, and how do they interact to prevent the ValueError raised in the test?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-91",
+    "repo": "requests",
+    "question": "Where is the delegation chain through which MockResponse.getheaders() ultimately retrieves header information, and why does the implementation appear incomplete in terms of return value handling?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-92",
+    "repo": "requests",
+    "question": "Where does the URL parsing and credential extraction dataflow in the prepare() method handle the propagation of authentication information through the request preparation pipeline when a URL contains a long username and password string?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-93",
+    "repo": "requests",
+    "question": "Where in the codebase is the TooManyRedirects exception raised and what is the call chain that leads to its instantiation from the redirect handling logic?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-94",
+    "repo": "requests",
+    "question": "Where does the CaseInsensitiveDict class implement the __iter__ method to ensure that test_list can successfully convert the dictionary to a list containing only the normalized key 'Accept'?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [
+      "tests/test_structures.py:13"
+    ],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "requests-95",
+    "repo": "requests",
+    "question": "Where does the parametrize decorator chain interact with the httpbin fixture and timeout parameter to establish the complete dependency resolution path for test_none_timeout?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-96",
+    "repo": "streamlink",
+    "question": "What architectural role does the prefetch metadata handler class play in the adaptive streaming protocol module's layered design?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-97",
+    "repo": "streamlink",
+    "question": "What architectural patterns enable a streaming service plugin that handles multiple content types to maintain separation of concerns between API data retrieval and stream processing while handling multiple content types?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-98",
+    "repo": "streamlink",
+    "question": "What architectural role does the event class that handles WebSocket message errors play in the browser protocol event handling module's error handling strategy?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-99",
+    "repo": "streamlink",
+    "question": "What is the integration of the scheduled navigation event with the broader browser protocol event handling architecture for coordinating frame navigation lifecycle management?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-100",
+    "repo": "streamlink",
+    "question": "What is the conceptual role of the handshake mechanism in the test class for HTTP output operations' test method for write error handling regarding OSError exception handling during HTTP output operations?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-101",
+    "repo": "streamlink",
+    "question": "What is the semantic meaning of the boolean parameter that controls reduced-latency streaming mode in the constructor of a platform-specific HLS stream implementation class?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-102",
+    "repo": "streamlink",
+    "question": "What is the conceptual relationship between the directional force measurement property and the spatial orientation angle properties in the touch interaction point data structure in defining the physical orientation and force characteristics of a touch interaction?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-103",
+    "repo": "streamlink",
+    "question": "What specific cryptographic padding scheme must be maintained for the padding removal function to correctly process the decrypted output from the block cipher in the data decryption method?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-104",
+    "repo": "streamlink",
+    "question": "What is the mechanism by which the terminal-constrained progress message formatter's formatting method dynamically adjusts variable segment widths based on terminal constraints and parameter callbacks?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-105",
+    "repo": "streamlink",
+    "question": "What specific data dependencies must the drag-and-drop data structure resolve to properly instantiate the intercepted drag operation event when the method that enables drag interception is enabled?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-106",
+    "repo": "streamlink",
+    "question": "What are the dataflow dependencies between the composite data structure that aggregates token status and parsed token data and the supporting data classes during JSON serialization and deserialization?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-107",
+    "repo": "streamlink",
+    "question": "How does the specialized HLS stream class that coordinates with a WebSocket client integrate WebSocket communication with HLS stream processing to maintain real-time synchronization?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-108",
+    "repo": "streamlink",
+    "question": "What is the impact of the JSON-to-object deserialization method in the WebSocket handshake initiation event class's dependency on multiple deserialization methods across different data type classes on the maintainability and evolution of the browser debugging protocol's deserialization architecture?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-109",
+    "repo": "streamlink",
+    "question": "How does the test method that verifies error handling when plugin module execution fails simulate and verify plugin loading failure when the module execution function raises ImportError during lazy URL matching?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-110",
+    "repo": "streamlink",
+    "question": "How does the stream retrieval method implement multi-stage validation schema composition for extracting and processing embedded media delivery platform metadata?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-111",
+    "repo": "streamlink",
+    "question": "How does the test class that validates encrypted HLS stream decryption handle AES-128 decryption when switching between encrypted and unencrypted segments within the same HLS stream?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-112",
+    "repo": "streamlink",
+    "question": "How does the configuration flag that determines whether unmatched network requests should be blocked or allowed to proceed in the client session manager for browser tab interactions and network request interception affect the request interception behavior during the asynchronous event processing cycle when handling network request interception events?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-113",
+    "repo": "streamlink",
+    "question": "How does the browser automation control class's method that retrieves the WebSocket connection URL implement error handling mechanisms when establishing WebSocket connections to the browser debugging protocol?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-114",
+    "repo": "streamlink",
+    "question": "How does a test utility class that combines event-based testing capabilities with streaming service-specific stream writing functionality use multiple inheritance from a test utility class that provides event-based synchronization for testing stream writing operations and a streaming service-specific stream writer class that extends the base HLS stream writer to implement the HLS streaming protocol?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-115",
+    "repo": "streamlink",
+    "question": "How does a streaming plugin that processes encrypted streaming data from embedded iframes ensure secure authentication through its token acquisition mechanism while maintaining stateless session management across multiple HTTP requests?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-116",
+    "repo": "streamlink",
+    "question": "How can a prefetching mechanism for adaptive streaming protocol stream segments be designed to integrate with the existing segment data structure hierarchy while maintaining backward compatibility?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-117",
+    "repo": "streamlink",
+    "question": "Why were specific design constraints or assumptions considered in the test class that validates URL pattern matching for a streaming plugin's URL pattern matching implementation?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-118",
+    "repo": "streamlink",
+    "question": "Why is a JSON deserialization factory method implemented in a browser context identifier type wrapper instead of using direct JSON deserialization through the class constructor?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-119",
+    "repo": "streamlink",
+    "question": "Why does the design rationale justify the specific enumeration of cookie exemption reason values in relation to third-party cookie blocking policies?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-120",
+    "repo": "streamlink",
+    "question": "Why does the performance of a streaming service plugin's stream retrieval method degrade when the JavaScript resource file containing stream configuration contains multiple sequentially processed regular expression patterns for extracting authentication parameters?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-121",
+    "repo": "streamlink",
+    "question": "Why might specific performance bottlenecks arise from the stream multiplexer instantiation pattern when handling multiple concurrent adaptive streaming protocol streams with mixed video and audio representations?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-122",
+    "repo": "streamlink",
+    "question": "Why is the plugin discovery and metadata extraction class used in the custom documentation generation extension for extensible plugin components?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-123",
+    "repo": "streamlink",
+    "question": "Why is the domain code generator class used in generating type-safe Python modules from protocol domain definitions?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-124",
+    "repo": "streamlink",
+    "question": "Why does the decorator-based tag parsing approach introduce performance overhead compared to direct function registration in high-frequency adaptive streaming protocol stream processing scenarios?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-125",
+    "repo": "streamlink",
+    "question": "Why does the frame metadata storage class facilitate accurate frame rendering and synchronization within the browser debugging protocol's screen capture functionality?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-126",
+    "repo": "streamlink",
+    "question": "Why does the method responsible for retrieving master playlist files with enforced UTF-8 encoding serve a specific architectural role in the HLS streaming pipeline, distinguishing it from generic HTTP fetching mechanisms?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-127",
+    "repo": "streamlink",
+    "question": "Where in the control flow of a validation function that applies multiple key path lookups to the same input value is nested dictionary traversal handled when multiple key paths are provided?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-128",
+    "repo": "streamlink",
+    "question": "Where is the validation of session parameters and headers integration into the adaptive streaming protocol stream handler's JSON representation performed by the test function for validating stream JSON serialization without causing duplicate entries?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-129",
+    "repo": "streamlink",
+    "question": "Where is the asynchronous in-memory communication channel implementation for capturing and routing stdout and stderr outputs in the test utility class for simulating process output?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-130",
+    "repo": "streamlink",
+    "question": "Where in the streaming platform's API client class are error responses from the API handled and transformed into consistent return formats?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-131",
+    "repo": "streamlink",
+    "question": "Where in the test method that verifies timing offset handling during periodic refresh operations does the control flow adapt when those operations exceed the expected refresh interval threshold?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-132",
+    "repo": "streamlink",
+    "question": "Where is the circular dependency detection mechanism implemented for configurable parameter dependency resolution in the codebase?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-133",
+    "repo": "streamlink",
+    "question": "Where in the plugin metadata loader class are the specific validation checks that prevent loading corrupted plugin data from JSON files?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-134",
+    "repo": "streamlink",
+    "question": "Where in the codebase does the initialization of a base class for parsing elements containing multiple segment definitions' timing attribute depend on the presence of a timing child element or a default value from a parent context?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-135",
+    "repo": "streamlink",
+    "question": "Where in the test class for file input/output operations is the logic implemented that determines the modification tracking indicator state after loading cached data?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-136",
+    "repo": "streamlink",
+    "question": "Where in the input dictionary must the specific JSON structure and data types be located for the JSON deserialization method of the socket closure event class to successfully instantiate an instance without raising parsing errors?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-137",
+    "repo": "streamlink",
+    "question": "Where is the implementation that handles the inheritance and merging of initialization parameters between parent and child plugin classes located in the plugin architecture?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-138",
+    "repo": "streamlink",
+    "question": "Why does the method that transforms authentication tokens use a dual token validation approach with both current and previous hour timestamps?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-139",
+    "repo": "streamlink",
+    "question": "Why does the parameter that enables reduced-latency streaming mode in a platform-specific HLS stream implementation class's initialization affect HLS segment fetching performance and buffer management?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-140",
+    "repo": "streamlink",
+    "question": "How does the function that decrypts OpenSSL-encrypted data implement the OpenSSL key derivation process using the key derivation helper function to generate both key and IV from passphrase and salt?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-141",
+    "repo": "streamlink",
+    "question": "Where in the control flow of the incoming message reading loop method does the transition from session-agnostic to session-specific event handling occur within the browser protocol message processing flow?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-142",
+    "repo": "streamlink",
+    "question": "How can a systematic approach ensure that the validation framework's extensibility maintains backward compatibility when adding new validation components?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "streamlink-143",
+    "repo": "streamlink",
+    "question": "How should the component testing framework be designed to automatically validate input pattern matching across multiple sources while maintaining test isolation and extensibility?",
+    "intent": "what-is",
+    "golden_symbols": [],
+    "golden_files": [],
+    "answer_quality": "correct"
+  }
+]

@@ -49,7 +49,7 @@ const RESULTS_DIR = path.join(__dirname, 'results');
 
 const evalSets = {
   tiny: path.join(__dirname, 'tiny.json'),
-  // full: later when SWE-QA is adapted
+  sweqa: path.join(__dirname, 'sweqa_144.json'),
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────
