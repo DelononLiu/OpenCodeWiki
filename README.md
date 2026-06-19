@@ -15,7 +15,7 @@
                              ↑
                      Tree-sitter AST 索引 (codegraph)
                              ↑
-                     你的代码仓库 (最多 20 个)
+                     你的代码仓库
 ```
 
 ---
@@ -305,20 +305,6 @@ npm run eval:report -v
 ```
 
 欢迎 PR。大改动建议先开 issue 讨论。
-
----
-
-## 对比
-
-| 特性 | OpenCodeWiki | Sourcegraph Cody | Cursor | Aider |
-|------|-------------|-----------------|--------|-------|
-| 索引方式 | Tree-sitter + FTS5 + 向量 | SCIP + Lucene | Turbopuffer | Tree-sitter |
-| 调用图 | ✅ BFS 影响分析 | ✅ 部分 | ❌ | ❌ |
-| 混合检索 | ✅ FTS5 + 向量 + RRF | ✅ BM25 + 可选向量 | ❌ 纯向量 | ❌ |
-| 跨仓库 | ✅ ≤20 库并行 | ✅ 大规模 | ❌ | ❌ |
-| 离线部署 | ✅ | ❌ | ❌ | ✅ |
-| 团队知识库 | ✅ | ✅ 企业版 | ❌ | ❌ |
-| 重排序 | ✅ Ettin/Qwen3 | ✅ 点式模型 | ❌ | ❌ |
 
 ---
 
