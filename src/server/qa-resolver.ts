@@ -17,6 +17,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+// ── 向量搜索接口（由外部注入，避免 ESM/TS 编译路径问题）────────────────
+export interface VectorSearchAPI {
+  embedText(text: string): Promise<number[]>;
+  vectorSearch(repoName: string, queryVec: number[], topK?: number): { nodeId: string; score: number }[];
+  rrfMerge(ftsResults: {nodeId: string}[], vecResults: {nodeId: string; distance: number}[], k?: number): {nodeId: string; rrfScore: number}[];
+}
+
 // ── Types ────────────────────────────────────────────────────────
 
 export type Intent = 'what-is' | 'where-is' | 'how-to' | 'why-error' | 'what-structure' | 'what-impact';
@@ -153,9 +160,14 @@ const SYMBOL_RE = /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*/g;
 // ── QaResolver ───────────────────────────────────────────────────
 
 export class QaResolver {
+  private vs: VectorSearchAPI | null = null;
+
   constructor(
     private executeTool: (tool: string, args: any) => Promise<{ content: [{ text: string }] }>,
   ) {}
+
+  /** 注入向量搜索服务（可选，不注入时纯 FTS5）*/
+  setVectorSearch(vs: VectorSearchAPI) { this.vs = vs; }
 
   // ═══════════════════════════════════════════════════
   //  Public API
@@ -573,7 +585,7 @@ export class QaResolver {
   //  Result parsing & ranking
   // ═══════════════════════════════════════════════════
 
-  /** Search one term across all repos in parallel */
+  /** Search one term across all repos in parallel（支持 FTS5 + 向量混合检索）*/
   private async multiRepoSsearch(term: string, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     const results = await Promise.allSettled(
       repos.map(async (repo) => {
@@ -581,11 +593,60 @@ export class QaResolver {
         return this.parseResults(raw, repo.name);
       }),
     );
-    const all: PipelineMatch[] = [];
+    let all: PipelineMatch[] = [];
     for (const r of results) {
       if (r.status === 'fulfilled') all.push(...r.value);
     }
-    return all;
+
+    // 向量搜索 + RRF 融合（如已注入）
+    if (this.vs && repos.length > 0) {
+      try {
+        const queryVec = await this.vs.embedText(term);
+        for (const repo of repos) {
+          const vecResults = this.vs.vectorSearch(repo.name, queryVec, 10);
+          if (vecResults.length === 0) continue;
+          // 向量结果映射为 PipelineMatch
+          const codegraphDb = path.join(repo.storagePath, '.codegraph', 'codegraph.db');
+          try {
+            const { DatabaseSync } = await import('node:sqlite');
+            const db = new DatabaseSync(codegraphDb);
+            const vecMatches: PipelineMatch[] = vecResults.map(v => {
+              const row = db.prepare('SELECT name, file_path, start_line, kind FROM nodes WHERE id = ?').get(v.nodeId);
+              return {
+                name: row?.name || '',
+                filePath: row?.file_path || '',
+                startLine: row?.start_line || 1,
+                endLine: row?.start_line || 1,
+                kind: (row?.kind || 'unknown') as MatchKind,
+                score: v.score * 100,
+                snippet: '',
+                repo: repo.name,
+              };
+            });
+            db.close();
+            // RRF 融合
+            const ftsForRRF = all.filter(m => m.repo === repo.name).map(m => ({ nodeId: `${m.filePath}:${m.startLine}` }));
+            const vecForRRF = vecResults.map(v => ({ nodeId: v.nodeId, distance: 1 - v.score }));
+            const merged = this.vs.rrfMerge(ftsForRRF, vecForRRF, 60);
+            const mergedScores = new Map(merged.map(m => [m.nodeId, m.rrfScore]));
+            // 合并去重
+            const seen = new Set<string>();
+            const combined = [...vecMatches, ...all.filter(m => m.repo === repo.name)];
+            const deduped: PipelineMatch[] = [];
+            for (const m of combined) {
+              const key = `${m.filePath}:${m.startLine}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              deduped.push({ ...m, score: m.score + (mergedScores.get(`${m.filePath}:${m.startLine}`) || 0) });
+            }
+            // 替换该仓库的结果
+            all = [...all.filter(m => m.repo !== repo.name), ...deduped];
+          } catch {}
+        }
+      } catch {}
+    }
+
+    return all.sort((a, b) => b.score - a.score).slice(0, 20);
   }
 
   /** Parse codegraph_search output into PipelineMatch[] */

@@ -1048,6 +1048,11 @@ export function createQaEndpoint(
           (tool: string, args: any) => handler.execute(tool, args),
         );
 
+        // 注入向量搜索（由 codegraph-bridge.ts 先设置全局变量）
+        if (typeof globalThis.__vectorStore !== 'undefined') {
+          resolver.setVectorSearch(globalThis.__vectorStore);
+        }
+
         // Step 1: 意图分析 (纯规则, 快速)
         const intentResult = resolver.analyzeIntent(question);
         pipelineIntent = intentResult.intent;

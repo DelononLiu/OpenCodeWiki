@@ -27,6 +27,14 @@ try {
   CodeGraph = null;
 }
 
+// Vector store — 可选，提供混合检索（FTS5 + 向量 + RRF）
+try {
+  const vs = await import('./vector-store.mjs');
+  (globalThis as any).__vectorStore = vs;
+} catch (e) {
+  console.warn('[vector] Vector store not available — using FTS5 only');
+}
+
 const opencodewikiDir = path.join(os.homedir(), '.opencodewiki');
 const registryFile = path.join(opencodewikiDir, 'registry.json');
 
