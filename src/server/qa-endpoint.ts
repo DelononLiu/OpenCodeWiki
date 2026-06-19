@@ -777,7 +777,7 @@ export function createQaEndpoint(
       return;
     }
 
-    log('info', 'Q&A request', { repo: repoName ?? '(all)', sessionId: sessionId ?? '(new)', question: question.slice(0, 80) });
+    log('info', '【Q】' + (repoName ?? '(全部)') + ': ' + question.slice(0, 60));
 
     let session = sessionId ? sessions.get(sessionId) : undefined;
     let qid: number | undefined;
@@ -859,7 +859,7 @@ export function createQaEndpoint(
       // 如果不是 @cross 显式指定，用 classifyScopeRule 判断范围
       if (!hasCrossTag && !explicitRepo && allRepos.length > 1) {
         const scopeResult = classifyScopeRule(question, allRepos.map(r => r.name));
-        log('info', 'pipeline scope', { scope: scopeResult.scope, repos: scopeResult.repos.length });
+        log('info', '  ▸ scope', { scope: scopeResult.scope, repos: scopeResult.repos.length, note: scopeResult.reasoning?.slice(0, 40) });
 
         if (scopeResult.scope === 'single' && scopeResult.repos.length > 0) {
           // 单库问题 → 只搜匹配到的仓库
@@ -919,7 +919,7 @@ export function createQaEndpoint(
         if (crossRepoNames) {
           allRepos = allRepos.filter(r => crossRepoNames!.includes(r.name));
         }
-        log('info', 'cross-repo search starting', { repoCount: allRepos.length, scoped: !!crossRepoNames, query: searchQuery.slice(0, 60) });
+        log('info', '  ▸ cross-repo', { repos: allRepos.length, scope: crossRepoNames || 'all' });
         repoBaseMap = new Map();
         const allRepoResults: { repoName: string; sources: any[]; flows?: string }[] = [];
         await Promise.allSettled(allRepos.map(async (r) => {
@@ -929,10 +929,10 @@ export function createQaEndpoint(
             repoBaseMap!.set(r.name, repoEntry.storagePath);
             const result = await search(searchQuery, r.name);
             if (!result || !result.sources?.length) {
-              log('info', 'cross-repo search: no results for repo', { repo: r.name });
+              // no results for repo
               return;
             }
-            log('info', 'search results', { repo: r.name, count: result.sources.length, first: result.sources[0]?.filePath?.split('/').pop() });
+            log('info', '  ▸ search', { repo: r.name, count: result.sources.length, files: (result.sources || []).slice(0, 3).map((s: any) => s.filePath?.split('/').pop()).join(', ') });
             allRepoResults.push({ repoName: r.name, sources: result.sources, flows: result.flows });
           } catch (repoErr) {
             log('error', 'cross-repo search failed for repo', { repo: r.name, error: (repoErr as Error)?.message });
@@ -974,10 +974,7 @@ export function createQaEndpoint(
         }
 
         sources = crossSources.slice(0, 10);
-        log('info', 'cross-repo search done', { totalResults: allRepoResults.length, totalSources: crossSources.length, finalSources: sources.length });
-        if (sources.length > 0) {
-          log('info', 'cross-repo first source', { filePath: sources[0].filePath, fileName: sources[0].fileName, hasSnippet: !!sources[0].snippet, startLine: sources[0].startLine });
-        }
+        log('info', '  ▸ search', { repos: allRepoResults.length, sources: sources.length });
         const lines: string[] = [];
         for (const s of sources) {
           lines.push((s.label ?? 'File') + ': ' + s.fileName + ' — ' + s.filePath + (s.startLine ? ':' + s.startLine : ''));
@@ -1071,7 +1068,7 @@ export function createQaEndpoint(
         // Step 1: 意图分析 (纯规则, 快速)
         const intentResult = resolver.analyzeIntent(question);
         pipelineIntent = intentResult.intent;
-        log('info', 'pipeline intent', { intent: intentResult.intent, symbols: intentResult.symbols, searchTerms: intentResult.searchTerms });
+        log('info', '  ▸ intent', { intent: intentResult.intent, terms: intentResult.searchTerms.slice(0, 5) });
 
         // Step 2: 构建 repo 列表
         const repos: RepoInfo[] = [];
@@ -1086,7 +1083,7 @@ export function createQaEndpoint(
         // Step 3: 按意图编排 codegraph 工具链
         const mode: 'llm' | 'acp' = ACP_ENABLED ? 'acp' : 'llm';
         const matches = await resolver.search(intentResult, repos, mode);
-        log('info', 'search complete', { matches: matches.length });
+        log('info', '  ▸ search', { matches: matches.length });
 
         // Step 4: 构建上下文 (LLM 模式完整注入, ACP 模式精简线索)
         pipelineContext = mode === 'llm'
@@ -1100,11 +1097,11 @@ export function createQaEndpoint(
       }
     }
 
-    log('info', 'pipeline done', { intent: pipelineIntent, scope: isCrossRepo ? 'cross' : 'single', sourceCount: sources.length });
+    log('info', '【✓】完成', { intent: pipelineIntent, sources: sources.length });
 
     // ── 搜不到时走 LLM 引导用户补充信息 ──
     if (!ACP_ENABLED && handler && !pipelineContext && hasLLM) {
-      log('info', 'pipeline found no results — asking LLM to guide user');
+      log('info', '  ▸ no results, LLM guides user');
       pipelineContext = '## NOTE\n未在代码库中搜索到与问题相关的内容。请告知用户未找到相关代码，并引导用户提供更具体的信息（如函数名、错误信息、文件路径等）以便进一步定位。';
     }
 
@@ -1117,10 +1114,7 @@ export function createQaEndpoint(
     if (qid) {
       res.write('data: ' + JSON.stringify({ type: 'qid', qid }) + '\n\n');
     }
-    log('info', 'sending SSE sources', { type: 'sources', count: sources.length, isCrossRepo });
-    if (sources.length > 0) {
-      log('info', 'SSE sources sample', { filePath: sources[0].filePath, fileName: sources[0].fileName, refId: sources[0].refId });
-    }
+    log('info', '  ▸ stream', { sources: sources.length });
     res.write('data: ' + JSON.stringify({ type: 'sources', sources }) + '\n\n');
 
     session.messages.push({ role: 'user', content: question });

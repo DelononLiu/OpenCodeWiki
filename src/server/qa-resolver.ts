@@ -900,11 +900,6 @@ export class QaResolver {
   }
 }
 
-/** 检测问题是否涉及跨库引用 */
-function reasonIncludesCrossRepo(q: string): boolean {
-  return /依赖|引用|调用.*(?:库|模块|服务)|import.*from|跨库|微服务|服务.*调用/.test(q);
-}
-
 /**
  * 搜索范围分类 — 独立函数，qa-endpoint.ts 可直接调用
  */
@@ -915,35 +910,34 @@ export function classifyScopeRule(question: string, allRepos: string[]): ScopeRe
 
   // 1. 问题中提到了多个仓库 → cross-compare
   if (repoCount >= 2) {
-    return { scope: 'cross-compare', repos: matchedRepos, reasoning: `提问中提及 ${repoCount} 个仓库：${matchedRepos.join(', ')}` };
+    return { scope: 'cross-compare', repos: matchedRepos, reasoning: `提及 ${repoCount} 个仓库：${matchedRepos.join(', ')}` };
   }
 
-  // 2. 影响/调用链 关键词 → impact / cross-call
-  if (/影响|改了|改了.*会|调用链|call\s+chain|impact|谁在调用|改了.*影响/.test(q)) {
-    if (repoCount === 1) return { scope: 'impact', repos: matchedRepos, reasoning: '影响分析，锁定目标仓库' };
-    return { scope: 'cross-call', repos: matchedRepos, reasoning: '跨库调用链追踪' };
-  }
-
-  // 3. 对比类关键词 → cross-compare
-  if (/对比|区别|差异|区别|不同|vs|比较|difference|different/.test(q)) {
-    return { scope: repoCount >= 1 ? 'cross-compare' : 'global-search', repos: matchedRepos, reasoning: '对比分析' };
-  }
-
-  // 4. 模糊搜索关键词 → global-search
-  if (/有没有|哪些|哪里[^定]|where|search|find|怎么.*实现|如何.*实现/.test(q)) {
-    return { scope: 'global-search', repos: matchedRepos, reasoning: '全局模糊搜索' };
-  }
-
-  // 5. 有明确仓库名 → single
+  // 2. 有明确仓库名 → single（优先级高于关键词规则）
   if (repoCount === 1) {
     return { scope: 'single', repos: matchedRepos, reasoning: `问题提到 ${matchedRepos[0]}，锁定单库` };
   }
 
-  // 6. 多库交叉引用
+  // 3. 影响/调用链 关键词 → impact / cross-call
+  if (/影响|改了|改了.*会|调用链|call\s+chain|impact|谁在调用|改了.*影响/.test(q)) {
+    return { scope: 'impact', repos: allRepos, reasoning: '影响分析' };
+  }
+
+  // 4. 对比类关键词 → cross-compare
+  if (/对比|区别|差异|区别|不同|vs|比较|difference|different/.test(q)) {
+    return { scope: 'cross-compare', repos: allRepos, reasoning: '对比分析' };
+  }
+
+  // 5. 多库交叉引用
   if (reasonIncludesCrossRepo(q)) {
     return { scope: 'cross-call', repos: allRepos, reasoning: '可能存在跨库引用' };
   }
 
+  // 6. 模糊搜索关键词 → global-search
+  if (/有没有|哪些|哪里[^定]|where|search|find|怎么.*实现|如何.*实现/.test(q)) {
+    return { scope: 'global-search', repos: allRepos, reasoning: '全局模糊搜索' };
+  }
+
   // 7. 默认单库
-  return { scope: 'single', repos: [allRepos[0] || ''], reasoning: '默认单库' };
+  return { scope: 'single', repos: allRepos.slice(0, 1), reasoning: '默认单库' };
 }
