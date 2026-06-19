@@ -35,6 +35,16 @@ export interface IntentResult {
   reasoning?: string;
 }
 
+/** 搜索范围：单库 / 多库各类 */
+export type Scope = 'single' | 'cross-compare' | 'cross-call' | 'global-search' | 'impact';
+
+export interface ScopeResult {
+  scope: Scope;
+  /** 目标仓库列表（单库/多库） */
+  repos: string[];
+  reasoning?: string;
+}
+
 export type MatchKind = 'definition' | 'declaration' | 'reference' | 'unknown';
 
 export interface PipelineMatch {
@@ -157,6 +167,11 @@ const CODE_KEYWORDS = new Set([
 
 const SYMBOL_RE = /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*/g;
 
+/** 检测问题是否涉及跨库引用 */
+function reasonIncludesCrossRepo(q: string): boolean {
+  return /依赖|引用|调用.*(?:库|模块|服务)|import.*from|跨库|微服务|服务.*调用/.test(q);
+}
+
 // ── QaResolver ───────────────────────────────────────────────────
 
 export class QaResolver {
@@ -185,18 +200,55 @@ export class QaResolver {
     return { intent, symbols, searchTerms, reasoning: 'rule-based' };
   }
 
+  // ═══════════════════════════════════════════════════
+  //  Scope classification (standalone, used by both resolver and endpoint)
+  // ═══════════════════════════════════════════════════
+
+  classifyScope(question: string, allRepos: string[]): ScopeResult {
+    return classifyScopeRule(question, allRepos);
+  }
+
   /**
    * Step 2: 按意图编排 codegraph 工具链搜索
    */
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
-    switch (intent.intent) {
-      case 'what-is':        return this.searchWhatIs(intent, repos, mode);
-      case 'where-is':       return this.searchWhereIs(intent, repos, mode);
-      case 'how-to':         return this.searchHowTo(intent, repos, mode);
-      case 'why-error':      return this.searchWhyError(intent, repos, mode);
-      case 'what-structure': return this.searchWhatStructure(intent, repos, mode);
-      case 'what-impact':    return this.searchWhatImpact(intent, repos, mode);
+    const q = question.toLowerCase();
+    const matchedRepos = allRepos.filter(r => q.includes(r.toLowerCase()));
+    const repoCount = matchedRepos.length;
+
+    // 1. 问题中提到了多个仓库 → cross-compare
+    if (repoCount >= 2) {
+      return { scope: 'cross-compare', repos: matchedRepos, reasoning: `提问中提及 ${repoCount} 个仓库：${matchedRepos.join(', ')}` };
     }
+
+    // 2. 影响/调用链 关键词 → impact / cross-call
+    if (/影响|改了|改了.*会|调用链|call\s+chain|impact|谁在调用|改了.*影响/.test(q)) {
+      if (repoCount === 1) return { scope: 'impact', repos: matchedRepos, reasoning: '影响分析，锁定目标仓库' };
+      return { scope: 'cross-call', repos: matchedRepos, reasoning: '跨库调用链追踪' };
+    }
+
+    // 3. 对比类关键词 → cross-compare
+    if (/对比|区别|差异|区别|不同|vs|比较|difference|different/.test(q)) {
+      return { scope: repoCount >= 1 ? 'cross-compare' : 'global-search', repos: matchedRepos, reasoning: '对比分析' };
+    }
+
+    // 4. 模糊搜索关键词 → global-search
+    if (/有没有|哪些|哪里[^定]|where|search|find|怎么.*实现|如何.*实现/.test(q)) {
+      return { scope: 'global-search', repos: matchedRepos, reasoning: '全局搜索' };
+    }
+
+    // 5. 有明确仓库名 → single
+    if (repoCount === 1) {
+      return { scope: 'single', repos: matchedRepos, reasoning: `问题提到 ${matchedRepos[0]}，锁定单库` };
+    }
+
+    // 6. 多库交叉引用（跨库导入/调用）
+    if (reasonIncludesCrossRepo(q)) {
+      return { scope: 'cross-call', repos: allRepos, reasoning: '可能存在跨库引用' };
+    }
+
+    // 7. 默认：单库（路由由 qa-endpoint 处理）
+    return { scope: 'single', repos: [allRepos[0] || ''], reasoning: '默认单库' };
   }
 
   /**
@@ -846,4 +898,52 @@ export class QaResolver {
     };
     return labels[intent] || intent;
   }
+}
+
+/** 检测问题是否涉及跨库引用 */
+function reasonIncludesCrossRepo(q: string): boolean {
+  return /依赖|引用|调用.*(?:库|模块|服务)|import.*from|跨库|微服务|服务.*调用/.test(q);
+}
+
+/**
+ * 搜索范围分类 — 独立函数，qa-endpoint.ts 可直接调用
+ */
+export function classifyScopeRule(question: string, allRepos: string[]): ScopeResult {
+  const q = question.toLowerCase();
+  const matchedRepos = allRepos.filter(r => q.includes(r.toLowerCase()));
+  const repoCount = matchedRepos.length;
+
+  // 1. 问题中提到了多个仓库 → cross-compare
+  if (repoCount >= 2) {
+    return { scope: 'cross-compare', repos: matchedRepos, reasoning: `提问中提及 ${repoCount} 个仓库：${matchedRepos.join(', ')}` };
+  }
+
+  // 2. 影响/调用链 关键词 → impact / cross-call
+  if (/影响|改了|改了.*会|调用链|call\s+chain|impact|谁在调用|改了.*影响/.test(q)) {
+    if (repoCount === 1) return { scope: 'impact', repos: matchedRepos, reasoning: '影响分析，锁定目标仓库' };
+    return { scope: 'cross-call', repos: matchedRepos, reasoning: '跨库调用链追踪' };
+  }
+
+  // 3. 对比类关键词 → cross-compare
+  if (/对比|区别|差异|区别|不同|vs|比较|difference|different/.test(q)) {
+    return { scope: repoCount >= 1 ? 'cross-compare' : 'global-search', repos: matchedRepos, reasoning: '对比分析' };
+  }
+
+  // 4. 模糊搜索关键词 → global-search
+  if (/有没有|哪些|哪里[^定]|where|search|find|怎么.*实现|如何.*实现/.test(q)) {
+    return { scope: 'global-search', repos: matchedRepos, reasoning: '全局模糊搜索' };
+  }
+
+  // 5. 有明确仓库名 → single
+  if (repoCount === 1) {
+    return { scope: 'single', repos: matchedRepos, reasoning: `问题提到 ${matchedRepos[0]}，锁定单库` };
+  }
+
+  // 6. 多库交叉引用
+  if (reasonIncludesCrossRepo(q)) {
+    return { scope: 'cross-call', repos: allRepos, reasoning: '可能存在跨库引用' };
+  }
+
+  // 7. 默认单库
+  return { scope: 'single', repos: [allRepos[0] || ''], reasoning: '默认单库' };
 }
