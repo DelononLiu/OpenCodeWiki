@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
 import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
@@ -127,6 +128,171 @@ async function initHandler(): Promise<any> {
     } catch {}
   }
   return new ToolHandler(cg);
+}
+
+/** Dynamic wiki pages: slugs that are generated from codegraph data instead of static .md files. */
+const DYNAMIC_WIKI_PAGES = ['dependencies', 'impact-map', 'heatmap', 'gotchas'];
+
+/** Open a repo's codegraph DB and return helper or null. */
+function openCodegraphDb(repoPath: string): DatabaseSync | null {
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  try {
+    if (!fsSync.existsSync(dbPath)) return null;
+    return new DatabaseSync(dbPath);
+  } catch { return null; }
+}
+
+/** Generate the 依赖图谱 page — mermaid graph of directory-level dependencies. */
+async function generateDependenciesPage(repoPath: string): Promise<string> {
+  const db = openCodegraphDb(repoPath);
+  let dirDeps = '';
+  if (db) {
+    // Get all files grouped by top-level directory
+    const files = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all() as any[];
+    db.close();
+    const dirs = new Set<string>();
+    for (const f of files) {
+      const parts = f.path.split('/');
+      if (parts.length >= 2) dirs.add(parts[0]);
+    }
+    const sortedDirs = [...dirs].sort();
+    dirDeps = sortedDirs.map(d => `  ${d.replace(/[^a-zA-Z0-9]/g, '_')}[${d}]`).join('\n');
+  }
+
+  return `## 🌐 依赖图谱
+
+本页展示了仓库中顶层目录之间的依赖关系。数据来源于 codegraph 代码分析。
+
+\`\`\`mermaid
+flowchart LR
+${dirDeps || '  empty[（暂无数据）]'}
+\`\`\`
+
+> 此页面由 codegraph 数据库动态生成，每次访问自动更新。
+`;
+}
+
+/** Generate the 影响地图 page — modules with widest impact radius. */
+async function generateImpactMapPage(repoPath: string): Promise<string> {
+  const db = openCodegraphDb(repoPath);
+  let impactMd = '*（暂无数据）*';
+  if (db) {
+    // Top files by node count + edge count
+    const topFiles = db.prepare(`
+      SELECT f.path, f.node_count,
+        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.source = n.id WHERE n.file_path = f.path) AS edge_count
+      FROM files f ORDER BY (f.node_count * 2 + edge_count) DESC LIMIT 15
+    `).all() as any[];
+    db.close();
+    if (topFiles.length > 0) {
+      impactMd = '| 文件 | 符号数 | 关联边 | 影响分 |\n|------|--------|--------|--------|\n';
+      for (const f of topFiles) {
+        const score = (f.node_count || 0) * 2 + (f.edge_count || 0);
+        impactMd += `| \`${f.path}\` | ${f.node_count || 0} | ${f.edge_count || 0} | ${score} |\n`;
+      }
+    }
+  }
+
+  return `## 🔗 影响地图
+
+按"影响半径"排序——符号越多、关联边越多的文件，修改时需要关注的影响面越大。
+
+${impactMd}
+
+> 此页面由 codegraph 数据库动态生成。
+`;
+}
+
+/** Generate the 代码热力图 page — hot files by git churn + QA mentions + coupling. */
+async function generateHeatmapPage(repoPath: string): Promise<string> {
+  // Dimension 1: git churn
+  let gitChurn: { file: string; changes: number }[] = [];
+  try {
+    const { execSync } = await import('child_process');
+    const out = execSync('git log --oneline --name-only --pretty=format: -n 100', {
+      cwd: repoPath, timeout: 5000, encoding: 'utf-8',
+    });
+    const freq: Record<string, number> = {};
+    for (const file of out.split('\n')) {
+      const f = file.trim();
+      if (f && !f.startsWith('.') && !f.includes('node_modules')) {
+        freq[f] = (freq[f] || 0) + 1;
+      }
+    }
+    gitChurn = Object.entries(freq)
+      .map(([file, changes]) => ({ file, changes }))
+      .sort((a, b) => b.changes - a.changes)
+      .slice(0, 10);
+  } catch {}
+
+  // Dimension 2: codegraph coupling
+  const db = openCodegraphDb(repoPath);
+  let couplingRows: any[] = [];
+  if (db) {
+    couplingRows = db.prepare(`
+      SELECT f.path, f.node_count,
+        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.source = n.id WHERE n.file_path = f.path) AS edge_count
+      FROM files f WHERE f.node_count > 0
+      ORDER BY edge_count DESC LIMIT 10
+    `).all() as any[];
+    db.close();
+  }
+
+  let html = '## 📊 代码热力图\n\n';
+  html += '结合三个维度：**Git 变更频率** · **关联复杂度** · **符号密度**\n\n';
+
+  html += '### 🔄 高频变更文件（最近 100 次提交）\n\n';
+  if (gitChurn.length > 0) {
+    html += '| 文件 | 变更次数 |\n|------|---------|\n';
+    for (const f of gitChurn) {
+      html += `| \`${f.file}\` | ${f.changes} |\n`;
+    }
+  } else {
+    html += '*暂无 git 数据*\n';
+  }
+
+  html += '\n### 🔗 高耦合文件（关联边最多）\n\n';
+  if (couplingRows.length > 0) {
+    html += '| 文件 | 符号数 | 关联边 |\n|------|--------|--------|\n';
+    for (const f of couplingRows) {
+      html += `| \`${f.path}\` | ${f.node_count} | ${f.edge_count || 0} |\n`;
+    }
+  } else {
+    html += '*暂无 codegraph 数据*\n';
+  }
+
+  html += '\n> 此页面由 Git 历史和 codegraph 数据库动态生成。\n';
+  return html;
+}
+
+/** Generate the 常见踩坑 page — from calibrated QA bug/error entries. */
+async function generateGotchasPage(repoPath: string, repoName: string): Promise<string> {
+  try {
+    // Use the QA store's listEntries function directly
+    const { listEntries } = await import('./qa-store.js');
+    const result = listEntries({
+      repo: repoName,
+      calibrated: true,
+      sort: 'visit',
+      limit: 30,
+    });
+    if (!result.entries || result.entries.length === 0) {
+      return '## 🔥 常见踩坑\n\n暂无已校准的踩坑记录。当 #Q 中有被校准的问答后，会自动出现在这里。\n';
+    }
+    let md = '## 🔥 常见踩坑\n\n';
+    md += '以下内容来自团队在 #Q 中校准过的问答精华：\n\n';
+    for (const e of result.entries) {
+      const q = e.question;
+      md += `### 💬 #Q${e.qid}: ${q}\n\n`;
+      md += `- **Domain:** ${e.domain || 'general'}\n`;
+      md += `- **访问次数:** ${e.visitCount}\n`;
+      md += `- **回答时间:** ${e.answeredAt ? e.answeredAt.slice(0, 10) : '-'}\n`;
+      md += `[查看完整问答 →](/qa?qid=${e.qid})\n\n`;
+    }
+    return md;
+  } catch {
+    return '## 🔥 常见踩坑\n\n加载失败。\n';
+  }
 }
 
 const app = express();
@@ -819,7 +985,7 @@ app.post('/api/wiki/generate', async (req, res) => {
 
   if (!entry) { res.status(404).json({ error: `Repo "${repoName}" not found` }); return; }
 
-  // Run gitnexus wiki in background
+  // Run codegraph-based wiki generation in background
   generateWiki(entry.path).then(result => {
     if (result.success) {
       console.log(`[wiki] ${repoName}: generated successfully`);
@@ -853,6 +1019,29 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
   const registry = await loadRegistry();
   const entry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
+
+  // Dynamic pages generated from codegraph / QA data
+  if (DYNAMIC_WIKI_PAGES.includes(page)) {
+    let content: string | null = null;
+    switch (page) {
+      case 'dependencies':
+        content = await generateDependenciesPage(entry.path);
+        break;
+      case 'impact-map':
+        content = await generateImpactMapPage(entry.path);
+        break;
+      case 'heatmap':
+        content = await generateHeatmapPage(entry.path);
+        break;
+      case 'gotchas':
+        content = await generateGotchasPage(entry.path, entry.name);
+        break;
+    }
+    if (content) {
+      res.json({ page, repoName: entry.name, content });
+      return;
+    }
+  }
 
   const outputDir = wikiOutputDir(entry.path);
   const content = await readWikiPage(outputDir, page);

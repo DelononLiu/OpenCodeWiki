@@ -19,10 +19,11 @@
  *   - LLM configured (OPENAI_API_KEY or ~/.opencodewiki/config.json)
  */
 
-import { execFileSync, execSync } from 'child_process';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { DatabaseSync } from 'node:sqlite';
 
 function resolvePath(p) {
   return path.resolve(p.replace(/^~/, os.homedir()));
@@ -362,6 +363,97 @@ Generate a Markdown document that:
   return false;
 }
 
+// ── Codegraph Wiki Generation ──────────────────────────────────
+
+/** Generate module_tree.json from codegraph DB file paths. */
+function generateModuleTree(repoPath, outputDir) {
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  if (!fs.existsSync(dbPath)) {
+    console.log('  ⚠ codegraph.db not found, skipping module tree');
+    return false;
+  }
+
+  const db = new DatabaseSync(dbPath);
+  const rows = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+  db.close();
+
+  // Group files by top-level directory → module
+  const dirMap = {};
+  for (const r of rows) {
+    const p = r.path;
+    const parts = p.split('/');
+    const topDir = parts.length >= 2 ? parts[0] : '(root)';
+    if (!dirMap[topDir]) dirMap[topDir] = { name: topDir, slug: slugify(topDir), files: [], children: [] };
+    dirMap[topDir].files.push(p);
+  }
+
+  const tree = Object.keys(dirMap).sort().map(k => {
+    const m = dirMap[k];
+    // Group files into sub-children by 2nd level directory
+    const subMap = {};
+    for (const f of m.files) {
+      const parts = f.split('/');
+      if (parts.length >= 3) {
+        const subDir = parts[0] + '-' + parts[1];
+        if (!subMap[subDir]) subMap[subDir] = { name: parts[0] + '/' + parts[1], slug: slugify(subDir), files: [] };
+        subMap[subDir].files.push(f);
+      }
+    }
+    m.children = Object.keys(subMap).sort().map(sk => subMap[sk]);
+    delete m.files;
+    return m;
+  });
+
+  fs.writeFileSync(path.join(outputDir, 'module_tree.json'), JSON.stringify(tree, null, 2), 'utf-8');
+  console.log('  ✓ module_tree.json generated (' + tree.length + ' modules)');
+  return tree;
+}
+
+/** Generate overview.md from README + codegraph stats. */
+function generateOverview(repoPath, outputDir) {
+  // Try README first
+  let overview = '';
+  for (const name of ['README.md', 'README', 'readme.md', 'Readme.md']) {
+    const readmePath = path.join(repoPath, name);
+    if (fs.existsSync(readmePath)) {
+      overview = fs.readFileSync(readmePath, 'utf-8');
+      break;
+    }
+  }
+
+  // Append codegraph stats
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  if (fs.existsSync(dbPath)) {
+    try {
+      const db = new DatabaseSync(dbPath);
+      const fileCount = db.prepare('SELECT COUNT(*) AS c FROM files').get();
+      const nodeCount = db.prepare('SELECT COUNT(*) AS c FROM nodes').get();
+      const langRows = db.prepare('SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != \'\' GROUP BY language ORDER BY c DESC LIMIT 5').all();
+      db.close();
+
+      let statsSection = '\n\n---\n\n## 📊 代码统计\n\n';
+      statsSection += `- **文件数:** ${fileCount.c}\n`;
+      statsSection += `- **符号数:** ${nodeCount.c}\n`;
+      if (langRows.length > 0) {
+        statsSection += '- **语言:**\n';
+        for (const l of langRows) {
+          statsSection += `  - ${l.language}: ${l.c} 文件\n`;
+        }
+      }
+      overview += statsSection;
+    } catch {}
+  }
+
+  fs.writeFileSync(path.join(outputDir, 'overview.md'), overview || '# Overview\n\n（暂无内容）\n', 'utf-8');
+  console.log('  ✓ overview.md generated');
+}
+
+function slugify(name) {
+  return name.toLowerCase()
+    .replace(/[^a-z0-9一-鿿]+/g, '-')
+    .replace(/^-|-$/g, '') || 'unknown';
+}
+
 // ── Main ──────────────────────────────────────────────────────
 
 const repoPath = process.argv[2];
@@ -376,62 +468,33 @@ if (!repoPath) {
 }
 
 const resolvedPath = resolvePath(repoPath);
-const gitnexusDir = path.join(resolvedPath, '.gitnexus');
 const outputDir = path.join(resolvedPath, '.codegraph', 'wiki');
-const metaPath = path.join(gitnexusDir, 'meta.json');
+const codegraphDb = path.join(resolvedPath, '.codegraph', 'codegraph.db');
+const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
 
 (async () => {
-  const totalSteps = extraPages ? 5 : 3;
+  const totalSteps = extraPages ? 4 : 2;
   let step = 1;
 
-  // Step 1: gitnexus analyze if index doesn't exist
-  if (!fs.existsSync(metaPath)) {
-    console.log(`[${step}/${totalSteps}] No GitNexus index found. Running gitnexus analyze...`);
-    console.log(`     Path: ${resolvedPath}`);
-    console.log('');
-    try {
-      execFileSync('gitnexus', ['analyze', resolvedPath], {
-        timeout: 600_000,
-        stdio: 'inherit',
-        cwd: resolvedPath,
-      });
-      console.log('  ✓ Index complete\n');
-    } catch (err) {
-      console.error(`✗ gitnexus analyze failed: ${err.message}`);
-      console.error('  Make sure gitnexus is installed: npm install -g gitnexus');
-      process.exit(1);
-    }
+  // Step 1: Check codegraph index exists
+  if (!fs.existsSync(codegraphDb)) {
+    console.log(`[${step}/${totalSteps}] No codegraph index found at ${codegraphDb}`);
+    console.log('  Please run codegraph index first: cd <repo> && npx codegraph index');
+    console.log('  Or use: npm run index -- <repo-path>\n');
+    process.exit(1);
   }
+  console.log(`[${step}/${totalSteps}] ✓ codegraph index found`);
   step++;
 
-  // Step 2: Generate wiki
-  console.log(`[${step}/${totalSteps}] Generating wiki...`);
+  // Step 2: Generate wiki from codegraph DB
+  console.log(`[${step}/${totalSteps}] Generating wiki from codegraph data...`);
   console.log('');
   step++;
 
-  const args = ['wiki', resolvedPath];
-  if (force) args.push('--force');
-
   try {
-    execFileSync('gitnexus', args, {
-      timeout: 600_000,
-      stdio: 'inherit',
-      cwd: resolvedPath,
-    });
-
-    // Copy to .codegraph/wiki/
-    const srcDir = path.join(gitnexusDir, 'wiki');
-    if (fs.existsSync(srcDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-      for (const file of fs.readdirSync(srcDir)) {
-        const src = path.join(srcDir, file);
-        const dst = path.join(outputDir, file);
-        if (fs.statSync(src).isFile()) {
-          fs.copyFileSync(src, dst);
-        }
-      }
-      console.log(`  ✓ Copied to ${outputDir}`);
-    }
+    fs.mkdirSync(outputDir, { recursive: true });
+    await generateModuleTree(resolvedPath, outputDir);
+    await generateOverview(resolvedPath, outputDir);
 
     // Step 3: Translate if --lang zh
     if (targetLang === 'zh' && fs.existsSync(outputDir)) {
