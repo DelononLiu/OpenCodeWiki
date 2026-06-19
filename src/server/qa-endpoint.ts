@@ -440,7 +440,7 @@ async function resolveCrossRepoSources(
   let m: RegExpExecArray | null;
   const savedLastIndex = CROSS_REPO_FILE_REF_RE.lastIndex;
   CROSS_REPO_FILE_REF_RE.lastIndex = 0;
-  log('info', 'resolveCrossRepoSources', { contentLen: content.length, existingCount: existingSources.length, repoBases: Array.from(repoBases.keys()) });
+  // resolveCrossRepoSources start
   while ((m = CROSS_REPO_FILE_REF_RE.exec(content)) !== null) {
     const repoName = m[1];
     const filePath = m[2];
@@ -859,7 +859,7 @@ export function createQaEndpoint(
       // 如果不是 @cross 显式指定，用 classifyScopeRule 判断范围
       if (!hasCrossTag && !explicitRepo && allRepos.length > 1) {
         const scopeResult = classifyScopeRule(question, allRepos.map(r => r.name));
-        log('info', 'scope classified', { scope: scopeResult.scope, repos: scopeResult.repos, reasoning: scopeResult.reasoning });
+        log('info', 'pipeline scope', { scope: scopeResult.scope, repos: scopeResult.repos.length });
 
         if (scopeResult.scope === 'single' && scopeResult.repos.length > 0) {
           // 单库问题 → 只搜匹配到的仓库
@@ -932,7 +932,7 @@ export function createQaEndpoint(
               log('info', 'cross-repo search: no results for repo', { repo: r.name });
               return;
             }
-            log('info', 'cross-repo search: repo results', { repo: r.name, count: result.sources.length, first: result.sources[0]?.filePath });
+            log('info', 'search results', { repo: r.name, count: result.sources.length, first: result.sources[0]?.filePath?.split('/').pop() });
             allRepoResults.push({ repoName: r.name, sources: result.sources, flows: result.flows });
           } catch (repoErr) {
             log('error', 'cross-repo search failed for repo', { repo: r.name, error: (repoErr as Error)?.message });
@@ -1086,7 +1086,7 @@ export function createQaEndpoint(
         // Step 3: 按意图编排 codegraph 工具链
         const mode: 'llm' | 'acp' = ACP_ENABLED ? 'acp' : 'llm';
         const matches = await resolver.search(intentResult, repos, mode);
-        log('info', 'pipeline search complete', { matches: matches.length, mode });
+        log('info', 'search complete', { matches: matches.length });
 
         // Step 4: 构建上下文 (LLM 模式完整注入, ACP 模式精简线索)
         pipelineContext = mode === 'llm'
@@ -1094,17 +1094,13 @@ export function createQaEndpoint(
           : resolver.buildACPContext(matches, intentResult);
         if (pipelineContext) {
           log('info', 'pipeline context', { len: pipelineContext.length, mode });
-          // 打印搜索结果列表供分析
-          log('info', '=== PIPELINE SEARCH CONTEXT ===');
-          log('info', pipelineContext);
-          log('info', '=== END PIPELINE SEARCH CONTEXT ===');
         }
       } catch (pipelineErr) {
         log('warn', 'pipeline error (non-fatal)', { error: (pipelineErr as Error)?.message });
       }
     }
 
-    log('info', 'built sources count=' + sources.length);
+    log('info', 'pipeline done', { intent: pipelineIntent, scope: isCrossRepo ? 'cross' : 'single', sourceCount: sources.length });
 
     // ── 搜不到时走 LLM 引导用户补充信息 ──
     if (!ACP_ENABLED && handler && !pipelineContext && hasLLM) {
