@@ -308,6 +308,23 @@ npm run eval:report -v
 
 ---
 
+## 主要开源组件
+
+| 组件 | 用途 | 协议 |
+|------|------|------|
+| [codegraph](https://github.com/colbymchenry/codegraph) | Tree-sitter 代码索引 + 调用图 + MCP 服务 | MIT |
+| [tree-sitter-wasms](https://github.com/tree-sitter/tree-sitter) | AST 解析器，支持 24+ 语言 | MIT |
+| [@xenova/transformers](https://github.com/huggingface/transformers.js) | 本地 ONNX 模型推理（嵌入） | Apache 2.0 |
+| [onnxruntime-web](https://github.com/microsoft/onnxruntime) | ONNX 模型跨平台运行时 | MIT |
+| [sentence-transformers](https://github.com/UKPLab/sentence-transformers) | Python cross-encoder 重排序（可选） | Apache 2.0 |
+| [Express](https://github.com/expressjs/express) | HTTP 服务框架 | MIT |
+| [SQLite (node:sqlite)](https://nodejs.org/api/sqlite.html) | 符号索引 + 向量存储 | 内置 |
+| [highlight.js](https://github.com/highlightjs/highlight.js) | 代码高亮 | BSD-3-Clause |
+| [marked](https://github.com/markedjs/marked) | Markdown 渲染 | MIT |
+| [Mermaid](https://github.com/mermaid-js/mermaid) | 图表渲染（架构图/流程图） | MIT |
+
+---
+
 ## License
 
 MIT
