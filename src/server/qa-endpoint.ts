@@ -1345,7 +1345,7 @@ export function createQaEndpoint(
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...history.map((h: any) => ({ role: h.role, content: h.content })),
+      ...session.messages.map((h: any) => ({ role: h.role, content: h.content })),
       { role: 'user', content: question },
     ];
 
