@@ -1,92 +1,81 @@
 [
   {
-    "id": "cg-001",
-    "repo": "codegraph",
+    "id": "cg-001", "repo": "codegraph", "intent": "where-is",
     "question": "Find searchNodes function",
-    "intent": "where-is",
-    "golden_symbols": ["searchNodes"],
-    "golden_files": ["src/db/queries.ts"],
-    "answer_quality": "correct"
+    "golden_symbols": ["searchNodes"], "golden_files": ["src/db/queries.ts"],
+    "answer_quality": "correct",
+    "expected_answer": "searchNodes 定义在 src/db/queries.ts 中，是 QueryBuilder 类的方法，用于通过 FTS5 搜索节点，支持 LIKE 回退和模糊匹配。"
   },
   {
-    "id": "cg-002",
-    "repo": "codegraph",
+    "id": "cg-002", "repo": "codegraph", "intent": "what-is",
     "question": "How does codegraph_search work?",
-    "intent": "what-is",
     "golden_symbols": ["codegraph_search", "searchNodes", "ToolHandler"],
     "golden_files": ["src/mcp/tools.ts", "src/db/queries.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "codegraph_search 是 MCP 工具，通过 ToolHandler 调用 searchNodes 方法，使用 SQLite FTS5 做全文搜索，配合 LIKE 和 Levenshtein 模糊匹配降级。"
   },
   {
-    "id": "cg-003",
-    "repo": "codegraph",
+    "id": "cg-003", "repo": "codegraph", "intent": "what-impact",
     "question": "Who calls the searchNodes function?",
-    "intent": "what-impact",
     "golden_symbols": ["searchNodes", "searchWrapper", "codegraph_search"],
     "golden_files": ["src/db/queries.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "searchNodes 被 codegraph_search 工具调用，通过 searchWrapper 代理转发，由 MCP 的 ToolHandler 暴露给外部。"
   },
   {
-    "id": "kcode-001",
-    "repo": "kcode",
+    "id": "kcode-001", "repo": "kcode", "intent": "how-to",
     "question": "How does the ACP client connect to an agent?",
-    "intent": "how-to",
     "golden_symbols": ["AcpClient", "connect", "sendPrompt"],
     "golden_files": ["src/acp/client.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "AcpClient 通过 connect 建立连接和 ACP 会话，通过 sendPrompt 发送问题并异步接收响应。"
   },
   {
-    "id": "kcode-002",
-    "repo": "kcode",
+    "id": "kcode-002", "repo": "kcode", "intent": "what-structure",
     "question": "What tools does kcode expose to agents?",
-    "intent": "what-structure",
     "golden_symbols": ["KCodeClient", "KCodePlugin", "AgentManager", "KCodeConfig"],
     "golden_files": ["src/acp/callbacks.ts", "src/core/plugin/PluginInterface.ts", "src/acp/AgentManager.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "kcode 通过 KCodeClient、KCodePlugin、AgentManager、KCodeConfig 等组件向 Agent 暴露工具和能力。"
   },
   {
-    "id": "wiki-001",
-    "repo": "OpenCodeWiki",
+    "id": "wiki-001", "repo": "OpenCodeWiki", "intent": "how-to",
     "question": "How does the QA endpoint resolve file references in answers?",
-    "intent": "how-to",
     "golden_symbols": ["resolveAnswerSources", "extractFileRefs", "resolveCrossRepoSources"],
     "golden_files": ["src/server/qa-endpoint.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "QA 端点通过 extractFileRefs 正则提取 file:line 引用，然后 resolveAnswerSources 从磁盘读取源码，跨库场景用 resolveCrossRepoSources。"
   },
   {
-    "id": "wiki-002",
-    "repo": "OpenCodeWiki",
+    "id": "wiki-002", "repo": "OpenCodeWiki", "intent": "what-is",
     "question": "What is QaResolver and what intents does it support?",
-    "intent": "what-is",
     "golden_symbols": ["QaResolver", "Intent", "analyzeIntent"],
     "golden_files": ["src/server/qa-resolver.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "QaResolver 是 pipeline 意图分析引擎，支持 6 种 intent: what-is, where-is, how-to, why-error, what-structure, what-impact。"
   },
   {
-    "id": "wiki-003",
-    "repo": "OpenCodeWiki",
+    "id": "wiki-003", "repo": "OpenCodeWiki", "intent": "how-to",
     "question": "How are cross-repo queries searched across multiple repositories?",
-    "intent": "how-to",
     "golden_symbols": ["multiRepoSsearch", "createQaEndpoint", "CROSS_REPO_ACP_CLIENT", "isCrossRepo"],
     "golden_files": ["src/server/qa-resolver.ts", "src/server/qa-endpoint.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "跨库搜索通过 isCrossRepo 判断模式，用 multiRepoSsearch 并行搜索所有注册仓库，结果按 RRF 融合后联合推理。"
   },
   {
-    "id": "wiki-004",
-    "repo": "OpenCodeWiki",
+    "id": "wiki-004", "repo": "OpenCodeWiki", "intent": "where-is",
     "question": "Find where classifyDomain function is defined",
-    "intent": "where-is",
     "golden_symbols": ["classifyDomain"],
     "golden_files": ["src/server/qa-endpoint.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "classifyDomain 定义在 src/server/qa-endpoint.ts 中，用于将问题分类为 general/build-issue/bug-analysis 等 6 个领域。"
   },
   {
-    "id": "wiki-005",
-    "repo": "OpenCodeWiki",
+    "id": "wiki-005", "repo": "OpenCodeWiki", "intent": "what-impact",
     "question": "What impact would changing the search method have on the QA pipeline?",
-    "intent": "what-impact",
     "golden_symbols": ["search", "resolveRepo", "createQaEndpoint", "pipelineContext"],
     "golden_files": ["src/server/qa-endpoint.ts", "src/server/qa-resolver.ts"],
-    "answer_quality": "correct"
+    "answer_quality": "correct",
+    "expected_answer": "改变搜索方法会影响 search 回调、pipelineContext 上下文质量和 resolveRepo 结果，最终影响 LLM 回答的准确性。"
   }
 ]
