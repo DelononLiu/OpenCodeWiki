@@ -30,10 +30,11 @@ interface QaSession {
 
 const sessions = new Map<string, QaSession>();
 
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_SESSIONS_PER_REPO = 20;
-const SESSION_TTL_MS = 30 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+// 不自动清理 session—ChatGPT 模式，除非用户手动删除，否则永久保存
+const SESSION_TTL_MS = Infinity;
+const SESSION_MAX_AGE_MS = Infinity;
+const MAX_SESSIONS_PER_REPO = 1000;
+const CLEANUP_INTERVAL_MS = 0;
 
 function getDataDir(): string {
   return process.env.OPENCODEWIKI_QA_DATA_DIR || path.join(os.homedir(), '.opencodewiki', 'qa-sessions');
@@ -139,7 +140,7 @@ function closeAcpSession(session: QaSession): void {
 }
 
 loadSessions();
-setInterval(cleanupStaleSessions, CLEANUP_INTERVAL_MS);
+// 清理已禁用 — session 永久保存，除非用户手动删除
 
 export function getSession(id: string): QaSession | undefined {
   return sessions.get(id);
@@ -1068,7 +1069,11 @@ export function createQaEndpoint(
 
         // Step 1: 意图分析（带仓库信息，让 LLM 同时判断 scope）
         const allRepoList = listRepos ? (await listRepos()).map(r => r.name) : [];
-        const intentResult = await resolver.analyzeIntent(question, allRepoList);
+        // 取上一轮 Q&A 作为意图分类的上下文
+        const lastHistory = session.messages.length >= 2
+          ? session.messages.slice(-2).map((m: any) => `${m.role}: ${(m.content || '').slice(0, 200)}`).join('\n')
+          : undefined;
+        const intentResult = await resolver.analyzeIntent(question, allRepoList, lastHistory);
         pipelineIntent = intentResult.intent;
         log('info', '  ▸ intent', { intent: intentResult.intent, scope: intentResult.reasoning?.includes('scope:') ? intentResult.reasoning.split('scope:')[1] : '-', terms: intentResult.searchTerms.slice(0, 5) });
 

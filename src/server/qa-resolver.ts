@@ -204,12 +204,12 @@ export class QaResolver {
    * Step 1: 意图分析
    * LLM 分类为主，规则为异常降级。
    */
-  async analyzeIntent(question: string, repoDescs?: string[]): Promise<IntentResult> {
+  async analyzeIntent(question: string, repoDescs?: string[], history?: string): Promise<IntentResult> {
     let intent: Intent;
     let reasoning = '';
 
     if (this.llm && repoDescs) {
-      const result = await this.classifyByLLM(question, repoDescs);
+      const result = await this.classifyByLLM(question, repoDescs, history);
       reasoning = 'llm';
       if (result) {
         intent = result.intent;
@@ -830,7 +830,7 @@ export class QaResolver {
   }
 
   /** LLM 分类——返回 intent + scope，异常时返回 null */
-  private async classifyByLLM(question: string, repoDescs: string[]): Promise<{ intent: Intent; scope: string } | null> {
+  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string } | null> {
     if (!this.llm) return null;
     const repoInfo = repoDescs.length > 0
       ? `可用仓库：\n${repoDescs.map(r => `- ${r}`).join('\n')}`
@@ -850,7 +850,8 @@ export class QaResolver {
 
 ${repoInfo}
 
-返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"}` },
+返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"}` +
+  (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
           max_tokens: 200,
