@@ -1,0 +1,92 @@
+[
+  {
+    "id": "cg-001",
+    "repo": "codegraph",
+    "question": "Find searchNodes function",
+    "intent": "where-is",
+    "golden_symbols": ["searchNodes"],
+    "golden_files": ["src/db/queries.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "cg-002",
+    "repo": "codegraph",
+    "question": "How does codegraph_search work?",
+    "intent": "what-is",
+    "golden_symbols": ["codegraph_search", "searchNodes", "ToolHandler"],
+    "golden_files": ["src/mcp/tools.ts", "src/db/queries.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "cg-003",
+    "repo": "codegraph",
+    "question": "Who calls the searchNodes function?",
+    "intent": "what-impact",
+    "golden_symbols": ["searchNodes", "searchWrapper", "codegraph_search"],
+    "golden_files": ["src/db/queries.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "kcode-001",
+    "repo": "kcode",
+    "question": "How does the ACP client connect to an agent?",
+    "intent": "how-to",
+    "golden_symbols": ["AcpClient", "connect", "sendPrompt"],
+    "golden_files": ["src/acp/client.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "kcode-002",
+    "repo": "kcode",
+    "question": "What tools does kcode expose to agents?",
+    "intent": "what-structure",
+    "golden_symbols": ["ToolItem", "ToolGroup", "getTaskToolGroups"],
+    "golden_files": ["src/types/index.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "wiki-001",
+    "repo": "OpenCodeWiki",
+    "question": "How does the QA endpoint resolve file references in answers?",
+    "intent": "how-to",
+    "golden_symbols": ["resolveAnswerSources", "extractFileRefs", "resolveCrossRepoSources"],
+    "golden_files": ["src/server/qa-endpoint.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "wiki-002",
+    "repo": "OpenCodeWiki",
+    "question": "What is QaResolver and what intents does it support?",
+    "intent": "what-is",
+    "golden_symbols": ["QaResolver", "Intent", "analyzeIntent"],
+    "golden_files": ["src/server/qa-resolver.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "wiki-003",
+    "repo": "OpenCodeWiki",
+    "question": "How are cross-repo queries searched across multiple repositories?",
+    "intent": "how-to",
+    "golden_symbols": ["isCrossRepo", "listRepos", "repoBaseMap", "crossRepoNames"],
+    "golden_files": ["src/server/qa-endpoint.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "wiki-004",
+    "repo": "OpenCodeWiki",
+    "question": "Find where classifyDomain function is defined",
+    "intent": "where-is",
+    "golden_symbols": ["classifyDomain"],
+    "golden_files": ["src/server/qa-endpoint.ts"],
+    "answer_quality": "correct"
+  },
+  {
+    "id": "wiki-005",
+    "repo": "OpenCodeWiki",
+    "question": "What impact would changing the search method have on the QA pipeline?",
+    "intent": "what-impact",
+    "golden_symbols": ["search", "resolveRepo", "createQaEndpoint", "pipelineContext"],
+    "golden_files": ["src/server/qa-endpoint.ts", "src/server/qa-resolver.ts"],
+    "answer_quality": "correct"
+  }
+]

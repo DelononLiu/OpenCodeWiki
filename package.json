@@ -9,7 +9,9 @@
     "build": "npx tsc",
     "wiki": "node scripts/wiki.mjs",
     "index": "node scripts/setup-repo.mjs",
-    "reindex": "node scripts/reindex.mjs"
+    "reindex": "node scripts/reindex.mjs",
+    "eval:qa": "node scripts/eval/runner.mjs",
+    "eval:report": "node scripts/eval/report.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.22.1",

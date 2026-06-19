@@ -1,0 +1,285 @@
+{
+  "timestamp": "2026-06-19T08:40:00.910Z",
+  "set": "tiny",
+  "isBaseline": true,
+  "aggregated": {
+    "avgRecall5": 0.47333333333333333,
+    "avgRecall10": 0.4933333333333333,
+    "avgMrr": 0.39575,
+    "passCount": 8,
+    "total": 10
+  },
+  "results": [
+    {
+      "id": "cg-001",
+      "repo": "codegraph",
+      "question": "Find searchNodes function",
+      "intent": "where-is",
+      "golden_symbols": [
+        "searchNodes"
+      ],
+      "golden_files": [
+        "src/db/queries.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 1,
+        "recall10": 1,
+        "mrr": 1,
+        "hitDetails": {
+          "symbols": {
+            "searchNodes": 1
+          },
+          "files": {
+            "src/db/queries.ts": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "cg-002",
+      "repo": "codegraph",
+      "question": "How does codegraph_search work?",
+      "intent": "what-is",
+      "golden_symbols": [
+        "codegraph_search",
+        "searchNodes",
+        "ToolHandler"
+      ],
+      "golden_files": [
+        "src/mcp/tools.ts",
+        "src/db/queries.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0.4,
+        "recall10": 0.6,
+        "mrr": 0.27,
+        "hitDetails": {
+          "symbols": {
+            "searchNodes": 1
+          },
+          "files": {
+            "src/mcp/tools.ts": 4,
+            "src/db/queries.ts": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "cg-003",
+      "repo": "codegraph",
+      "question": "Who calls the searchNodes function?",
+      "intent": "what-impact",
+      "golden_symbols": [
+        "searchNodes",
+        "searchWrapper",
+        "codegraph_search"
+      ],
+      "golden_files": [
+        "src/db/queries.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0.5,
+        "recall10": 0.5,
+        "mrr": 0.375,
+        "hitDetails": {
+          "symbols": {
+            "searchNodes": 1
+          },
+          "files": {
+            "src/db/queries.ts": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "kcode-001",
+      "repo": "kcode",
+      "question": "How does the ACP client connect to an agent?",
+      "intent": "how-to",
+      "golden_symbols": [
+        "AcpClient",
+        "connect",
+        "sendPrompt"
+      ],
+      "golden_files": [
+        "src/acp/client.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0.25,
+        "recall10": 0.25,
+        "mrr": 0.25,
+        "hitDetails": {
+          "symbols": {
+            "connect": 1
+          },
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "kcode-002",
+      "repo": "kcode",
+      "question": "What tools does kcode expose to agents?",
+      "intent": "what-structure",
+      "golden_symbols": [
+        "ToolItem",
+        "ToolGroup",
+        "getTaskToolGroups"
+      ],
+      "golden_files": [
+        "src/types/index.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0,
+        "recall10": 0,
+        "mrr": 0,
+        "hitDetails": {
+          "symbols": {},
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "wiki-001",
+      "repo": "OpenCodeWiki",
+      "question": "How does the QA endpoint resolve file references in answers?",
+      "intent": "how-to",
+      "golden_symbols": [
+        "resolveAnswerSources",
+        "extractFileRefs",
+        "resolveCrossRepoSources"
+      ],
+      "golden_files": [
+        "src/server/qa-endpoint.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0.25,
+        "recall10": 0.25,
+        "mrr": 0.08333333333333333,
+        "hitDetails": {
+          "symbols": {},
+          "files": {
+            "src/server/qa-endpoint.ts": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "wiki-002",
+      "repo": "OpenCodeWiki",
+      "question": "What is QaResolver and what intents does it support?",
+      "intent": "what-is",
+      "golden_symbols": [
+        "QaResolver",
+        "Intent",
+        "analyzeIntent"
+      ],
+      "golden_files": [
+        "src/server/qa-resolver.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 1,
+        "recall10": 1,
+        "mrr": 0.6458333333333333,
+        "hitDetails": {
+          "symbols": {
+            "QaResolver": 1,
+            "Intent": 3,
+            "analyzeIntent": 4
+          },
+          "files": {
+            "src/server/qa-resolver.ts": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "wiki-003",
+      "repo": "OpenCodeWiki",
+      "question": "How are cross-repo queries searched across multiple repositories?",
+      "intent": "how-to",
+      "golden_symbols": [
+        "isCrossRepo",
+        "listRepos",
+        "repoBaseMap",
+        "crossRepoNames"
+      ],
+      "golden_files": [
+        "src/server/qa-endpoint.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0,
+        "recall10": 0,
+        "mrr": 0,
+        "hitDetails": {
+          "symbols": {},
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "wiki-004",
+      "repo": "OpenCodeWiki",
+      "question": "Find where classifyDomain function is defined",
+      "intent": "where-is",
+      "golden_symbols": [
+        "classifyDomain"
+      ],
+      "golden_files": [
+        "src/server/qa-endpoint.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 1,
+        "recall10": 1,
+        "mrr": 1,
+        "hitDetails": {
+          "symbols": {
+            "classifyDomain": 1
+          },
+          "files": {
+            "src/server/qa-endpoint.ts": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "wiki-005",
+      "repo": "OpenCodeWiki",
+      "question": "What impact would changing the search method have on the QA pipeline?",
+      "intent": "what-impact",
+      "golden_symbols": [
+        "search",
+        "resolveRepo",
+        "createQaEndpoint",
+        "pipelineContext"
+      ],
+      "golden_files": [
+        "src/server/qa-endpoint.ts",
+        "src/server/qa-resolver.ts"
+      ],
+      "answer_quality": "correct",
+      "metrics": {
+        "recall5": 0.3333333333333333,
+        "recall10": 0.3333333333333333,
+        "mrr": 0.3333333333333333,
+        "hitDetails": {
+          "symbols": {
+            "search": 1
+          },
+          "files": {
+            "src/server/qa-resolver.ts": 1
+          }
+        }
+      }
+    }
+  ]
+}
