@@ -87,10 +87,23 @@ async function localModelEmbed(text) {
 
 /**
  * 嵌入入口：根据环境变量选择引擎。
- * EMBED_ENGINE=hash | api | local | ollama（默认 hash）
+ * EMBED_ENGINE=hash | api | local | ollama
+ * 不设时自动检测：本地模型文件存在 → local，否则 → hash
  */
+function detectEngine() {
+  if (process.env.EMBED_ENGINE) return process.env.EMBED_ENGINE;
+  const modelPath = path.join(os.homedir(), '.cache', 'huggingface', 'hub',
+    'models--Xenova--all-MiniLM-L6-v2', 'snapshots');
+  try { const entries = fs.readdirSync(modelPath); if (entries.length > 0) return 'local'; } catch {}
+  // 也检查 transformers.js 内置路径
+  const altPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..',
+    'node_modules', '@xenova', 'transformers', 'models', 'Xenova', 'all-MiniLM-L6-v2', 'onnx', 'model_quantized.onnx');
+  try { if (fs.existsSync(altPath)) return 'local'; } catch {}
+  return 'hash';
+}
+
 export async function embedText(text) {
-  const engine = process.env.EMBED_ENGINE || 'hash';
+  const engine = detectEngine();
   switch (engine) {
     case 'api':    return await apiEmbed(text);
     case 'local':  return await localModelEmbed(text);
