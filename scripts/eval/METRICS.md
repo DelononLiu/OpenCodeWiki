@@ -9,22 +9,8 @@
 | 2026-06-19 | **iter2-rerank-tpl**（+ 重排序占位 + 模板动态选择）| 56.4% | 66.5% | 0.4692 | 9/10 | 90% |
 | 2026-06-19 | **iter3-incremental**（增量索引 + 多库路由 + QA 集成）| 56.4% | 66.5% | 0.4692 | 9/10 | 90% |
 | 2026-06-19 | **iter3-startup**（启动配置固化 + 内网部署支持）| 56.4% | 66.5% | 0.4692 | 9/10 | 90% |
+| 2026-06-19 | **iter3-reranker**（Ettin cross-encoder 重排序）| **60.7%** | **66.5%** | **0.4905** | **10/10** | **100%** |
 
 ## 失败题目
 
-```
-wiki-001     | ❌  MRR 0.042——未进入 top-5
-```
-
-### wiki-001
-- 问题: How does the QA endpoint resolve file references in answers?
-- 意图: how-to
-- 期望符号: resolveAnswerSources, extractFileRefs, resolveCrossRepoSources
-- 基线: ✅ → Iter 1: ❌ 向量搜索没找到这些符号在 top-5
-
-## 已解决（Iter 1）
-
-```
-kcode-002    | ✅  57%（AgentManager@1, KCodeClient@3, KCodeConfig@7, KCodePlugin@9）
-wiki-003     | ✅  33%（multiRepoSsearch@3, CROSS_REPO_ACP_CLIENT@7）
-```
+（无 — 全部通过 ✅）

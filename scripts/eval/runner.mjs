@@ -196,7 +196,18 @@ async function main() {
       }
     }
 
-    // ── 重排序占位（等 cross-encoder 就绪）──
+    // ── Ettin 重排序 ──
+    if (fusedResults.length > 3) {
+      try {
+        const r = await import('../../src/server/reranker.mjs');
+        const texts = fusedResults.map(x => x.node?.name || x.node?.filePath || '');
+        const scores = await r.scoreBatch(q.question, texts).catch(() => null);
+        if (scores && scores.length === fusedResults.length) {
+          const scored = fusedResults.map((x, i) => ({ ...x, _rerank: scores[i] }));
+          fusedResults = scored.sort((a, b) => b._rerank - a._rerank);
+        }
+      } catch {}
+    }
 
     const metrics = evaluate(fusedResults, q);
 

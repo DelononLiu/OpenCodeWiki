@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-06-19T11:23:04.944Z",
+  "timestamp": "2026-06-19T11:50:38.594Z",
   "set": "tiny",
   "isBaseline": false,
   "aggregated": {
-    "avgRecall5": 0.5638095238095238,
+    "avgRecall5": 0.6066666666666667,
     "avgRecall10": 0.665,
-    "avgMrr": 0.46918367346938766,
-    "passCount": 9,
+    "avgMrr": 0.4905178571428571,
+    "passCount": 10,
     "total": 10
   },
   "results": [
@@ -54,13 +54,13 @@
       "metrics": {
         "recall5": 0.4,
         "recall10": 0.4,
-        "mrr": 0.3,
+        "mrr": 0.09,
         "hitDetails": {
           "symbols": {
-            "searchNodes": 1
+            "searchNodes": 4
           },
           "files": {
-            "src/mcp/tools.ts": 2
+            "src/mcp/tools.ts": 5
           }
         }
       }
@@ -110,11 +110,11 @@
       "metrics": {
         "recall5": 0.5,
         "recall10": 0.5,
-        "mrr": 0.3,
+        "mrr": 0.375,
         "hitDetails": {
           "symbols": {
-            "connect": 1,
-            "AcpClient": 5
+            "AcpClient": 1,
+            "connect": 2
           },
           "files": {}
         }
@@ -138,20 +138,20 @@
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0.5714285714285714,
+        "recall5": 1,
         "recall10": 1,
-        "mrr": 0.4331065759637188,
+        "mrr": 0.5214285714285715,
         "hitDetails": {
           "symbols": {
-            "AgentManager": 1,
-            "KCodeClient": 3,
-            "KCodeConfig": 7,
-            "KCodePlugin": 9
+            "KCodePlugin": 1,
+            "KCodeClient": 2,
+            "KCodeConfig": 4,
+            "AgentManager": 5
           },
           "files": {
-            "src/acp/AgentManager.ts": 1,
-            "src/acp/callbacks.ts": 3,
-            "src/core/plugin/PluginInterface.ts": 9
+            "src/core/plugin/PluginInterface.ts": 1,
+            "src/acp/callbacks.ts": 2,
+            "src/acp/AgentManager.ts": 5
           }
         }
       }
@@ -171,13 +171,13 @@
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0,
+        "recall5": 0.25,
         "recall10": 0.25,
-        "mrr": 0.041666666666666664,
+        "mrr": 0.25,
         "hitDetails": {
           "symbols": {},
           "files": {
-            "src/server/qa-endpoint.ts": 6
+            "src/server/qa-endpoint.ts": 1
           }
         }
       }
@@ -197,14 +197,14 @@
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 1,
+        "recall5": 0.75,
         "recall10": 1,
-        "mrr": 0.75,
+        "mrr": 0.59375,
         "hitDetails": {
           "symbols": {
             "QaResolver": 1,
-            "Intent": 2,
-            "analyzeIntent": 2
+            "Intent": 4,
+            "analyzeIntent": 8
           },
           "files": {
             "src/server/qa-resolver.ts": 1
@@ -231,15 +231,15 @@
       "metrics": {
         "recall5": 0.3333333333333333,
         "recall10": 0.6666666666666666,
-        "mrr": 0.15873015873015872,
+        "mrr": 0.3666666666666667,
         "hitDetails": {
           "symbols": {
-            "multiRepoSsearch": 3,
-            "CROSS_REPO_ACP_CLIENT": 7
+            "multiRepoSsearch": 1,
+            "CROSS_REPO_ACP_CLIENT": 10
           },
           "files": {
-            "src/server/qa-resolver.ts": 3,
-            "src/server/qa-endpoint.ts": 7
+            "src/server/qa-resolver.ts": 1,
+            "src/server/qa-endpoint.ts": 10
           }
         }
       }
