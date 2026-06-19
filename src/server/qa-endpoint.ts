@@ -732,6 +732,39 @@ async function translateToEnglish(question: string, llmConfig: any): Promise<str
   }
 }
 
+/**
+ * 多库路由：根据问题关键词命中仓库概述，筛选最相关仓库
+ */
+async function routeToRelevantRepos(question: string, allRepos: { name: string }[], repoPaths: Map<string, string>): Promise<string[]> {
+  const q = question.toLowerCase();
+  const scored: { name: string; score: number }[] = [];
+
+  for (const repo of allRepos) {
+    let score = 0;
+    const rn = repo.name.toLowerCase();
+
+    // 1. 问题中直接提到仓库名 → 最高分
+    if (q.includes(rn)) score += 5;
+
+    // 2. 尝试读取 wiki 概述
+    const repoPath = repoBases.get(repo.name);
+    if (repoPath) {
+      try {
+        const content = await fs.readFile(path.join(repoPath, '.codegraph', 'wiki', 'overview.md'), 'utf-8');
+        const techWords = q.split(/\s+/).filter(w => w.length > 3);
+        for (const word of techWords) {
+          if (content.toLowerCase().includes(word)) score += 0.5;
+        }
+      } catch {}
+    }
+
+    if (score > 0) scored.push({ name: repo.name, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map(r => r.name);
+}
+
 export function createQaEndpoint(
   resolveRepo: (repoName?: string) => Promise<{ storagePath: string; name: string } | undefined>,
   resolveLLMConfig: () => Promise<{
@@ -855,6 +888,21 @@ export function createQaEndpoint(
     if (isCrossRepo) {
       const allRepos = await listRepos!();
       log('info', 'cross-repo mode', { repoCount: allRepos.length, names: allRepos.map(r => r.name) });
+
+      // 如果不是 @cross 显式指定，尝试路由到相关仓库
+      if (!hasCrossTag && !explicitRepo && allRepos.length > 3) {
+        // 预构建 repo 路径映射
+        const paths = new Map<string, string>();
+        await Promise.allSettled(allRepos.map(async r => {
+          const entry = await resolveRepo(r.name);
+          if (entry) paths.set(r.name, entry.storagePath);
+        }));
+        const router = await routeToRelevantRepos(question, allRepos, paths);
+        if (router.length < allRepos.length) {
+          crossRepoNames = router;
+          log('info', 'cross-repo routed', { from: allRepos.length, to: router.length, repos: router });
+        }
+      }
     } else {
       entry = await resolveRepo(repoName);
       if (entry) {
