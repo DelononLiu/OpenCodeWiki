@@ -249,6 +249,13 @@ async function main() {
   fs.writeFileSync(outFile, JSON.stringify(output, null, 2));
   fs.writeFileSync(path.join(RESULTS_DIR, 'latest.json'), JSON.stringify(output, null, 2));
   console.log(`\n结果已保存: ${outFile}`);
+
+  // 关闭 Python 重排序进程
+  try {
+    const r = await import('../../src/server/reranker.mjs');
+    if (typeof r.shutdown === 'function') r.shutdown();
+  } catch {}
+  process.exit(0);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

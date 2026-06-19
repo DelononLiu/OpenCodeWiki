@@ -91,6 +91,15 @@ export async function rerank(query, candidates) {
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
 }
 
+/** 关闭 Python 进程 */
+export function shutdown() {
+  if (pyProcess) {
+    try { pyProcess.stdin.end(); } catch {}
+    try { pyProcess.kill(); } catch {}
+    pyProcess = null;
+  }
+}
+
 // ── CLI 测试 ──
 if (process.argv[1]?.endsWith('reranker.mjs')) {
   const q = process.argv[2] || 'search function';
