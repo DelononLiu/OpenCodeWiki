@@ -2,9 +2,12 @@
 /**
  * postinstall.mjs — npm install 后自动处理
  *
- * 解决内网环境 sharp/libvips 下载问题：
- *   npm install 时 sharp 会尝试从 GitHub 下载 libvips，
- *   内网环境会超时失败。此脚本从 vendor/ 的本地备份提取。
+ * 解决内网环境 sharp/libvips 下载问题。
+ * 用法: npm install --ignore-scripts && node scripts/postinstall.mjs
+ *
+ * 流程:
+ *   1. 从 vendor/libvips-*.tar.br 提取到 sharp/vendor/
+ *   2. 重建 sharp 原生模块（prebuild-install 或 node-gyp）
  */
 
 import { execSync } from 'child_process';
@@ -15,56 +18,56 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
-// ── 修复 sharp libvips ──
+console.log('[postinstall] 开始...');
 
-const SHARP_VENDOR = path.join(ROOT, 'node_modules', 'sharp', 'vendor', '8.14.5');
+// ── 1. 提取 libvips ──
+
 const LOCAL_LIBVIPS = path.join(ROOT, 'vendor', 'libvips-8.14.5-linux-x64.tar.br');
+const SHARP_VENDOR_DIR = path.join(ROOT, 'node_modules', 'sharp', 'vendor', '8.14.5');
 
 if (fs.existsSync(LOCAL_LIBVIPS)) {
-  // 检查 sharp 是否已正确安装
-  const sharpNode = path.join(ROOT, 'node_modules', 'sharp', 'build', 'Release', 'sharp-linux-x64.node');
-  const libMissing = !fs.existsSync(sharpNode);
-
-  if (libMissing) {
-    console.log('[postinstall] 从 vendor/ 安装 sharp libvips...');
-    // 确保 vendor 目录存在
-    fs.mkdirSync(path.dirname(SHARP_VENDOR), { recursive: true });
-    // 提取 libvips
+  // 检查 libvips 是否已提取
+  const libvipsSo = path.join(SHARP_VENDOR_DIR, 'lib', 'libvips-cpp.so.42');
+  if (!fs.existsSync(libvipsSo)) {
+    console.log('[postinstall] 提取 libvips...');
+    fs.mkdirSync(path.dirname(SHARP_VENDOR_DIR), { recursive: true });
     try {
       execSync(
-        `tar --use-compress-program=brotli -xf "${LOCAL_LIBVIPS}" -C "${path.dirname(SHARP_VENDOR)}/"`,
+        `tar --use-compress-program=brotli -xf "${LOCAL_LIBVIPS}" -C "${path.dirname(SHARP_VENDOR_DIR)}/"`,
         { stdio: 'pipe', timeout: 30000 }
       );
-      console.log('[postinstall] ✓ libvips 已安装');
+      console.log('[postinstall] ✓ libvips 已提取');
     } catch (e) {
       console.warn('[postinstall] ⚠ libvips 解压失败:', e.message);
     }
+  } else {
+    console.log('[postinstall] libvips 已就绪');
+  }
+} else {
+  console.log('[postinstall] vendor/libvips 不存在，跳过');
+}
 
-    // 重建 sharp 原生模块
-    if (fs.existsSync(path.join(ROOT, 'node_modules', 'sharp'))) {
-      try {
-        execSync('npx prebuild-install', {
-          cwd: path.join(ROOT, 'node_modules', 'sharp'),
-          stdio: 'pipe',
-          timeout: 60000,
-        });
-        console.log('[postinstall] ✓ sharp 原生模块已安装');
-      } catch {
-        try {
-          execSync('node-gyp rebuild', {
-            cwd: path.join(ROOT, 'node_modules', 'sharp'),
-            stdio: 'pipe',
-            timeout: 120000,
-          });
-          console.log('[postinstall] ✓ sharp 已编译');
-        } catch (e2) {
-          console.warn('[postinstall] ⚠ sharp 编译失败（回退到 WASM 模式）:', e2.message);
-        }
-      }
+// ── 2. 构建 sharp 原生模块 ──
+
+const sharpNode = path.join(ROOT, 'node_modules', 'sharp', 'build', 'Release', 'sharp-linux-x64.node');
+if (fs.existsSync(path.join(ROOT, 'node_modules', 'sharp'))) {
+  if (!fs.existsSync(sharpNode)) {
+    console.log('[postinstall] 构建 sharp 原生模块...');
+    // 先试 prebuild-install（下载预编译包）
+    try {
+      execSync('npx prebuild-install || node-gyp rebuild', {
+        cwd: path.join(ROOT, 'node_modules', 'sharp'),
+        stdio: 'pipe',
+        timeout: 120000,
+      });
+      console.log('[postinstall] ✓ sharp 构建完成');
+    } catch (e) {
+      console.warn('[postinstall] ⚠ sharp 构建失败:', e.message);
+      console.warn('[postinstall] 嵌入模型将无法使用 @xenova/transformers');
     }
   } else {
     console.log('[postinstall] sharp 已就绪');
   }
-} else {
-  console.log('[postinstall] vendor/libvips 不存在（sharp 将尝试在线下载）');
 }
+
+console.log('[postinstall] 完成');
