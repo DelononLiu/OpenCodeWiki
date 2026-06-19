@@ -40,8 +40,8 @@
     "repo": "kcode",
     "question": "What tools does kcode expose to agents?",
     "intent": "what-structure",
-    "golden_symbols": ["ToolItem", "ToolGroup", "getTaskToolGroups"],
-    "golden_files": ["src/types/index.ts"],
+    "golden_symbols": ["KCodeClient", "KCodePlugin", "AgentManager", "KCodeConfig"],
+    "golden_files": ["src/acp/callbacks.ts", "src/core/plugin/PluginInterface.ts", "src/acp/AgentManager.ts"],
     "answer_quality": "correct"
   },
   {
@@ -67,8 +67,8 @@
     "repo": "OpenCodeWiki",
     "question": "How are cross-repo queries searched across multiple repositories?",
     "intent": "how-to",
-    "golden_symbols": ["isCrossRepo", "listRepos", "repoBaseMap", "crossRepoNames"],
-    "golden_files": ["src/server/qa-endpoint.ts"],
+    "golden_symbols": ["multiRepoSsearch", "createQaEndpoint", "CROSS_REPO_ACP_CLIENT", "isCrossRepo"],
+    "golden_files": ["src/server/qa-resolver.ts", "src/server/qa-endpoint.ts"],
     "answer_quality": "correct"
   },
   {

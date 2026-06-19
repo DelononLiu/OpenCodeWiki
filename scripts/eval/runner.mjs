@@ -16,6 +16,30 @@ import { execFileSync } from 'child_process';
 import os from 'os';
 import { fileURLToPath } from 'url';
 
+// ── 向量搜索（条件加载，代码嵌入服务）────────────────────────────────
+let vs;
+try {
+  vs = await import('../../src/server/vector-store.mjs');
+} catch {}
+
+// 从 codegraph.db 加载节点名/路径，供向量搜索结果转换为 evaluate 格式
+async function getNodesForRepo(repoPath) {
+  const cacheKey = repoPath;
+  const cached = getNodesForRepo._cache?.get(cacheKey);
+  if (cached) return cached;
+  try {
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(repoPath + '/.codegraph/codegraph.db');
+    const rows = db.prepare('SELECT id, name, file_path AS filePath, kind FROM nodes').all();
+    db.close();
+    const map = new Map(rows.map(r => [r.id, r]));
+    (getNodesForRepo._cache ??= new Map()).set(cacheKey, map);
+    return map;
+  } catch { return new Map(); }
+}
+getNodesForRepo._cache = undefined;
+
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -133,8 +157,45 @@ async function main() {
       continue;
     }
 
-    const searchResult = codegraphSearch(q.question, repoPath, 10);
-    const metrics = evaluate(searchResult, q);
+    // ── FTS5 搜索（codegraph） ──
+    const ftsResults = codegraphSearch(q.question, repoPath, 10);
+
+    // ── 向量搜索 + RRF 融合 ──
+    let fusedResults = ftsResults;
+    if (vs) {
+      try {
+        const queryVec = await vs.embedText(q.question);
+        const vecResults = vs.vectorSearch(q.repo, queryVec, 10);
+        if (vecResults.length > 0) {
+          // 从 codegraph 加载向量结果对应的节点详情
+          const nodesMap = await getNodesForRepo(repoPath);
+          const vecEnriched = vecResults.map(v => {
+            const info = nodesMap.get(v.nodeId) || {};
+            return { node: { id: v.nodeId, name: info.name || '', filePath: info.filePath || '', kind: info.kind || '' }, score: v.score };
+          });
+          // RRF 融合：合并 FTS5 和向量结果
+          // 向量结果需转换为 distance（1-score），越小越好
+          const vecForRRF = vecResults.map(v => ({ nodeId: v.nodeId, distance: 1 - v.score }));
+          const ftsForRRF = ftsResults.map(r => ({ nodeId: r.node?.id || '' }));
+          const mergedScores = vs.rrfMerge(ftsForRRF, vecForRRF, 60);
+          const scoreMap = new Map(mergedScores.map(m => [m.nodeId, m.rrfScore]));
+          // 合并去重：向量结果优先，FTS5 结果补充
+          const seen = new Set();
+          const combined = [];
+          for (const item of [...vecEnriched, ...ftsResults]) {
+            const id = item.node?.id || '';
+            if (seen.has(id)) continue;
+            seen.add(id);
+            combined.push({ ...item, _rrfScore: scoreMap.get(id) || 0 });
+          }
+          fusedResults = combined.sort((a, b) => b._rrfScore - a._rrfScore).slice(0, 10);
+        }
+      } catch (e) {
+        console.warn(`  ⚠ 向量搜索失败 ${q.repo}: ${e.message}`);
+      }
+    }
+
+    const metrics = evaluate(fusedResults, q);
 
     results.push({ ...q, metrics });
 

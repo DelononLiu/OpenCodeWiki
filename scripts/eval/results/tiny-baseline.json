@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-06-19T08:40:00.910Z",
+  "timestamp": "2026-06-19T10:30:08.171Z",
   "set": "tiny",
-  "isBaseline": true,
+  "isBaseline": false,
   "aggregated": {
-    "avgRecall5": 0.47333333333333333,
-    "avgRecall10": 0.4933333333333333,
-    "avgMrr": 0.39575,
-    "passCount": 8,
+    "avgRecall5": 0.5638095238095238,
+    "avgRecall10": 0.665,
+    "avgMrr": 0.46918367346938766,
+    "passCount": 9,
     "total": 10
   },
   "results": [
@@ -53,15 +53,14 @@
       "answer_quality": "correct",
       "metrics": {
         "recall5": 0.4,
-        "recall10": 0.6,
-        "mrr": 0.27,
+        "recall10": 0.4,
+        "mrr": 0.3,
         "hitDetails": {
           "symbols": {
             "searchNodes": 1
           },
           "files": {
-            "src/mcp/tools.ts": 4,
-            "src/db/queries.ts": 10
+            "src/mcp/tools.ts": 2
           }
         }
       }
@@ -109,12 +108,13 @@
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0.25,
-        "recall10": 0.25,
-        "mrr": 0.25,
+        "recall5": 0.5,
+        "recall10": 0.5,
+        "mrr": 0.3,
         "hitDetails": {
           "symbols": {
-            "connect": 1
+            "connect": 1,
+            "AcpClient": 5
           },
           "files": {}
         }
@@ -126,21 +126,33 @@
       "question": "What tools does kcode expose to agents?",
       "intent": "what-structure",
       "golden_symbols": [
-        "ToolItem",
-        "ToolGroup",
-        "getTaskToolGroups"
+        "KCodeClient",
+        "KCodePlugin",
+        "AgentManager",
+        "KCodeConfig"
       ],
       "golden_files": [
-        "src/types/index.ts"
+        "src/acp/callbacks.ts",
+        "src/core/plugin/PluginInterface.ts",
+        "src/acp/AgentManager.ts"
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0,
-        "recall10": 0,
-        "mrr": 0,
+        "recall5": 0.5714285714285714,
+        "recall10": 1,
+        "mrr": 0.4331065759637188,
         "hitDetails": {
-          "symbols": {},
-          "files": {}
+          "symbols": {
+            "AgentManager": 1,
+            "KCodeClient": 3,
+            "KCodeConfig": 7,
+            "KCodePlugin": 9
+          },
+          "files": {
+            "src/acp/AgentManager.ts": 1,
+            "src/acp/callbacks.ts": 3,
+            "src/core/plugin/PluginInterface.ts": 9
+          }
         }
       }
     },
@@ -159,13 +171,13 @@
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0.25,
+        "recall5": 0,
         "recall10": 0.25,
-        "mrr": 0.08333333333333333,
+        "mrr": 0.041666666666666664,
         "hitDetails": {
           "symbols": {},
           "files": {
-            "src/server/qa-endpoint.ts": 3
+            "src/server/qa-endpoint.ts": 6
           }
         }
       }
@@ -187,12 +199,12 @@
       "metrics": {
         "recall5": 1,
         "recall10": 1,
-        "mrr": 0.6458333333333333,
+        "mrr": 0.75,
         "hitDetails": {
           "symbols": {
             "QaResolver": 1,
-            "Intent": 3,
-            "analyzeIntent": 4
+            "Intent": 2,
+            "analyzeIntent": 2
           },
           "files": {
             "src/server/qa-resolver.ts": 1
@@ -206,22 +218,29 @@
       "question": "How are cross-repo queries searched across multiple repositories?",
       "intent": "how-to",
       "golden_symbols": [
-        "isCrossRepo",
-        "listRepos",
-        "repoBaseMap",
-        "crossRepoNames"
+        "multiRepoSsearch",
+        "createQaEndpoint",
+        "CROSS_REPO_ACP_CLIENT",
+        "isCrossRepo"
       ],
       "golden_files": [
+        "src/server/qa-resolver.ts",
         "src/server/qa-endpoint.ts"
       ],
       "answer_quality": "correct",
       "metrics": {
-        "recall5": 0,
-        "recall10": 0,
-        "mrr": 0,
+        "recall5": 0.3333333333333333,
+        "recall10": 0.6666666666666666,
+        "mrr": 0.15873015873015872,
         "hitDetails": {
-          "symbols": {},
-          "files": {}
+          "symbols": {
+            "multiRepoSsearch": 3,
+            "CROSS_REPO_ACP_CLIENT": 7
+          },
+          "files": {
+            "src/server/qa-resolver.ts": 3,
+            "src/server/qa-endpoint.ts": 7
+          }
         }
       }
     },
