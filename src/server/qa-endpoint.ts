@@ -747,7 +747,7 @@ async function routeToRelevantRepos(question: string, allRepos: { name: string }
     if (q.includes(rn)) score += 5;
 
     // 2. 尝试读取 wiki 概述
-    const repoPath = repoBases.get(repo.name);
+    const repoPath = repoPaths.get(repo.name);
     if (repoPath) {
       try {
         const content = await fs.readFile(path.join(repoPath, '.codegraph', 'wiki', 'overview.md'), 'utf-8');
