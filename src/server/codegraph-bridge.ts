@@ -1011,31 +1011,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     var container = document.getElementById('navTree');
     var html = '';
 
-    // ── 📖 Wiki ──
-    html += '<div class="nav-group-label">📖 Wiki</div>';
+    // ── 概览 / 对外API / 依赖图谱 ──
     html += '<div class="nav-section">';
-    html += '<a class="nav-item" data-page="overview" href="#overview">Overview</a>';
-    html += '<a class="nav-item" data-page="external-api" href="#external-api">外部API</a>';
-    html += '<a class="nav-item" data-page="core" href="#core">Core</a>';
-    html += '<a class="nav-item" data-page="hot-modules" href="#hot-modules">热点模块</a>';
+    html += '<a class="nav-item" data-page="overview" href="#overview">📋 概览</a>';
+    html += '<a class="nav-item" data-page="external-api" href="#external-api">🔄 对外API</a>';
+    html += '<a class="nav-item" data-page="dependencies" href="#dependencies">🌐 依赖图谱</a>';
     html += '</div>';
 
     html += '<div class="nav-divider"></div>';
 
-    // ── 💬 问答 ──
-    html += '<div class="nav-group-label">💬 问答</div>';
+    // ── 💬 代码问答 ──
+    html += '<div class="nav-group-label">💬 代码问答</div>';
     html += '<div class="nav-section">';
-    html += '<a class="nav-item" data-page="qa-latest" href="#qa-latest">最新问答</a>';
-    html += '<a class="nav-item" data-page="qa-hot" href="#qa-hot">最热问答</a>';
+    html += '<a class="nav-item" data-page="qa-curated" href="#qa-curated">📚 精选问答</a>';
+    html += '<a class="nav-item" data-page="qa-faq" href="#qa-faq">📋 常见问题</a>';
     html += '</div>';
 
+    html += '<div class="nav-divider"></div>';
+
+    // ── 📎 代码知识 ──
+    html += '<div class="nav-group-label">📎 代码知识</div>';
+    html += '<div class="nav-section">';
+    html += '<a class="nav-item" data-page="gotchas" href="#gotchas">🔥 常见踩坑</a>';
+    html += '<a class="nav-item" data-page="impact-map" href="#impact-map">🔗 影响地图</a>';
+    html += '<a class="nav-item" data-page="heatmap" href="#heatmap">📊 代码热力图</a>';
+    html += '</div>';
+
+    // ── 📦 模块树 ──
     if (TREE.length > 0) {
       html += '<div class="nav-divider"></div>';
-    }
-
-    // ── 📦 模块 ──
-    if (TREE.length > 0) {
-      html += '<div class="nav-group-label">📦 模块</div>';
+      html += '<div class="nav-group-label">📦 模块树</div>';
       html += '<div class="nav-section">';
       for (var i = 0; i < TREE.length; i++) {
         html += '<a class="nav-item" data-page="' + TREE[i].slug + '" href="#' + TREE[i].slug + '">' + TREE[i].name + '</a>';
@@ -1061,8 +1066,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     history.replaceState(null, '', '#' + encodeURIComponent(slug));
 
     // Q&A list pages — fetch from #Q API, render inline
-    if (slug === 'qa-latest' || slug === 'qa-hot') {
-      renderQaList(slug === 'qa-hot' ? 'visit' : 'latest');
+    if (slug === 'qa-curated' || slug === 'qa-faq') {
+      renderQaList(slug);
       return;
     }
 
@@ -1083,18 +1088,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     });
   }
 
-  function renderQaList(sort) {
+  function renderQaList(pageType) {
     var el = document.getElementById('content');
     el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
 
-    var url = '/api/qa/entries?repo=' + encodeURIComponent(REPO) + '&sort=' + sort + '&limit=20';
+    var params = 'repo=' + encodeURIComponent(REPO) + '&sort=visit&limit=20';
+    if (pageType === 'qa-curated') {
+      params += '&calibrated=1';
+    }
+    var url = '/api/qa/entries?' + params;
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
-        el.innerHTML = '<div class="empty-state"><h2>' + (sort === 'latest' ? '暂无最新问答' : '暂无热门问答') + '</h2></div>';
+        var emptyMsg = pageType === 'qa-curated' ? '暂无精选问答' : '暂无常见问题';
+        el.innerHTML = '<div class="empty-state"><h2>' + emptyMsg + '</h2></div>';
         return;
       }
-      var title = sort === 'latest' ? '最新问答' : '最热问答';
+      var title = pageType === 'qa-curated' ? '📚 精选问答' : '📋 常见问题';
       var html = '<h1>' + title + '</h1>';
       html += '<div class="qa-list">';
       for (var i = 0; i < data.entries.length; i++) {

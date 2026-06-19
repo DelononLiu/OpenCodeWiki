@@ -85,6 +85,7 @@ export interface QaListQuery {
   mode?: 'lightweight' | 'deep';
   status?: 'active' | 'archived';
   domain?: Domain;
+  calibrated?: boolean;
   page?: number;
   limit?: number;
   sort?: 'latest' | 'popular' | 'visit';
@@ -131,7 +132,6 @@ CREATE INDEX IF NOT EXISTS idx_qa_session ON qa_entries(session_id);
 CREATE INDEX IF NOT EXISTS idx_qa_parent ON qa_entries(parent_qid);
 CREATE INDEX IF NOT EXISTS idx_qa_mode ON qa_entries(mode);
 CREATE INDEX IF NOT EXISTS idx_qa_created ON qa_entries(created_at);
-CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain);
 CREATE INDEX IF NOT EXISTS idx_ca_entry ON calibrated_answers(qa_entry_id);
 `;
 
@@ -152,11 +152,14 @@ function getDb(): DatabaseSync {
   _db = new DatabaseSync(dbPath);
   // Enable WAL mode for concurrent read performance
   _db.exec('PRAGMA journal_mode=WAL');
+  // Create tables first (IF NOT EXISTS)
   _db.exec(SQL_CREATE_TABLES);
   // Migrate: add domain column if missing (old db created before domain was introduced)
   const cols = _db.prepare("PRAGMA table_info('qa_entries')").all() as any[];
   if (!cols.some((c: any) => c.name === 'domain')) {
     _db.exec("ALTER TABLE qa_entries ADD COLUMN domain TEXT NOT NULL DEFAULT 'general'");
+    // Re-create domain index now that the column exists
+    try { _db.exec('CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain)'); } catch {}
   }
   return _db;
 }
@@ -362,6 +365,9 @@ export function listEntries(query: QaListQuery): { entries: QaEntrySummary[]; to
   if (query.domain) {
     conditions.push('e.domain = ?');
     params.push(query.domain);
+  }
+  if (query.calibrated) {
+    conditions.push('(SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = e.id) > 0');
   }
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';

@@ -9,7 +9,6 @@
 :root{
 --bg:#f5f5f7;
 --surface:#fff;
---sidebar-bg:#f0f0f2;
 --border:#e5e7eb;
 --text:#111;
 --text2:#555;
@@ -19,24 +18,12 @@
 --input-bg:#f7f7f9;
 }
 /* USER_BAR_CSS */
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex}
-
-/* Layout */
-.sidebar{width:280px;flex-shrink:0;background:var(--sidebar-bg);display:flex;flex-direction:column;border-right:1px solid var(--border);height:100vh;transition:width .25s ease,padding .25s ease;position:relative}
-.sidebar-header{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;min-height:52px}
-.sidebar-logo{font-size:16px;font-weight:700;color:var(--blue);flex:1}
-.sidebar-list{flex:1;overflow-y:auto;padding:0 8px}
-.sidebar-item{display:block;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--text);font-size:14px;line-height:1.4;cursor:pointer;transition:background .15s;margin-bottom:2px}
-.sidebar-group{font-size:11px;font-weight:600;color:var(--text3);padding:12px 12px 4px;text-transform:uppercase;letter-spacing:.04em}
-.sidebar-item:hover{background:var(--tag-bg)}
-.sidebar-item-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sidebar-item-time{font-size:11px;color:var(--text3);margin-top:2px}
-.sidebar-empty{font-size:12px;color:var(--text3);padding:12px;text-align:center}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* Main area */
-.main{flex:1;display:flex;flex-direction:column;align-items:center;padding:25vh 40px 0;min-width:0;overflow-y:auto}
+.main{display:flex;flex-direction:column;align-items:center;padding:12vh 40px 0;min-height:100vh;overflow-y:auto}
 .qa-box{max-width:680px;width:100%;margin:0 auto}
-.qa-welcome{text-align:center;margin-bottom:16px;position:relative;top:-40px}
+.qa-welcome{text-align:center;margin-bottom:16px}
 .qa-welcome-title{font-size:28px;font-weight:700;color:var(--blue);letter-spacing:-.02em}
 .qa-welcome-sub{font-size:13px;color:var(--text3);font-weight:400;letter-spacing:normal}
 .repo-section{width:800px;margin:0 auto;flex-shrink:0}
@@ -49,6 +36,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 .qa-examples button{padding:5px 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface);font-size:12px;color:var(--text3);cursor:pointer}
 .qa-examples button:hover{border-color:var(--blue);color:var(--blue)}
 .divider{height:1px;background:var(--border);margin:20px auto;width:800px;flex-shrink:0}
+
+/* Team activity */
+.team-activity{width:800px;margin:24px auto 0;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:none}
+.activity-header{font-size:13px;font-weight:600;color:var(--text3);margin-bottom:12px;letter-spacing:.02em}
+.activity-body{display:flex;flex-direction:column;gap:10px}
+.activity-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg);font-size:13px;color:var(--text);text-decoration:none;transition:background .1s}
+.activity-row:hover{background:var(--tag-bg)}
+.activity-icon{font-size:15px;flex-shrink:0}
+.activity-text{flex:1}
+.activity-meta{font-size:11px;color:var(--text3);flex-shrink:0}
+
+.activity-skeleton{display:flex;gap:10px;padding:8px 10px}
+.activity-skeleton .sk{height:14px;border-radius:6px;background:var(--tag-bg);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* Repo grid */
 .repo-grid{display:grid;grid-template-columns:1fr;gap:10px;width:100%}
 @media(min-width:640px){.repo-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:900px){.repo-grid{grid-template-columns:repeat(3,1fr)}}
@@ -64,19 +67,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 .add-card-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--tag-bg);flex-shrink:0}
 .add-card-text{font-size:13px;color:var(--text3)}
 .empty-state{text-align:center;padding:32px 20px;font-size:13px;color:var(--text3)}
-
-/* Floating app icon */
-.app-icon{position:fixed;top:14px;left:14px;z-index:100;width:24px;height:24px;cursor:pointer;color:var(--text3);transition:left .2s ease;background:none;border:none;padding:0}
-.app-icon:hover{color:var(--text)}
 .loading-state{text-align:center;padding:32px 20px;font-size:13px;color:var(--text3)}
 .search-results-panel{max-width:680px;width:100%;margin:8px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);max-height:400px;overflow-y:auto;z-index:10;position:relative}
 .search-results-panel .search-header{font-size:11px;color:var(--text3);padding:10px 14px 6px;border-bottom:1px solid var(--border)}
 .search-results-panel .search-qid{font-weight:600;color:var(--blue)}
 .search-result{padding:8px 14px;border-bottom:1px solid var(--border);transition:background .1s}
-.search-result:hover{background:var(--sidebar-bg)}
+.search-result:hover{background:var(--tag-bg)}
 .search-result-path{font-size:12px;color:var(--blue);cursor:pointer;font-weight:500;margin-bottom:3px}
 .search-result-path:hover{text-decoration:underline}
-.search-snippet{background:var(--sidebar-bg);border-radius:6px;padding:6px 10px;margin:4px 0 0;overflow-x:auto;font-size:11px;line-height:1.4;color:var(--text2)}
+.search-snippet{background:var(--tag-bg);border-radius:6px;padding:6px 10px;margin:4px 0 0;overflow-x:auto;font-size:11px;line-height:1.4;color:var(--text2)}
 .search-snippet code{font-family:'SF Mono',Consolas,'Courier New',monospace;white-space:pre}
 .search-empty{padding:20px 14px;font-size:13px;color:var(--text3);text-align:center}
 .search-loading{padding:20px;text-align:center;font-size:13px;color:var(--text3)}
@@ -85,20 +84,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
 </style>
 </head>
 <body>
-
-<button class="app-icon" id="appIcon" onclick="toggleSidebar()" title="切换侧边栏">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.8311 1.67383C14.7468 1.71287 16.493 1.88034 17.9043 2.06934C20.0999 2.36353 21.7899 4.04161 22.0908 6.23633C22.3072 7.81681 22.4951 9.81754 22.4951 12.001L22.4863 12.8105C22.4475 14.6772 22.2802 16.381 22.0908 17.7637L22.0586 17.9678C21.6839 20.0619 20.0314 21.6457 17.9043 21.9307L17.2793 22.0098C15.7757 22.1906 13.9611 22.335 12 22.335L11.1689 22.3262C9.52677 22.2927 8.0095 22.1647 6.7207 22.0098L6.0957 21.9307C3.96847 21.6457 2.31512 20.062 1.94043 17.9678L1.9082 17.7637C1.71887 16.381 1.55253 14.6772 1.51367 12.8105L1.50488 12.001C1.50488 9.81755 1.69179 7.81681 1.9082 6.23633C2.20909 4.0415 3.89993 2.36347 6.0957 2.06934C7.70871 1.85334 9.75883 1.66504 12 1.66504L12.8311 1.67383ZM12 3.26465C11.1519 3.26465 10.3313 3.29392 9.55273 3.34082V20.6582C10.3313 20.7051 11.1519 20.7354 12 20.7354C14.1542 20.7353 16.1312 20.5537 17.6914 20.3447C19.1775 20.1457 20.3032 19.0244 20.5059 17.5459C20.7148 16.0197 20.8945 14.0952 20.8945 12.001C20.8945 9.90634 20.7149 7.9805 20.5059 6.4541C20.3032 4.97563 19.1775 3.85428 17.6914 3.65527C16.1312 3.44635 14.1542 3.26465 12 3.26465ZM7.95312 3.4668C7.36648 3.52363 6.81548 3.5874 6.30859 3.65527C4.82252 3.85428 3.69678 4.97563 3.49414 6.4541C3.28514 7.9805 3.10449 9.90633 3.10449 12.001C3.10455 14.0952 3.28518 16.0197 3.49414 17.5459C3.69678 19.0244 4.82251 20.1457 6.30859 20.3447C6.81545 20.4126 7.36652 20.4754 7.95312 20.5322V3.4668Z" fill="currentColor"></path></svg>
-</button>
-
-<div class="sidebar" id="qaSidebar">
-  <div class="sidebar-header">
-    <span class="sidebar-logo">OpenCodeWiki</span>
-    <!-- USER_BAR_HTML -->
-  </div>
-  <div class="sidebar-list" id="sidebarList">
-    <div class="sidebar-empty">Loading...</div>
-  </div>
-</div>
 
 <div class="main" id="mainArea">
   <div class="qa-box">
@@ -113,6 +98,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
       <button onclick="askExample('How does the data flow work?')">Data flow</button>
     </div>
   </div>
+
+  <!-- 🔥 Team Activity -->
+  <div class="team-activity" id="teamActivity">
+    <div class="activity-header">📊 代码动态</div>
+    <div class="activity-body" id="activityBody">
+      <div class="activity-skeleton"><div class="sk" style="width:60%"></div></div>
+      <div class="activity-skeleton"><div class="sk" style="width:45%"></div></div>
+      <div class="activity-skeleton"><div class="sk" style="width:50%"></div></div>
+    </div>
+  </div>
+
   <div class="divider" id="repoDivider" style="display:none"></div>
   <div class="repo-section">
   <div id="repoGrid" class="repo-grid"></div>
@@ -248,107 +244,56 @@ function handleHomeFiles(files) {
 
 function askExample(text) { qaInput.value = text; qaAskBtn.disabled = false; autoResize(qaInput); qaInput.focus(); }
 
-function toggleSidebar() {
-  var sidebar = document.getElementById('qaSidebar');
-  var icon = document.getElementById('appIcon');
-  sidebar.classList.toggle('collapsed');
-  if (sidebar.classList.contains('collapsed')) {
-    sidebar.style.transition = 'none';
-    sidebar.style.overflow = 'hidden';
-    sidebar.style.borderRight = 'none';
-    sidebar.style.width = '0';
-    sidebar.style.padding = '0';
-    icon.style.transition = 'none';
-    icon.style.left = '14px';
-    setTimeout(function() { sidebar.style.transition = ''; icon.style.transition = ''; }, 50);
-  } else {
-    sidebar.style.transition = '';
-    sidebar.style.overflow = '';
-    sidebar.style.borderRight = '';
-    sidebar.style.width = '280px';
-    sidebar.style.padding = '';
-    icon.style.transition = 'none';
-    icon.style.left = '294px';
-    setTimeout(function() { icon.style.transition = ''; }, 50);
-  }
-}
+// ── Team Activity ────────────────────────────────────────────────
 
-function formatTime(isoStr) {
-  var d = new Date(isoStr), now = new Date(), diff = now - d, m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return m + 'm ago';
-  var h = Math.floor(m / 60);
-  if (h < 24) return h + 'h ago';
-  var days = Math.floor(h / 24);
-  if (days < 30) return days + 'd ago';
-  return d.toLocaleDateString();
-}
-
-function getTimeGroup(isoStr) {
-  var d = new Date(isoStr);
-  var now = new Date();
-  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  var dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  var diffDays = Math.floor((today.getTime() - dDate.getTime()) / 86400000);
-
-  if (diffDays === 0) return '今天';
-  if (diffDays < 7) return '本周';
-
-  var monthKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-  return monthKey;
-}
-
-async function loadLatestSessions() {
-  var listEl = document.getElementById('sidebarList');
+async function loadTeamActivity() {
+  var el = document.getElementById('teamActivity');
+  var body = document.getElementById('activityBody');
   try {
-    var resp = await fetch('/api/qa/sessions/latest');
-    if (!resp.ok) throw new Error('Failed');
-    var sessions = await resp.json();
-    if (!sessions || sessions.length === 0) {
-      listEl.innerHTML = '<div class="sidebar-empty">尚无问答记录</div>';
-      return;
-    }
-    var groups = {};
-    for (var i = 0; i < sessions.length; i++) {
-      var s = sessions[i];
-      var grp = getTimeGroup(s.updatedAt);
-      if (!groups[grp]) groups[grp] = [];
-      groups[grp].push(s);
-    }
-    var groupOrder = ['今天', '本周'];
-    var html = '';
-    for (var gi = 0; gi < groupOrder.length; gi++) {
-      var g = groupOrder[gi];
-      if (groups[g]) {
-        html += '<div class="sidebar-group">' + g + '</div>';
-        for (var j = 0; j < groups[g].length; j++) {
-          html += renderSidebarItem(groups[g][j]);
-        }
-        delete groups[g];
+    var [todayRes, calRes] = await Promise.all([
+      fetch('/api/qa/entries?sort=latest&limit=5&status=active'),
+      fetch('/api/qa/entries?calibrated=1&sort=latest&limit=5'),
+    ]);
+    var today = await todayRes.json();
+    var calibrated = await calRes.json();
+
+    var todayEntries = (today.entries || []).filter(function(e) {
+      var d = new Date(e.createdAt);
+      var now = new Date();
+      return d.toDateString() === now.toDateString();
+    });
+
+    var rows = [];
+    if (todayEntries.length > 0) {
+      rows.push('<a class="activity-row" href="/qa">' +
+        '<span class="activity-icon">💬</span>' +
+        '<span class="activity-text">今日问答 <strong>' + todayEntries.length + '</strong> 条</span>' +
+        '<span class="activity-meta">' + todayEntries[0].repo + ' 等</span></a>');
+    } else if (today.entries && today.entries.length > 0) {
+      var recent = today.entries.slice(0, 3);
+      for (var ri = 0; ri < recent.length; ri++) {
+        var re = recent[ri];
+        rows.push('<a class="activity-row" href="/qa?qid=' + re.qid + '">' +
+          '<span class="activity-icon">💬</span>' +
+          '<span class="activity-text">' + escapeHtml(re.question.slice(0, 40)) + '</span>' +
+          '<span class="activity-meta">' + re.repo + '</span></a>');
       }
     }
-    var remaining = Object.keys(groups).sort().reverse();
-    for (var ri = 0; ri < remaining.length; ri++) {
-      var g = remaining[ri];
-      html += '<div class="sidebar-group">' + g + '</div>';
-      for (var j = 0; j < groups[g].length; j++) {
-        html += renderSidebarItem(groups[g][j]);
-      }
+    if (calibrated.entries && calibrated.entries.length > 0) {
+      var first = calibrated.entries[0];
+      rows.push('<a class="activity-row" href="/qa?qid=' + first.qid + '">' +
+        '<span class="activity-icon">✅</span>' +
+        '<span class="activity-text">最近校准<span class="activity-meta" style="margin-left:6px">' + escapeHtml(first.question.slice(0, 30)) + '</span></span>' +
+        '<span class="activity-meta">' + (calibrated.entries.length - 1 > 0 ? '等' + calibrated.entries.length + ' 条' : '') + '</span></a>');
     }
-    listEl.innerHTML = html;
-  } catch { listEl.innerHTML = '<div class="sidebar-empty">加载失败 <button onclick="loadLatestSessions()" style="background:none;border:none;color:var(--blue);cursor:pointer;text-decoration:underline">重试</button></div>'; }
+
+    if (rows.length === 0) { el.style.display = 'none'; return; }
+    body.innerHTML = rows.join('');
+    el.style.display = 'block';
+  } catch { el.style.display = 'none'; }
 }
 
-function renderSidebarItem(s) {
-  var timeLabel = formatTime(s.updatedAt);
-  var qidHtml = s.qid ? '<span style="font-size:10px;font-weight:600;color:var(--blue);margin-right:4px">#Q' + s.qid + '</span>' : '';
-  return '<a class="sidebar-item" href="/qa/' + encodeURIComponent(s.id) + '">' +
-    '<div class="sidebar-item-summary">' + qidHtml + escapeHtml(s.summary) + '</div>' +
-    '<div class="sidebar-item-meta" style="display:flex;align-items:center;gap:6px;margin-top:3px">' +
-    '<span class="sidebar-item-time">' + timeLabel + '</span>' +
-    '<span style="font-size:10px;color:var(--text3);background:var(--tag-bg);padding:1px 6px;border-radius:6px">' + s.messageCount + '</span>' +
-    '</div></a>';
-}
+// ── Repos ────────────────────────────────────────────────────────
 
 async function fetchRepos() {
   var resp = await fetch('/api/repos');
@@ -394,14 +339,8 @@ function renderGrid() {
 
 function toggleAnalyzer() {}
 
-document.getElementById('appIcon').style.left = '14px';
-document.getElementById('qaSidebar').style.width = '0';
-document.getElementById('qaSidebar').style.padding = '0';
-document.getElementById('qaSidebar').style.overflow = 'hidden';
-document.getElementById('qaSidebar').style.borderRight = 'none';
-document.getElementById('qaSidebar').classList.add('collapsed');
 loadRepos();
-loadLatestSessions();
+loadTeamActivity();
 document.getElementById('fileInput').addEventListener('change', function(e) { handleHomeFiles(e.target.files); });
 /* USER_BAR_JS */
 </script>
