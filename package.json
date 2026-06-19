@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bash scripts/start.sh",
+    "dev": "bash scripts/start.sh --watch",
     "start": "bash scripts/start.sh",
     "build": "npx tsc",
     "wiki": "node scripts/wiki.mjs",

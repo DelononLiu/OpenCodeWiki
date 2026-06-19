@@ -29,4 +29,21 @@ echo "  工作目录: $ROOT_DIR"
 echo ""
 
 cd "$ROOT_DIR"
-exec npx tsx src/server/codegraph-bridge.ts "$@"
+
+# Check for --watch flag (stripped from $@ before passing to tsx)
+WATCH=""
+ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--watch" ]; then
+    WATCH="watch"
+  else
+    ARGS+=("$arg")
+  fi
+done
+
+if [ "$WATCH" = "watch" ]; then
+  echo "  监听模式：代码变更自动重启"
+  exec npx tsx watch src/server/codegraph-bridge.ts "${ARGS[@]}"
+else
+  exec npx tsx src/server/codegraph-bridge.ts "${ARGS[@]}"
+fi
