@@ -866,7 +866,11 @@ export function createQaEndpoint(
           // 单库问题 → 只搜匹配到的仓库
           crossRepoNames = scopeResult.repos;
         }
-        // cross-compare / cross-call / global-search → 保持全量并行搜（已有逻辑）
+        // cross-compare → 只搜问题中提到的仓库
+        if (scopeResult.scope === 'cross-compare' && scopeResult.repos.length > 0) {
+          crossRepoNames = scopeResult.repos;
+        }
+        // cross-call / global-search → 保持全量并行搜（已有逻辑）
         // impact → 只搜目标仓库
         if (scopeResult.scope === 'impact' && scopeResult.repos.length > 0) {
           crossRepoNames = scopeResult.repos;
