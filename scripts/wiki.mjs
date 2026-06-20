@@ -480,17 +480,53 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
   if (fs.existsSync(dbPath)) {
     const db = new DatabaseSync(dbPath);
     const allFiles = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
-    // Assign files to modules: each file goes to the first module whose name matches its path
+    // Assign files to modules: try name matching first, fall back to directory grouping
     const modFiles = {};
     for (const name of moduleNames) {
       modFiles[name] = [];
       const nameLower = name.toLowerCase();
+      // Extract potential keyword from Chinese module name (e.g. "代码提取引擎" → "extraction")
+      // For English module names, use direct matches
       for (const f of allFiles) {
         const fileLower = f.path.toLowerCase();
-        // Check if file path contains module name keywords
-        if (fileLower.includes(nameLower) || fileLower.startsWith(nameLower.split(/[\\/\\s-]/)[0])) {
+        if (fileLower.includes(nameLower)) {
           modFiles[name].push(f.path);
         }
+      }
+    }
+
+    // Fallback: any unmapped modules use directory grouping
+    const mappedFiles = new Set(Object.values(modFiles).flat());
+    const unmapped = allFiles.filter(f => !mappedFiles.has(f.path));
+    const idx = 0; // assign round-robin to modules that still have room
+    for (const name of moduleNames) {
+      if (modFiles[name].length === 0) {
+        // Assign files whose top-level directory matches a module name keyword
+        const nameParts = name.toLowerCase().split(/[\s\-_/]+/);
+        for (const f of unmapped) {
+          const parts = f.path.split('/');
+          for (const p of parts) {
+            if (nameParts.some(np => p.includes(np) || np.includes(p))) {
+              if (p.length > 2) { // avoid single-char matches
+                modFiles[name].push(f.path);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // If still empty, distribute remaining files evenly
+    const stillEmpty = moduleNames.filter(n => modFiles[n].length === 0);
+    if (stillEmpty.length > 0) {
+      const remaining = allFiles.filter(f => !Object.values(modFiles).flat().includes(f.path));
+      let ri = 0;
+      for (const name of stillEmpty) {
+        // Take a fair share
+        const share = Math.ceil(remaining.length / stillEmpty.length);
+        modFiles[name] = remaining.slice(ri, ri + share).map(f => f.path);
+        ri += share;
       }
     }
 
