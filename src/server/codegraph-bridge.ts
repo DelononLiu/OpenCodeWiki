@@ -1346,15 +1346,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="gotchas" href="#gotchas">🔥 常见踩坑</a>';
     html += '<a class="nav-item" data-page="impact-map" href="#impact-map">🔗 影响地图</a>';
     html += '<a class="nav-item" data-page="heatmap" href="#heatmap">📊 代码热力图</a>';
+    html += '<div class="nav-section" id="archiveNav" style="margin-top:4px">';
+    html += '<div class="nav-item" style="color:var(--text-muted);font-size:12px">加载中...</div>';
     html += '</div>';
-
-    // ── 📦 知识归档 ──
-    html += '<div class="nav-divider"></div>';
-    html += '<div class="nav-group-label">📦 知识归档</div>';
-    html += '<div class="nav-section" id="archiveNav">';
-    html += '<div class="nav-item" style="color:var(--text-muted)">加载中...</div>';
     html += '</div>';
-    // ── 📦 模块树 ──
     if (TREE.length > 0) {
       html += '<div class="nav-divider"></div>';
       html += '<div class="nav-group-label">📦 模块树</div>';
