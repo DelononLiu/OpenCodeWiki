@@ -1049,6 +1049,85 @@ app.get('/api/wiki/:repoName', async (req, res) => {
   res.json({ repoName: entry.name, tree });
 });
 
+/** Archive a calibrated #Q entry as a permanent wiki page. */
+app.post('/api/wiki/archive', async (req, res) => {
+  const { qid, notes } = req.body;
+  if (!qid) { res.status(400).json({ error: 'Missing qid' }); return; }
+  try {
+    const qaStore = await import('./qa-store.js');
+    const entry = qaStore.getEntryByQid(qid);
+    if (!entry) { res.status(404).json({ error: `#Q${qid} not found` }); return; }
+    const cal = qaStore.getCalibratedAnswer(entry.id);
+    if (!cal) { res.status(400).json({ error: `#Q${qid} has no calibrated answer` }); return; }
+
+    // Find which repo this entry belongs to
+    const repoName = entry.repo;
+    const selfRepo = await resolveSelfRepo();
+    const registry = await loadRegistry();
+    const repoEntry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
+    if (!repoEntry) { res.status(404).json({ error: 'Repo not found' }); return; }
+
+    const repoPath = (repoEntry as any).storagePath || (repoEntry as any).path;
+    const wikiDir = path.join(repoPath, '.codegraph', 'wiki', 'qa');
+    await fs.mkdir(wikiDir, { recursive: true });
+
+    // Generate markdown content
+    const slug = `q${qid}-${entry.question.slice(0, 40).replace(/[^a-zA-Z0-9一-鿿]+/g, '-').replace(/^-|-$/g, '')}`;
+    const md = `---
+title: "#Q${qid}: ${entry.question}"
+archivedAt: "${new Date().toISOString()}"
+qid: ${qid}
+domain: ${entry.domain || 'general'}
+calibratedAt: "${cal.updatedAt}"
+calibrator: "${cal.calibrator || 'unknown'}"
+version: ${cal.version}
+---
+
+# #Q${qid}: ${entry.question}
+
+${cal.answer}
+
+---
+
+> 此页面由 #Q${qid} 的校准答案自动归档生成。
+> [查看原始问答 →](/qa?qid=${qid})
+`;
+
+    const mdPath = path.join(wikiDir, `${slug}.md`);
+    await fs.writeFile(mdPath, md, 'utf-8');
+
+    // Update archive index
+    const indexPath = path.join(wikiDir, 'index.json');
+    let archiveIndex: any[] = [];
+    try { archiveIndex = JSON.parse(await fs.readFile(indexPath, 'utf-8')); } catch {}
+    // Remove existing entry for same qid if re-archiving
+    archiveIndex = archiveIndex.filter((a: any) => a.qid !== qid);
+    archiveIndex.unshift({ qid, slug, question: entry.question.slice(0, 100), domain: entry.domain, archivedAt: new Date().toISOString(), version: cal.version });
+    await fs.writeFile(indexPath, JSON.stringify(archiveIndex, null, 2), 'utf-8');
+
+    res.json({ success: true, slug });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** List archived wiki pages for a repo. */
+app.get('/api/wiki/:repoName/archived', async (req, res) => {
+  const repoName = req.params.repoName;
+  const selfRepo = await resolveSelfRepo();
+  const registry = await loadRegistry();
+  const entry = repoName === selfRepo.name ? selfRepo : registry.find(r => r.name === repoName);
+  if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
+  const repoPath2 = (entry as any).storagePath || (entry as any).path;
+  const indexPath = path.join(repoPath2, '.codegraph', 'wiki', 'qa', 'index.json');
+  try {
+    const data = JSON.parse(await fs.readFile(indexPath, 'utf-8'));
+    res.json({ entries: data });
+  } catch {
+    res.json({ entries: [] });
+  }
+});
+
 /** Get a specific wiki page for a repo. Returns { page, content }. */
 app.get('/api/wiki/:repoName/:page', async (req, res) => {
   const repoName = req.params.repoName;
@@ -1158,7 +1237,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 .empty-state h2{font-size:20px;margin-bottom:8px;border:none}
 .qa-list{display:flex;flex-direction:column;gap:8px;margin-top:16px}
 .qa-list-item{display:block;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius);text-decoration:none;color:var(--text);transition:all .15s}
-.qa-list-item:hover{border-color:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.qa-list-item:hover{border-color:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.06)}.qa-archive-btn{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-muted);margin-top:6px;transition:all .15s}.qa-archive-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
 .qa-list-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .qa-list-qid{font-size:11px;font-weight:600;color:var(--primary)}
 .qa-list-badge{font-size:10px;color:#16a34a;font-weight:500}
@@ -1222,6 +1301,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
       e.preventDefault(); redirectToQa();
     });
     renderNav();
+    loadArchivedEntries();
     document.getElementById('menuToggle').addEventListener('click', function() {
       document.getElementById('sidebar').classList.toggle('open');
     });
@@ -1268,6 +1348,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="heatmap" href="#heatmap">📊 代码热力图</a>';
     html += '</div>';
 
+    // ── 📦 知识归档 ──
+    html += '<div class="nav-divider"></div>';
+    html += '<div class="nav-group-label">📦 知识归档</div>';
+    html += '<div class="nav-section" id="archiveNav">';
+    html += '<div class="nav-item" style="color:var(--text-muted)">加载中...</div>';
+    html += '</div>';
     // ── 📦 模块树 ──
     if (TREE.length > 0) {
       html += '<div class="nav-divider"></div>';
@@ -1345,6 +1431,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
         var q = escapeHtml(e.question);
         var DOMAIN_LABELS = { 'general':'通用','log-analysis':'日志分析','stack-analysis':'堆栈分析','bug-analysis':'缺陷分析','build-issue':'编译构建','program-analysis':'程序分析' };
         var domBadge = (e.domain && e.domain !== 'general') ? '<span class="qa-list-domain-badge">' + (DOMAIN_LABELS[e.domain] || e.domain) + '</span>' : '';
+        var isCurated = pageType === 'qa-curated';
+        html += '<div style="position:relative">';
         html += '<a class="qa-list-item" href="/qa?' + encodeURIComponent(REPO) + '&qid=' + e.qid + '">' +
           '<div class="qa-list-header">' +
           '  <span class="qa-list-qid">' + tag + ' #Q' + e.qid + '</span>' +
@@ -1352,7 +1440,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
           '</div>' +
           '<div class="qa-list-question">' + q + '</div>' +
           '<div class="qa-list-meta">' + formatDate(e.createdAt) + ' · ' + e.visitCount + ' 次访问</div>' +
-          '</a>';
+          '</a>' +
+          (isCurated ? '<button class="qa-archive-btn" onclick="event.stopPropagation();archiveQa(' + e.qid + ', this)">📦 归档到 Wiki</button>' : '') +
+          '</div>';
       }
       html += '</div>';
       el.innerHTML = html;
@@ -1364,6 +1454,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   function formatDate(iso) {
     if (!iso) return '';
     return iso.slice(0, 10);
+  }
+
+  function archiveQa(qid, btn) {
+    btn.disabled = true;
+    btn.textContent = '归档中...';
+    fetch('/api/wiki/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qid: qid }),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.success) {
+        btn.textContent = '✅ 已归档';
+        btn.style.borderColor = '#16a34a';
+        btn.style.color = '#16a34a';
+        loadArchivedEntries(); // refresh sidebar
+      } else {
+        btn.textContent = '❌ ' + (data.error || '失败');
+        btn.disabled = false;
+      }
+    }).catch(function() {
+      btn.textContent = '❌ 网络错误';
+      btn.disabled = false;
+    });
+  }
+
+  function loadArchivedEntries() {
+    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/archived';
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.entries || data.entries.length === 0) {
+        document.getElementById('archiveNav').innerHTML = '<div class="nav-item" style="color:var(--text-muted);font-size:12px">暂无归档</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < data.entries.length; i++) {
+        var e = data.entries[i];
+        var q = escapeHtml(e.question.slice(0, 35));
+        html += '<a class="nav-item" data-page="qa/' + e.slug + '" href="#qa/' + e.slug + '" title="' + escapeHtml(e.question) + '">📄 ' + q + '</a>';
+      }
+      document.getElementById('archiveNav').innerHTML = html;
+    }).catch(function() {
+      document.getElementById('archiveNav').innerHTML = '<div class="nav-item" style="color:var(--text-muted);font-size:12px">加载失败</div>';
+    });
   }
 })();
 /* USER_BAR_JS */
