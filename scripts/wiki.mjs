@@ -12,7 +12,7 @@
  *   node scripts/wiki.mjs ~/Code/myproject --lang zh
  *   node scripts/wiki.mjs ~/Code/myproject --extra-pages     # 额外生成 external-api / core / hot-modules
  *
- * --lang zh:       生成后通过 LLM 将 Wiki 翻译为中文
+ * --lang zh:       extra-pages 时使用中文（LLM prompts 已内置中文输出）
  * --extra-pages:   自动扫描代码生成 外部API、Core、热点模块 页面
  * Prerequisites:
  *   - gitnexus CLI installed (npm install -g gitnexus)
@@ -256,7 +256,7 @@ async function generateExternalApi(repoPath, outputDir, llmConfig, lang) {
     return `## ${dir}\n${items}`;
   }).join('\n\n');
 
-  const langHint = lang === 'zh' ? 'Use Chinese for all prose.' : '';
+  const langHint = lang === 'zh' ? '请用中文输出，所有说明文字使用中文。' : '';
   const prompt = `Write an API reference document. Follow the template for EACH exported symbol:
 
 ## {File/Directory Group}
@@ -586,7 +586,6 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
           (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs
         FROM nodes WHERE is_exported = 1 ORDER BY refs DESC LIMIT 20
       `).all();
-      db.close();
     } catch {}
   }
 
@@ -664,7 +663,7 @@ Module tree: ${moduleSummary}
 Key exports: ${exportSummary}
 Total files: ${stats.files}, total symbols: ${stats.nodes}
 
-Output ONLY the Markdown content for the sections above. Use Chinese for all prose.`;
+Output ONLY the Markdown content for the sections above. 请用中文输出，所有说明文字使用中文。`;
 
     try {
       const llmContent = await callLLM(prompt, llmConfig, 4096);
@@ -678,7 +677,6 @@ Output ONLY the Markdown content for the sections above. Use Chinese for all pro
   fs.writeFileSync(path.join(outputDir, 'overview.md'), md, 'utf-8');
   console.log('  ✓ overview.md generated');
 }
-      db.close();
 
 
 /** Read source file content, with size limit. Returns { path, code } or null. */
@@ -751,7 +749,7 @@ Intra-module calls: ${intraEdges.length > 0 ? intraEdges.map(e => e.caller + ' �
 Outgoing: ${outgoingEdges.length > 0 ? outgoingEdges.map(e => e.caller + ' → ' + e.callee).join(', ') : '无'}
 Incoming: ${incomingEdges.length > 0 ? incomingEdges.map(e => e.caller + ' → ' + e.callee).join(', ') : '无'}
 
-Output ONLY the filled template with Chinese prose. Do not add extra sections.`;
+严格按模板输出。只输出内容，不添加额外章节。所有文字使用中文。`;
 
   const content = await callLLM(prompt, llmConfig, 8192);
   if (content) {
@@ -828,7 +826,7 @@ Structures to describe:
 ${itemList}
 
 References count indicates how many other code symbols reference this type — higher means more central.
-Only output the formatted descriptions. Use Chinese for prose.`;
+Only output the formatted descriptions. 请用中文输出，所有说明文字使用中文。`;
 
       const result = await callLLM(prompt, llmConfig, 4096);
       if (result) {
@@ -910,26 +908,8 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
       console.log('  ⚠ --modules requires LLM API key. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
     }
 
-    // Step 3: Translate if --lang zh
-    if (targetLang === 'zh' && fs.existsSync(outputDir)) {
-      const llmConfig = loadLlmConfig();
-      if (!llmConfig.apiKey) {
-        console.log('\n  ⚠ No LLM API key found, skipping translation. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
-      } else {
-        console.log(`\n[${step}/${totalSteps}] Translating wiki to 中文 (${llmConfig.model})...`);
-        step++;
-        const mdFiles = fs.readdirSync(outputDir).filter(f => f.endsWith('.md') && !f.match(/^(external-api|core|hot-modules)\.md$/));
-        for (const file of mdFiles) {
-          const filePath = path.join(outputDir, file);
-          const content = fs.readFileSync(filePath, 'utf-8');
-          process.stdout.write(`  Translating ${file}...`);
-          const translated = await translateWithLLM(content, llmConfig, 'zh');
-          fs.writeFileSync(filePath, translated, 'utf-8');
-          console.log(' ✓');
-        }
-        console.log(`  ✓ ${mdFiles.length} pages translated`);
-      }
-    }
+    // Note: LLM prompts already ask for Chinese output.
+
 
     // Step 4: Generate extra pages
     if (extraPages) {
