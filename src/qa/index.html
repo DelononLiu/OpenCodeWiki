@@ -1174,6 +1174,28 @@ if (currentSessionIdFromUrl) {
   restoreSession(currentSessionIdFromUrl);
 }
 
+const initialQid = qParams.get('qid');
+if (initialQid) {
+  (async function() {
+    try {
+      var r = await fetch('/api/qa/entry/' + initialQid);
+      if (!r.ok) return;
+      var d = await r.json();
+      if (!d.question) return;
+      document.getElementById('emptyState').style.display = 'none';
+      var bid = 'block-' + Date.now();
+      var h = '<div class="session-block" id="' + bid + '">' +
+        '<div class="question-title"><div class="question-text">' + escapeHtml(d.question) + '</div>' +
+        (d.domain ? '<span class="domain-badge">' + d.domain + '</span>' : '') +
+        '<span class="time-badge">' + (d.createdAt || '').slice(0, 10) + '</span></div>' +
+        (d.answer ? '<div class="answer-card"><div class="answer-content" id="answer-' + bid + '">' + marked.parse(d.answer) + '</div></div>' : '') +
+        '</div>';
+      document.getElementById('messagesInner').insertAdjacentHTML('beforeend', h);
+      if (d.answer && window.mermaid) mermaid.run({ nodes: document.querySelectorAll('#answer-' + bid + ' .mermaid') });
+    } catch {}
+  })();
+}
+
 const initialQ = qParams.get('q');
 if (initialQ) {
   input.value = initialQ;
