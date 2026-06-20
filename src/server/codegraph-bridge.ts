@@ -1433,7 +1433,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
         var domBadge = (e.domain && e.domain !== 'general') ? '<span class="qa-list-domain-badge">' + (DOMAIN_LABELS[e.domain] || e.domain) + '</span>' : '';
         var isCurated = pageType === 'qa-curated';
         html += '<div style="position:relative">';
-        html += '<a class="qa-list-item" href="/qa?' + encodeURIComponent(REPO) + '&qid=' + e.qid + '">' +
+        html += '<a class="qa-list-item" href="/qa?repo=' + encodeURIComponent(REPO) + '&qid=' + e.qid + '">' +
           '<div class="qa-list-header">' +
           '  <span class="qa-list-qid">' + tag + ' #Q' + e.qid + '</span>' +
           '  ' + domBadge + cal +
