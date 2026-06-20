@@ -706,8 +706,21 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
 ## 项目简介
 （2-3 句话：这个项目是做什么的，核心定位）
 
+## 业务流程
+（用 mermaid 流程图展示核心业务流，从用户触发到完成的完整链路。图下方加 2-3 句文字说明。）
+
+\`\`\`mermaid
+flowchart TD
+  （在此处描述业务步骤，使用 basic 风格，不要任何 CSS 样式、颜色、class 定义）
+\`\`\`
+
 ## 架构分层
-（3-5 句话：整体架构是怎么组织的，有哪些层次/模块，数据如何流转）
+（用 mermaid 图展示模块间的依赖/调用关系，配合 2-3 句文字说明各层职责。）
+
+\`\`\`mermaid
+flowchart LR
+  （在此处描述模块关系，使用 basic 风格，不要任何 CSS 样式、颜色、class 定义）
+\`\`\`
 
 ## 核心模块
 （列出最重要的 3-6 个模块，每个模块 1-2 句话说明职责）
@@ -732,7 +745,7 @@ ${topFiles}
   let md = '';
 
   if (llmConfig && llmConfig.apiKey) {
-    const content = await callLLM(prompt, llmConfig, 4096);
+    const content = await callLLM(prompt, llmConfig, 8192);
     if (content) {
       md = content;
       const modMatch = content.match(/<!-- MODULES:\s*(.+?)\s*-->/);
