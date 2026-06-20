@@ -1246,6 +1246,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="overview" href="#overview">📋 概览</a>';
     html += '<a class="nav-item" data-page="external-api" href="#external-api">🔄 对外API</a>';
     html += '<a class="nav-item" data-page="dependencies" href="#dependencies">🌐 依赖图谱</a>';
+    html += '<a class="nav-item" data-page="data-model" href="#data-model">📐 数据结构</a>';
     html += '</div>';
 
     html += '<div class="nav-divider"></div>';
@@ -1265,7 +1266,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="gotchas" href="#gotchas">🔥 常见踩坑</a>';
     html += '<a class="nav-item" data-page="impact-map" href="#impact-map">🔗 影响地图</a>';
     html += '<a class="nav-item" data-page="heatmap" href="#heatmap">📊 代码热力图</a>';
-    html += '<a class="nav-item" data-page="data-model" href="#data-model">📐 数据结构</a>';
     html += '</div>';
 
     // ── 📦 模块树 ──
