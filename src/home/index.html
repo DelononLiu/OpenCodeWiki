@@ -273,7 +273,8 @@ async function loadTeamActivity() {
       var recent = today.entries.slice(0, 3);
       for (var ri = 0; ri < recent.length; ri++) {
         var re = recent[ri];
-        rows.push('<a class="activity-row" href="/qa?repo=' + encodeURIComponent(re.repo) + '&qid=' + re.qid + '">' +
+        var link2 = re.sessionId ? '/qa/' + encodeURIComponent(re.sessionId) : '/qa?qid=' + re.qid;
+        rows.push('<a class="activity-row" href="' + link2 + '">' +
           '<span class="activity-icon">💬</span>' +
           '<span class="activity-text">' + escapeHtml(re.question.slice(0, 40)) + '</span>' +
           '<span class="activity-meta">' + re.repo + '</span></a>');
@@ -281,7 +282,8 @@ async function loadTeamActivity() {
     }
     if (calibrated.entries && calibrated.entries.length > 0) {
       var first = calibrated.entries[0];
-      rows.push('<a class="activity-row" href="/qa?repo=' + encodeURIComponent(first.repo || '') + '&qid=' + first.qid + '">' +
+      var calLink = first.sessionId ? '/qa/' + encodeURIComponent(first.sessionId) : '/qa?qid=' + first.qid;
+      rows.push('<a class="activity-row" href="' + calLink + '">' +
         '<span class="activity-icon">✅</span>' +
         '<span class="activity-text">最近校准<span class="activity-meta" style="margin-left:6px">' + escapeHtml(first.question.slice(0, 30)) + '</span></span>' +
         '<span class="activity-meta">' + (calibrated.entries.length - 1 > 0 ? '等' + calibrated.entries.length + ' 条' : '') + '</span></a>');

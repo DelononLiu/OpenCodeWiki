@@ -60,6 +60,7 @@ export interface CalibratedAnswer {
 
 export interface QaEntrySummary {
   qid: number;
+  sessionId: string;
   question: string;
   mode: 'lightweight' | 'deep';
   status: 'active' | 'archived';
@@ -199,6 +200,7 @@ function rowToQaEntry(row: any): QaEntry {
 function rowToSummary(row: any): QaEntrySummary {
   return {
     qid: row.qid,
+    sessionId: row.session_id,
     question: row.question,
     mode: row.mode,
     status: row.status,
