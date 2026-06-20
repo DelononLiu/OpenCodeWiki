@@ -466,6 +466,79 @@ async function callLLMJson(prompt, llmConfig, systemPrompt) {
 
 // ── Codegraph Wiki Generation ──────────────────────────────────
 
+/** Build module_tree.json from architecture modules (identified by overview) + codegraph file mapping.
+ *  Uses codegraph edges to determine dependencies between modules. */
+async function buildModuleTree(repoPath, outputDir, moduleNames) {
+  if (!moduleNames || moduleNames.length === 0) {
+    console.log('  ⚠ No modules identified, skipping module tree');
+    return [];
+  }
+
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const tree = [];
+
+  if (fs.existsSync(dbPath)) {
+    const db = new DatabaseSync(dbPath);
+    const allFiles = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+    // Assign files to modules: each file goes to the first module whose name matches its path
+    const modFiles = {};
+    for (const name of moduleNames) {
+      modFiles[name] = [];
+      const nameLower = name.toLowerCase();
+      for (const f of allFiles) {
+        const fileLower = f.path.toLowerCase();
+        // Check if file path contains module name keywords
+        if (fileLower.includes(nameLower) || fileLower.startsWith(nameLower.split(/[\\/\\s-]/)[0])) {
+          modFiles[name].push(f.path);
+        }
+      }
+    }
+
+    // Compute dependencies from codegraph edges
+    const edges = db.prepare(`
+      SELECT n1.file_path AS caller, n2.file_path AS callee
+      FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
+      WHERE e.kind IN ('calls','imports','references') AND n1.file_path != n2.file_path
+    `).all();
+    db.close();
+
+    for (const name of moduleNames) {
+      const files = modFiles[name] || [];
+      const fileSet = new Set(files);
+      const depSet = new Set();
+      const depBySet = new Set();
+      for (const e of edges) {
+        if (fileSet.has(e.caller)) {
+          for (const [n2, f2] of Object.entries(modFiles)) {
+            if (n2 !== name && f2.includes(e.callee)) { depSet.add(n2); break; }
+          }
+        }
+        if (fileSet.has(e.callee)) {
+          for (const [n2, f2] of Object.entries(modFiles)) {
+            if (n2 !== name && f2.includes(e.caller)) { depBySet.add(n2); break; }
+          }
+        }
+      }
+      tree.push({
+        name,
+        slug: slugify(name),
+        files: files.length > 0 ? files : [`(${name} — no files auto-mapped)`],
+        dependencies: [...depSet].sort(),
+        dependents: [...depBySet].sort(),
+      });
+    }
+  } else {
+    // No codegraph DB: use module names as-is
+    for (const name of moduleNames) {
+      tree.push({ name, slug: slugify(name), files: [], dependencies: [], dependents: [] });
+    }
+  }
+
+  fs.writeFileSync(path.join(outputDir, 'module_tree.json'), JSON.stringify(tree, null, 2), 'utf-8');
+  console.log('  ✓ module_tree.json generated (' + tree.length + ' modules from architecture)');
+  return tree;
+}
+
 /** Generate module_tree.json with LLM grouping + edge data. */
 async function generateModuleTree(repoPath, outputDir, llmConfig) {
   const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
@@ -562,17 +635,18 @@ Module names should be short and descriptive (e.g. "Authentication", "API Gatewa
   return { tree, moduleMap, exportsByFile, edges };
 }
 
-/** Generate overview.md with LLM using fixed template + codegraph data. */
+/** Generate overview.md with LLM using fixed template + codegraph data.
+ *  Returns array of identified module names for building module_tree.json. */
 async function generateOverview(repoPath, outputDir, llmConfig) {
-  // Stage 1: Gather data (always runs, even without LLM)
+  // Stage 1: Gather data (no module tree dependency)
   let readme = '';
   for (const name of ['README.md', 'README', 'readme.md', 'Readme.md']) {
     const p = path.join(repoPath, name);
     if (fs.existsSync(p)) { readme = fs.readFileSync(p, 'utf-8').slice(0, 2000); break; }
   }
 
-  // Stats from codegraph DB
   let stats = { files: 0, nodes: 0, lang: [] };
+  let allFiles = [];
   const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
   if (fs.existsSync(dbPath)) {
     try {
@@ -580,106 +654,89 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
       stats.files = db.prepare('SELECT COUNT(*) AS c FROM files').get().c;
       stats.nodes = db.prepare('SELECT COUNT(*) AS c FROM nodes').get().c;
       stats.lang = db.prepare("SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != '' GROUP BY language ORDER BY c DESC LIMIT 5").all();
-      // Top exported symbols (entry points, most referenced)
-      stats.topExports = db.prepare(`
-        SELECT name, kind, file_path,
-          (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs
-        FROM nodes WHERE is_exported = 1 ORDER BY refs DESC LIMIT 20
-      `).all();
+      stats.topExports = db.prepare("SELECT name, kind, file_path, (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs FROM nodes WHERE is_exported = 1 ORDER BY refs DESC LIMIT 20").all();
+      allFiles = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+      db.close();
     } catch {}
   }
 
-  // Module tree
-  let tree = [];
-  const treePath = path.join(outputDir, 'module_tree.json');
-  if (fs.existsSync(treePath)) {
-    try { tree = JSON.parse(fs.readFileSync(treePath, 'utf-8')); } catch {}
-  }
+  let identifiedModNames = [];
+  const topFiles = allFiles.slice(0, 50).map(f => f.path).join('\n');
+  const topExports = stats.topExports ? stats.topExports.slice(0, 15).map(e => e.name + ' (' + e.kind + ') @ ' + e.file_path).join('\n') : '';
 
-  // Stage 2: Build mermaid diagram + module table (always)
-  let md = readme ? `${readme}\n\n---\n` : '';
+  // Stage 2: LLM generates overview with module identification
+  const prompt = `为一个代码库编写项目概览文档。严格按以下模板结构输出，不要增删章节。
 
-  if (tree.length > 0) {
-    md += '\n\n## 🏗️ 架构概览\n\n### 模块依赖关系\n\n```mermaid\nflowchart LR\n';
-    const added = new Set();
-    for (const mod of tree) {
-      const modId = mod.slug.replace(/[^a-zA-Z0-9]/g, '_');
-      md += `  ${modId}[${mod.name}]\n`;
-      if (mod.dependencies) {
-        for (const dep of mod.dependencies) {
-          const depSlug = slugify(dep).replace(/[^a-zA-Z0-9]/g, '_');
-          const edge = `${modId}-->${depSlug}`;
-          if (!added.has(edge)) { md += `  ${edge}\n`; added.add(edge); }
+## 项目简介
+（2-3 句话：这个项目是做什么的，核心定位）
+
+## 架构分层
+（3-5 句话：整体架构是怎么组织的，有哪些层次/模块，数据如何流转）
+
+## 核心模块
+（列出最重要的 3-6 个模块，每个模块 1-2 句话说明职责）
+
+## 技术栈
+（1-2 句话，基于下方数据简述主要用的语言和技术）
+
+数据：
+README 片段：${readme ? readme.slice(0, 500) : '（无）'}
+语言统计：${stats.lang.map(l => l.language + '(' + l.c + ' 文件)').join('、')}
+文件总数：${stats.files}，符号总数：${stats.nodes}
+主要导出符号：
+${topExports}
+Top 文件列表：
+${topFiles}
+
+输出要求：
+1. 只输出模板中的内容
+2. 所有文字使用中文
+3. 在文档末尾添加一行：<!-- MODULES: 模块1, 模块2, 模块3 -->（列出核心模块部分提到的所有模块名）`;
+
+  let md = '';
+
+  if (llmConfig && llmConfig.apiKey) {
+    const content = await callLLM(prompt, llmConfig, 4096);
+    if (content) {
+      md = content;
+      const modMatch = content.match(/<!-- MODULES:\s*(.+?)\s*-->/);
+      if (modMatch) {
+        identifiedModNames.push(...modMatch[1].split(',').map(s => s.trim()).filter(Boolean));
+        md = md.replace(/<!-- MODULES:.+?-->/, '');
+      } else {
+        const cmMatch = content.match(/### 核心模块\n([\s\S]*?)(?=\n###|$)/);
+        if (cmMatch) {
+          for (const line of cmMatch[1].split('\n')) {
+            const m = line.match(/^- \*\*(.+?)\*\*/);
+            if (m) identifiedModNames.push(m[1]);
+          }
         }
       }
     }
-    md += '```\n\n';
+  }
 
-    md += '### 模块清单\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
-    for (const mod of tree) {
-      const deps = mod.dependencies?.length ? mod.dependencies.join(', ') : '-';
-      const depBy = mod.dependents?.length ? mod.dependents.join(', ') : '-';
-      md += `| **${mod.name}** | ${mod.files?.length || 0} | ${deps} | ${depBy} |\n`;
+  if (!md) {
+    md = readme ? readme + '\n\n---\n' : '';
+    const dirs = new Set();
+    for (const f of allFiles) {
+      const parts = f.path.split('/');
+      if (parts.length >= 2) dirs.add(parts[0]);
     }
-    md += '\n';
+    identifiedModNames.push(...[...dirs].filter(d => !['node_modules', '.git', 'dist'].includes(d)).sort());
   }
 
   // Stats section
-  md += `\n\n---\n\n## 📊 代码统计\n\n- **文件数:** ${stats.files}\n- **符号数:** ${stats.nodes}\n`;
+  md += '\n\n---\n\n## 📊 代码统计\n\n';
+  md += '- **文件数:** ' + stats.files + '\n- **符号数:** ' + stats.nodes + '\n';
   if (stats.lang.length > 0) {
     md += '- **语言:**\n';
-    for (const l of stats.lang) md += `  - ${l.language}: ${l.c} 文件\n`;
-  }
-
-  // Stage 3: LLM generates introductory sections with fixed template
-  if (llmConfig && llmConfig.apiKey && tree.length > 0) {
-    const moduleSummary = tree.map(m =>
-      `- ${m.name} (${m.files?.length || 0} files)${m.dependencies?.length ? ' → depends: ' + m.dependencies.join(', ') : ''}`
-    ).join('\n');
-    const exportSummary = stats.topExports ? stats.topExports.slice(0, 10).map(e =>
-      `- ${e.name} (${e.kind}) at ${e.file_path} (referenced ${e.refs} times)`
-    ).join('\n') : '';
-
-    const prompt = `Write a project overview document for the codebase described below.
-
-## Fixed template — you MUST follow this structure exactly:
-
-### 项目简介
-(2-3 sentences explaining what this project does, its main purpose)
-
-### 架构分层
-(3-5 sentences describing the high-level architecture: how modules are organized, what layers exist, how data flows between them)
-
-### 核心模块
-(List 3-5 most important modules and explain what each does in 1-2 sentences)
-
-### 技术栈
-(1-2 sentences on the main languages and technologies, based on the stats below)
-
-## Data
-README excerpt: ${readme?.slice(0, 500) || '(none)'}
-Languages: ${stats.lang.map((l) => l.language + ' (' + l.c + ' files)').join(', ')}
-Module tree: ${moduleSummary}
-Key exports: ${exportSummary}
-Total files: ${stats.files}, total symbols: ${stats.nodes}
-
-Output ONLY the Markdown content for the sections above. 请用中文输出，所有说明文字使用中文。`;
-
-    try {
-      const llmContent = await callLLM(prompt, llmConfig, 4096);
-      if (llmContent) {
-        // Prepend LLM sections, keep programmatic sections at the bottom
-        md = `${llmContent}\n\n---\n\n${md}`;
-      }
-    } catch {}
+    for (const l of stats.lang) md += '  - ' + l.language + ': ' + l.c + ' 文件\n';
   }
 
   fs.writeFileSync(path.join(outputDir, 'overview.md'), md, 'utf-8');
-  console.log('  ✓ overview.md generated');
+  console.log('  \u2713 overview.md generated (' + identifiedModNames.length + ' modules identified)');
+  return identifiedModNames;
 }
-
-
-/** Read source file content, with size limit. Returns { path, code } or null. */
 function readFileSnippet(repoPath, filePath, maxLines = 50) {
   const full = path.join(repoPath, filePath);
   try {
@@ -895,21 +952,45 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
   try {
     const llmConfig = loadLlmConfig();
     fs.mkdirSync(outputDir, { recursive: true });
-    const result = await generateModuleTree(resolvedPath, outputDir, llmConfig);
-    await generateDataModelPage(resolvedPath, outputDir, llmConfig);
-    await generateOverview(resolvedPath, outputDir, llmConfig);
 
-    // Generate module pages if --modules flag is set
-    if (withModules && result && result.tree && llmConfig.apiKey) {
-      console.log(`\n[${step}/${totalSteps}] Generating module pages...`);
-      await generateModulePages(result, resolvedPath, outputDir, llmConfig);
+    // Step 1: Generate overview (identifies architecture modules via LLM)
+    const overviewModules = await generateOverview(resolvedPath, outputDir, llmConfig);
+
+    // Step 2: Build module_tree.json from architecture modules + codegraph data
+    const modTree = await buildModuleTree(resolvedPath, outputDir, overviewModules);
+
+    // Step 3: Generate data model page
+    await generateDataModelPage(resolvedPath, outputDir, llmConfig);
+
+    // Step 4: Generate module pages using architecture-based tree
+    if (withModules && modTree && modTree.length > 0 && llmConfig.apiKey) {
+      console.log(`\n[${step}/${totalSteps}] Generating module pages (${modTree.length} modules)...`);
+      // Load codegraph data for module page generation
+      let cgExports = {};
+      let cgEdges = [];
+      const cgDbPath = path.join(resolvedPath, '.codegraph', 'codegraph.db');
+      if (fs.existsSync(cgDbPath)) {
+        try {
+          const cgDb = new DatabaseSync(cgDbPath);
+          const exps = cgDb.prepare("SELECT file_path, name, kind FROM nodes WHERE is_exported = 1").all();
+          for (const e of exps) {
+            if (!cgExports[e.file_path]) cgExports[e.file_path] = [];
+            cgExports[e.file_path].push({ name: e.name, kind: e.kind });
+          }
+          cgEdges = cgDb.prepare(`
+            SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS count
+            FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
+            WHERE e.kind IN ('calls','imports','references') AND n1.file_path != n2.file_path
+            GROUP BY n1.file_path, n2.file_path ORDER BY count DESC
+          `).all();
+          cgDb.close();
+        } catch {}
+      }
+      await generateModulePages({ tree: modTree, moduleMap: {}, exportsByFile: cgExports, edges: cgEdges }, resolvedPath, outputDir, llmConfig);
     }
     if (withModules && !llmConfig.apiKey) {
       console.log('  ⚠ --modules requires LLM API key. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
     }
-
-    // Note: LLM prompts already ask for Chinese output.
-
 
     // Step 4: Generate extra pages
     if (extraPages) {
