@@ -131,7 +131,7 @@ async function initHandler(): Promise<any> {
 }
 
 /** Dynamic wiki pages: slugs that are generated from codegraph data instead of static .md files. */
-const DYNAMIC_WIKI_PAGES = ['dependencies', 'impact-map', 'heatmap', 'gotchas'];
+const DYNAMIC_WIKI_PAGES = ['dependencies', 'impact-map', 'heatmap', 'gotchas', 'data-model'];
 
 /** Open a repo's codegraph DB and return helper or null. */
 function openCodegraphDb(repoPath: string): DatabaseSync | null {
@@ -294,6 +294,44 @@ async function generateGotchasPage(repoPath: string, repoName: string): Promise<
     return '## 🔥 常见踩坑\n\n加载失败。\n';
   }
 }
+
+
+/** Generate the 数据结构 page — from codegraph exported interfaces/classes. */
+async function generateDataModelPage(repoPath: string): Promise<string> {
+  const db = openCodegraphDb(repoPath);
+  if (!db) return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{6682}\u{65E0}\u{6570}\u{636E}\u{3002}\n';
+  try {
+    const rows = db.prepare(`
+      SELECT name, kind, file_path, signature, docstring,
+        (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name AND n2.file_path = nodes.file_path) AS refs
+      FROM nodes WHERE kind IN ('interface', 'class') AND is_exported = 1 ORDER BY refs DESC LIMIT 40
+    `).all() as any[];
+    db.close();
+    if (rows.length === 0) return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{6682}\u{65E0}\u{6838}\u{5FC3}\u{6570}\u{636E}\u{7ED3}\u{6784}\u{3002}\n';
+    const groups: Record<string, any[]> = {};
+    for (const r of rows) {
+      const dir = r.file_path.split('/')[0];
+      if (!groups[dir]) groups[dir] = [];
+      groups[dir].push(r);
+    }
+    let md = '# \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\u{8BBE}\u{8BA1}\n\n\u{6838}\u{5FC3} interface \u{548C} class \u{5B9A}\u{4E49}\u{FF0C}\u{6309}\u{6A21}\u{5757}\u{5206}\u{7EC4}\u{3002}\n\n';
+    for (const [dir, items] of Object.entries(groups)) {
+      md += `## ${dir}\n\n`;
+      md += '| \u{540D}\u{79F0} | \u{7C7B}\u{578B} | \u{6587}\u{4EF6} | \u{5F15}\u{7528}\u{6B21}\u{6570} | \u{7B7E}\u{540D} |\n|------|------|------|----------|------|\n';
+      for (const item of items) {
+        const sig = (item.signature || '').slice(0, 80);
+        const doc = (item.docstring || '').slice(0, 60).replace(/\n/g, ' ');
+        md += `| \`${item.name}\` | ${item.kind} | \`${item.file_path}\` | ${item.refs} | ${doc || sig} |\n`;
+      }
+      md += '\n';
+    }
+    return md;
+  } catch {
+    db.close();
+    return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{52A0}\u{8F7D}\u{5931}\u{8D25}\u{3002}\n';
+  }
+}
+
 
 const app = express();
 app.use(cors());
@@ -1036,6 +1074,9 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
       case 'gotchas':
         content = await generateGotchasPage(entry.path, entry.name);
         break;
+      case 'data-model':
+        content = await generateDataModelPage(entry.path);
+        break;
     }
     if (content) {
       res.json({ page, repoName: entry.name, content });
@@ -1224,6 +1265,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<a class="nav-item" data-page="gotchas" href="#gotchas">🔥 常见踩坑</a>';
     html += '<a class="nav-item" data-page="impact-map" href="#impact-map">🔗 影响地图</a>';
     html += '<a class="nav-item" data-page="heatmap" href="#heatmap">📊 代码热力图</a>';
+    html += '<a class="nav-item" data-page="data-model" href="#data-model">📐 数据结构</a>';
     html += '</div>';
 
     // ── 📦 模块树 ──

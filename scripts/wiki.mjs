@@ -363,53 +363,198 @@ Generate a Markdown document that:
   return false;
 }
 
+// ── Codegraph Data Helpers ─────────────────────────────────────
+
+/** Query codegraph DB for call edges between files. Returns { caller, callee } pairs. */
+function queryCallEdges(db) {
+  // 跨文件 calls: source file path ← node → target file path
+  const rows = db.prepare(`
+    SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS count
+    FROM edges e
+    JOIN nodes n1 ON e.source = n1.id
+    JOIN nodes n2 ON e.target = n2.id
+    WHERE e.kind IN ('calls', 'imports', 'references')
+      AND n1.file_path != n2.file_path
+    GROUP BY n1.file_path, n2.file_path
+    ORDER BY count DESC
+  `).all();
+  return rows;
+}
+
+/** Get exported symbols per file from codegraph DB. */
+function queryExportsByFile(db) {
+  const rows = db.prepare(`
+    SELECT file_path, name, kind FROM nodes WHERE is_exported = 1 ORDER BY file_path, name
+  `).all();
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.file_path]) map[r.file_path] = [];
+    map[r.file_path].push({ name: r.name, kind: r.kind });
+  }
+  return map;
+}
+
+/** Get all source files (excluding generated/config). */
+function querySourceFiles(db) {
+  return db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%' AND path NOT LIKE 'dist/%' AND path NOT LIKE 'target/%'").all();
+}
+
+/** Build a file-list string for LLM grouping prompt. */
+function formatFileListForGrouping(files, exportsByFile) {
+  const lines = [];
+  const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor', 'scripts']);
+  for (const f of files) {
+    const parts = f.path.split('/');
+    if (SKIP_DIRS.has(parts[0])) continue;
+    const exps = exportsByFile[f.path];
+    if (exps && exps.length > 0) {
+      const syms = exps.map(e => `${e.name}(${e.kind})`).join(', ');
+      lines.push(`- ${f.path}: ${syms}`);
+    } else {
+      lines.push(`- ${f.path}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Call LLM with JSON mode — expects a JSON object response. */
+async function callLLMJson(prompt, llmConfig, systemPrompt) {
+  const url = llmConfig.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(llmConfig.apiKey.startsWith('sk-')
+      ? { Authorization: 'Bearer ' + llmConfig.apiKey }
+      : { 'api-key': llmConfig.apiKey }),
+  };
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: llmConfig.model,
+        messages: [
+          { role: 'system', content: systemPrompt || 'You are a code analysis assistant. Always respond with valid JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 4096,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error(`  ✗ LLM API error (${res.status}): ${errText.slice(0, 200)}`);
+      return null;
+    }
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch (err) {
+    console.error(`  ✗ LLM request failed: ${err.message}`);
+    return null;
+  }
+}
+
 // ── Codegraph Wiki Generation ──────────────────────────────────
 
-/** Generate module_tree.json from codegraph DB file paths. */
-function generateModuleTree(repoPath, outputDir) {
+/** Generate module_tree.json with LLM grouping + edge data. */
+async function generateModuleTree(repoPath, outputDir, llmConfig) {
   const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
   if (!fs.existsSync(dbPath)) {
     console.log('  ⚠ codegraph.db not found, skipping module tree');
-    return false;
+    return null;
   }
 
   const db = new DatabaseSync(dbPath);
-  const rows = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+  const files = querySourceFiles(db);
+  const exportsByFile = queryExportsByFile(db);
+  const edges = queryCallEdges(db);
   db.close();
 
-  // Group files by top-level directory → module
-  const dirMap = {};
-  for (const r of rows) {
-    const p = r.path;
-    const parts = p.split('/');
-    const topDir = parts.length >= 2 ? parts[0] : '(root)';
-    if (!dirMap[topDir]) dirMap[topDir] = { name: topDir, slug: slugify(topDir), files: [], children: [] };
-    dirMap[topDir].files.push(p);
+  let moduleMap = null;
+
+  // Try LLM-based grouping if LLM is configured
+  if (llmConfig && llmConfig.apiKey) {
+    console.log('  Grouping files by functionality (LLM)...');
+    const fileList = formatFileListForGrouping(files, exportsByFile);
+    const groupingPrompt = `Analyze these source files and group them into functional modules (5-20 modules).
+Group by functionality, not by directory — put files that serve the same purpose together.
+Files that are configuration, documentation, or build-related can be grouped as "Infrastructure".
+
+Available files:
+${fileList}
+
+Return JSON: { "modules": { "ModuleName": ["path/file1.ts", "path/file2.ts", ...] } }
+Module names should be short and descriptive (e.g. "Authentication", "API Gateway", "Data Storage").`;
+
+    const systemPrompt = 'You are a code architecture analyst. Group source files by their functional role in the project. Respond only with valid JSON.';
+    const result = await callLLMJson(groupingPrompt, llmConfig, systemPrompt);
+    if (result && result.modules) {
+      moduleMap = result.modules;
+    } else {
+      console.log('  ⚠ LLM grouping failed, falling back to directory grouping');
+    }
   }
 
-  const tree = Object.keys(dirMap).sort().map(k => {
-    const m = dirMap[k];
-    // Group files into sub-children by 2nd level directory
-    const subMap = {};
-    for (const f of m.files) {
-      const parts = f.split('/');
-      if (parts.length >= 3) {
-        const subDir = parts[0] + '-' + parts[1];
-        if (!subMap[subDir]) subMap[subDir] = { name: parts[0] + '/' + parts[1], slug: slugify(subDir), files: [] };
-        subMap[subDir].files.push(f);
+  // Fallback: directory-based grouping
+  if (!moduleMap) {
+    moduleMap = {};
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor']);
+    for (const f of files) {
+      const parts = f.path.split('/');
+      const topDir = parts.length >= 2 && !SKIP_DIRS.has(parts[0]) ? parts[0] : null;
+      if (topDir) {
+        if (!moduleMap[topDir]) moduleMap[topDir] = [];
+        moduleMap[topDir].push(f.path);
       }
     }
-    m.children = Object.keys(subMap).sort().map(sk => subMap[sk]);
-    delete m.files;
-    return m;
-  });
+  }
+
+  // Build module tree with dependency info from edges
+  const tree = [];
+  const moduleNames = Object.keys(moduleMap).sort();
+  for (const name of moduleNames) {
+    const modFiles = moduleMap[name];
+    // Calculate dependencies (outgoing calls to other modules)
+    const depSet = new Set();
+    const depBySet = new Set();
+    const fileSet = new Set(modFiles);
+    for (const e of edges) {
+      if (fileSet.has(e.caller)) {
+        // Find which module the callee belongs to
+        for (const [mName, mFiles] of Object.entries(moduleMap)) {
+          if (mName !== name && mFiles.includes(e.callee)) {
+            depSet.add(mName);
+            break;
+          }
+        }
+      }
+      if (fileSet.has(e.callee)) {
+        for (const [mName, mFiles] of Object.entries(moduleMap)) {
+          if (mName !== name && mFiles.includes(e.caller)) {
+            depBySet.add(mName);
+            break;
+          }
+        }
+      }
+    }
+    tree.push({
+      name,
+      slug: slugify(name),
+      files: modFiles,
+      dependencies: [...depSet].sort(),
+      dependents: [...depBySet].sort(),
+      children: [],
+    });
+  }
 
   fs.writeFileSync(path.join(outputDir, 'module_tree.json'), JSON.stringify(tree, null, 2), 'utf-8');
   console.log('  ✓ module_tree.json generated (' + tree.length + ' modules)');
-  return tree;
+  return { tree, moduleMap, exportsByFile, edges };
 }
 
-/** Generate overview.md from README + codegraph stats. */
+/** Generate overview.md from README + codegraph stats + module dependency. */
 function generateOverview(repoPath, outputDir) {
   // Try README first
   let overview = '';
@@ -419,6 +564,51 @@ function generateOverview(repoPath, outputDir) {
       overview = fs.readFileSync(readmePath, 'utf-8');
       break;
     }
+  }
+
+  // Append module dependency section from module_tree.json
+  const treePath = path.join(outputDir, 'module_tree.json');
+  if (fs.existsSync(treePath)) {
+    try {
+      const tree = JSON.parse(fs.readFileSync(treePath, 'utf-8'));
+      if (tree.length > 0) {
+        overview += '\n\n---\n\n## 🏗️ 架构概览\n\n';
+        overview += '### 模块依赖关系\n\n```mermaid\nflowchart LR\n';
+        const added = new Set();
+        for (const mod of tree) {
+          const modId = mod.slug.replace(/[^a-zA-Z0-9]/g, '_');
+          overview += `  ${modId}[${mod.name}]\n`;
+          if (mod.dependencies) {
+            for (const dep of mod.dependencies) {
+              const depSlug = slugify(dep).replace(/[^a-zA-Z0-9]/g, '_');
+              const edge = `${modId}-->${depSlug}`;
+              if (!added.has(edge)) {
+                overview += `  ${edge}\n`;
+                added.add(edge);
+              }
+            }
+          }
+          if (mod.dependents && mod.dependents.length === 0) {
+            // Check if any module lists this as a dependency
+            const isReferenced = tree.some(m => m.dependencies && m.dependencies.includes(mod.name));
+            if (!isReferenced) {
+              // orphaned module (no dependents, no one references it)
+            }
+          }
+        }
+        overview += '```\n\n';
+
+        // Module table
+        overview += '### 模块清单\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
+        for (const mod of tree) {
+          const filesCount = mod.files ? mod.files.length : 0;
+          const deps = mod.dependencies && mod.dependencies.length > 0 ? mod.dependencies.join(', ') : '-';
+          const depBy = mod.dependents && mod.dependents.length > 0 ? mod.dependents.join(', ') : '-';
+          overview += `| **${mod.name}** | ${filesCount} | ${deps} | ${depBy} |\n`;
+        }
+        overview += '\n';
+      }
+    } catch {}
   }
 
   // Append codegraph stats
@@ -448,6 +638,137 @@ function generateOverview(repoPath, outputDir) {
   console.log('  ✓ overview.md generated');
 }
 
+/** Read source file content, with size limit. Returns { path, code } or null. */
+function readFileSnippet(repoPath, filePath, maxLines = 50) {
+  const full = path.join(repoPath, filePath);
+  try {
+    const content = fs.readFileSync(full, 'utf-8');
+    const lines = content.split('\n');
+    // Return first N non-empty lines
+    const snippet = lines.slice(0, maxLines).join('\n');
+    return { path: filePath, totalLines: lines.length, snippet };
+  } catch { return null; }
+}
+
+/** Generate a markdown page for a single module using LLM. */
+async function generateModulePage(mod, repoPath, outputDir, llmConfig, exportsByFile, edges) {
+  const slug = slugify(mod.name);
+  const fileSnippets = [];
+  let totalLines = 0;
+  for (const f of mod.files.slice(0, 10)) { // Limit to 10 files per module
+    const snip = readFileSnippet(repoPath, f, 30);
+    if (snip) {
+      fileSnippets.push(snip);
+      totalLines += snip.totalLines;
+    }
+  }
+
+  // Intra-module edges
+  const fileSet = new Set(mod.files);
+  const intraEdges = edges.filter(e => fileSet.has(e.caller) && fileSet.has(e.callee));
+  const outgoingEdges = edges.filter(e => fileSet.has(e.caller) && !fileSet.has(e.callee)).slice(0, 15);
+  const incomingEdges = edges.filter(e => fileSet.has(e.callee) && !fileSet.has(e.caller)).slice(0, 15);
+
+  let sourceSection = '';
+  for (const s of fileSnippets) {
+    sourceSection += `--- ${s.path} (${s.totalLines} lines) ---\n${s.snippet}\n\n`;
+  }
+
+  const deps = mod.dependencies && mod.dependencies.length > 0 ? mod.dependencies.join(', ') : '无';
+  const depBy = mod.dependents && mod.dependents.length > 0 ? mod.dependents.join(', ') : '无（入口层）';
+
+  const prompt = `Generate a developer documentation page for the module "${mod.name}".
+
+## Module Info
+- **Files:** ${mod.files.join(', ')}
+- **Depends on:** ${deps}
+- **Used by:** ${depBy}
+
+## Source Code Snippets
+${sourceSection}
+
+## Call Relationships (from codegraph)
+${intraEdges.length > 0 ? 'Intra-module calls:\n' + intraEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : '（无内部调用）'}
+${outgoingEdges.length > 0 ? '\nOutgoing calls (to other modules):\n' + outgoingEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : ''}
+${incomingEdges.length > 0 ? '\nIncoming calls (from other modules):\n' + incomingEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : ''}
+
+Write a Markdown document that includes:
+1. **Module purpose** — what this module does and why it exists
+2. **Core symbols** — key exports (functions, classes, interfaces) with brief descriptions
+3. **Dependencies** — how it connects to other modules
+4. **Key flows** — if the call edges suggest a data flow or execution path, describe it
+
+Output ONLY the Markdown content. Use Chinese for all prose.`;
+
+  const content = await callLLM(prompt, llmConfig, 8192);
+  if (content) {
+    const md = `# ${mod.name}\n\n${content}\n`;
+    fs.writeFileSync(path.join(outputDir, `${slug}.md`), md, 'utf-8');
+    console.log(`  ✓ ${slug}.md`);
+    return true;
+  }
+  return false;
+}
+
+/** Generate markdown pages for all modules (parallel, limited concurrency). */
+async function generateModulePages(result, repoPath, outputDir, llmConfig) {
+  const { tree, moduleMap, exportsByFile, edges } = result;
+  let count = 0;
+  const promises = [];
+  for (const mod of tree) {
+    // Wait for concurrency limit (3 parallel)
+    while (promises.length >= 3) {
+      await promises.shift();
+    }
+    const p = generateModulePage(mod, repoPath, outputDir, llmConfig, exportsByFile, edges)
+      .then(ok => { if (ok) count++; });
+    promises.push(p);
+  }
+  await Promise.all(promises);
+  console.log(`  ✓ ${count}/${tree.length} module pages generated`);
+}
+
+/** Generate data-model.md from codegraph nodes with kind=interface/type/class. */
+function generateDataModelPage(repoPath, outputDir) {
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  if (!fs.existsSync(dbPath)) return;
+
+  const db = new DatabaseSync(dbPath);
+  const rows = db.prepare(`
+    SELECT name, kind, file_path, signature, docstring,
+      (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name AND n2.file_path = nodes.file_path) AS refs
+    FROM nodes
+    WHERE kind IN ('interface', 'class') AND is_exported = 1
+    ORDER BY refs DESC LIMIT 40
+  `).all();
+  db.close();
+
+  if (rows.length === 0) return;
+
+  const groups = {};
+  for (const r of rows) {
+    const dir = r.file_path.split('/')[0];
+    if (!groups[dir]) groups[dir] = [];
+    groups[dir].push(r);
+  }
+
+  let md = '# 📐 数据结构设计\n\n核心 interface 和 class 定义，按模块分组。\n\n';
+  for (const [dir, items] of Object.entries(groups)) {
+    md += `## ${dir}\n\n`;
+    md += '| 名称 | 类型 | 文件 | 引用次数 | 签名 |\n';
+    md += '|------|------|------|----------|------|\n';
+    for (const item of items) {
+      const sig = (item.signature || '').slice(0, 80);
+      const doc = item.docstring ? item.docstring.slice(0, 60).replace(/\n/g, ' ') : '';
+      md += `| \`${item.name}\` | ${item.kind} | \`${item.file_path}\` | ${item.refs} | ${doc || sig} |\n`;
+    }
+    md += '\n';
+  }
+
+  fs.writeFileSync(path.join(outputDir, 'data-model.md'), md, 'utf-8');
+  console.log('  ✓ data-model.md generated');
+}
+
 function slugify(name) {
   return name.toLowerCase()
     .replace(/[^a-z0-9一-鿿]+/g, '-')
@@ -459,11 +780,13 @@ function slugify(name) {
 const repoPath = process.argv[2];
 const force = process.argv.includes('--force');
 const extraPages = process.argv.includes('--extra-pages');
+const withModules = process.argv.includes('--modules');
 const langIdx = process.argv.indexOf('--lang');
 const targetLang = langIdx >= 0 && process.argv[langIdx + 1] ? process.argv[langIdx + 1] : 'en';
 
 if (!repoPath) {
-  console.error('Usage: node scripts/wiki.mjs <repo-path> [--force] [--lang zh|en] [--extra-pages]');
+  console.error('Usage: node scripts/wiki.mjs <repo-path> [--force] [--lang zh|en] [--extra-pages] [--modules]');
+  console.error('  --modules: 同时生成每个模块的 markdown 页面（需要 LLM 配置）');
   process.exit(1);
 }
 
@@ -492,9 +815,20 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
   step++;
 
   try {
+    const llmConfig = loadLlmConfig();
     fs.mkdirSync(outputDir, { recursive: true });
-    await generateModuleTree(resolvedPath, outputDir);
+    const result = await generateModuleTree(resolvedPath, outputDir, llmConfig);
+    generateDataModelPage(resolvedPath, outputDir);
     await generateOverview(resolvedPath, outputDir);
+
+    // Generate module pages if --modules flag is set
+    if (withModules && result && result.tree && llmConfig.apiKey) {
+      console.log(`\n[${step}/${totalSteps}] Generating module pages...`);
+      await generateModulePages(result, resolvedPath, outputDir, llmConfig);
+    }
+    if (withModules && !llmConfig.apiKey) {
+      console.log('  ⚠ --modules requires LLM API key. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
+    }
 
     // Step 3: Translate if --lang zh
     if (targetLang === 'zh' && fs.existsSync(outputDir)) {
