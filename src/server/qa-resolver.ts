@@ -703,6 +703,30 @@ export class QaResolver {
       } catch {}
     }
 
+    // ── 调用图传播重打分（可选增强） ──
+    // 取 Top-3 结果，沿调用关系图传播分数到调用者/被调用者
+    const topN = 3;
+    const decay = 0.15;
+    const rescored = all.slice(0, topN).filter(m => m.name);
+    for (const seed of rescored) {
+      const repoInfo = repos.find(r => r.name === seed.repo);
+      try {
+        const [callerText, calleeText] = await Promise.all([
+          this.rawCallers(seed.name!, repoInfo),
+          this.rawCallees(seed.name!, repoInfo),
+        ]);
+        const callers = this.parseResults(callerText, seed.repo || '');
+        const callees = this.parseResults(calleeText, seed.repo || '');
+        const neighbors = [...callers, ...callees];
+        for (const n of neighbors) {
+          const match = all.find(m => m.filePath === n.filePath && m.startLine === n.startLine);
+          if (match) {
+            match.score += seed.score * decay;
+          }
+        }
+      } catch {}
+    }
+
     return all.sort((a, b) => b.score - a.score).slice(0, 20);
   }
 
