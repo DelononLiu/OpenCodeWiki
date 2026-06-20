@@ -1391,6 +1391,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
         el.innerHTML = marked.parse(data.content);
+        // Convert mermaid code blocks into rendered diagrams
+        el.querySelectorAll('pre code.language-mermaid').forEach(function(block) {
+          var pre = block.parentElement;
+          var div = document.createElement('div');
+          div.className = 'mermaid';
+          div.textContent = block.textContent;
+          pre.parentElement.replaceChild(div, pre);
+        });
         if (window.mermaid) mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
       } else {
         el.innerHTML = '<div class="empty-state"><h2>Page not found</h2></div>';
