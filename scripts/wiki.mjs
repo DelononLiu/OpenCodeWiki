@@ -220,53 +220,61 @@ function scanHotFiles(repoPath) {
 // ── Page generation ───────────────────────────────────────────
 
 async function generateExternalApi(repoPath, outputDir, llmConfig, lang) {
-  const symbols = scanExportedSymbols(repoPath);
-  if (symbols.length === 0) {
-    console.log('  ⚠ No exported symbols found, skipping external-api');
+  // Use codegraph DB exported symbols instead of regex
+  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  if (!fs.existsSync(dbPath)) {
+    console.log('  ⚠ codegraph.db not found, skipping external-api');
     return false;
   }
 
-  // Group by directory for structure
+  const db = new DatabaseSync(dbPath);
+  const symbols = db.prepare(`
+    SELECT name, kind, file_path, signature, docstring,
+      (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs
+    FROM nodes WHERE is_exported = 1 AND kind IN ('function', 'method', 'class', 'interface', 'type', 'const', 'variable')
+    ORDER BY refs DESC LIMIT 30
+  `).all();
+  db.close();
+
+  if (symbols.length === 0) {
+    console.log('  ⚠ No exported symbols found in codegraph, skipping external-api');
+    return false;
+  }
+
+  // Group by top-level directory
   const groups = {};
   for (const s of symbols) {
-    const dir = path.dirname(s.file);
+    const dir = s.file_path.split('/')[0];
     if (!groups[dir]) groups[dir] = [];
     groups[dir].push(s);
   }
 
   const summary = Object.entries(groups).map(([dir, syms]) => {
-    return `## ${dir || '.'}\n${syms.map(s => `- \`${s.name}\` (${s.kind}) — ${s.file}:${s.line}`).join('\n')}`;
+    const items = syms.map(s =>
+      `### ${s.name}\n- **kind:** ${s.kind}\n- **file:** ${s.file_path}\n- **signature:** \`${(s.signature || s.name).slice(0, 120)}\`\n- **docstring:** ${(s.docstring || '-').slice(0, 300)}\n- **references:** ${s.refs}\n`
+    ).join('\n');
+    return `## ${dir}\n${items}`;
   }).join('\n\n');
 
-  const sampleCode = symbols.slice(0, 5).map(s => {
-    try {
-      const content = fs.readFileSync(path.join(repoPath, s.file), 'utf-8');
-      const lines = content.split('\n');
-      return `### ${s.name} (${s.file}:${s.line})\n\`\`\`\n${lines.slice(Math.max(0, s.line - 1), s.line + 15).join('\n')}\n\`\`\``;
-    } catch { return ''; }
-  }).filter(Boolean).join('\n\n');
+  const langHint = lang === 'zh' ? 'Use Chinese for all prose.' : '';
+  const prompt = `Write an API reference document. Follow the template for EACH exported symbol:
 
-  const langHint = lang === 'zh' ? '用中文撰写' : '';
-  const prompt = `You are a technical writer. Generate a developer-facing API reference document for the following project.
+## {File/Directory Group}
 
-Below are the exported symbols (functions, classes, interfaces, etc.) found in the codebase, organized by directory:
+### {symbolName}
+**签名:** \`{signature}\`
+**用途:** (1-2 sentences on what this function/class does and when to use it)
+**参数:** (list key parameters from the signature)
+**返回值:** (from signature or context)
 
+## Data
 ${summary}
 
-Sample source code for the top exports:
-${sampleCode}
-
 ${langHint}
-Generate a well-structured Markdown document that:
-1. Lists and describes each exported symbol with its signature and purpose
-2. Groups related symbols together
-3. Documents parameters, return values, and side effects where applicable
-4. Includes brief code usage examples where helpful
-5. Uses ## headings for groups, ### headings for individual symbols
-6. Output ONLY the Markdown content, no extra explanation`;
+Output ONLY the formatted API reference. Do not add extra commentary.`;
 
   console.log('  Generating external-api...');
-  const result = await callLLM(prompt, llmConfig, 16384);
+  const result = await callLLM(prompt, llmConfig, 8192);
   if (result) {
     fs.writeFileSync(path.join(outputDir, 'external-api.md'), result, 'utf-8');
     console.log('  ✓ external-api.md generated');
@@ -554,89 +562,124 @@ Module names should be short and descriptive (e.g. "Authentication", "API Gatewa
   return { tree, moduleMap, exportsByFile, edges };
 }
 
-/** Generate overview.md from README + codegraph stats + module dependency. */
-function generateOverview(repoPath, outputDir) {
-  // Try README first
-  let overview = '';
+/** Generate overview.md with LLM using fixed template + codegraph data. */
+async function generateOverview(repoPath, outputDir, llmConfig) {
+  // Stage 1: Gather data (always runs, even without LLM)
+  let readme = '';
   for (const name of ['README.md', 'README', 'readme.md', 'Readme.md']) {
-    const readmePath = path.join(repoPath, name);
-    if (fs.existsSync(readmePath)) {
-      overview = fs.readFileSync(readmePath, 'utf-8');
-      break;
-    }
+    const p = path.join(repoPath, name);
+    if (fs.existsSync(p)) { readme = fs.readFileSync(p, 'utf-8').slice(0, 2000); break; }
   }
 
-  // Append module dependency section from module_tree.json
-  const treePath = path.join(outputDir, 'module_tree.json');
-  if (fs.existsSync(treePath)) {
-    try {
-      const tree = JSON.parse(fs.readFileSync(treePath, 'utf-8'));
-      if (tree.length > 0) {
-        overview += '\n\n---\n\n## 🏗️ 架构概览\n\n';
-        overview += '### 模块依赖关系\n\n```mermaid\nflowchart LR\n';
-        const added = new Set();
-        for (const mod of tree) {
-          const modId = mod.slug.replace(/[^a-zA-Z0-9]/g, '_');
-          overview += `  ${modId}[${mod.name}]\n`;
-          if (mod.dependencies) {
-            for (const dep of mod.dependencies) {
-              const depSlug = slugify(dep).replace(/[^a-zA-Z0-9]/g, '_');
-              const edge = `${modId}-->${depSlug}`;
-              if (!added.has(edge)) {
-                overview += `  ${edge}\n`;
-                added.add(edge);
-              }
-            }
-          }
-          if (mod.dependents && mod.dependents.length === 0) {
-            // Check if any module lists this as a dependency
-            const isReferenced = tree.some(m => m.dependencies && m.dependencies.includes(mod.name));
-            if (!isReferenced) {
-              // orphaned module (no dependents, no one references it)
-            }
-          }
-        }
-        overview += '```\n\n';
-
-        // Module table
-        overview += '### 模块清单\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
-        for (const mod of tree) {
-          const filesCount = mod.files ? mod.files.length : 0;
-          const deps = mod.dependencies && mod.dependencies.length > 0 ? mod.dependencies.join(', ') : '-';
-          const depBy = mod.dependents && mod.dependents.length > 0 ? mod.dependents.join(', ') : '-';
-          overview += `| **${mod.name}** | ${filesCount} | ${deps} | ${depBy} |\n`;
-        }
-        overview += '\n';
-      }
-    } catch {}
-  }
-
-  // Append codegraph stats
+  // Stats from codegraph DB
+  let stats = { files: 0, nodes: 0, lang: [] };
   const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
   if (fs.existsSync(dbPath)) {
     try {
       const db = new DatabaseSync(dbPath);
-      const fileCount = db.prepare('SELECT COUNT(*) AS c FROM files').get();
-      const nodeCount = db.prepare('SELECT COUNT(*) AS c FROM nodes').get();
-      const langRows = db.prepare('SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != \'\' GROUP BY language ORDER BY c DESC LIMIT 5').all();
+      stats.files = db.prepare('SELECT COUNT(*) AS c FROM files').get().c;
+      stats.nodes = db.prepare('SELECT COUNT(*) AS c FROM nodes').get().c;
+      stats.lang = db.prepare("SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != '' GROUP BY language ORDER BY c DESC LIMIT 5").all();
+      // Top exported symbols (entry points, most referenced)
+      stats.topExports = db.prepare(`
+        SELECT name, kind, file_path,
+          (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs
+        FROM nodes WHERE is_exported = 1 ORDER BY refs DESC LIMIT 20
+      `).all();
       db.close();
-
-      let statsSection = '\n\n---\n\n## 📊 代码统计\n\n';
-      statsSection += `- **文件数:** ${fileCount.c}\n`;
-      statsSection += `- **符号数:** ${nodeCount.c}\n`;
-      if (langRows.length > 0) {
-        statsSection += '- **语言:**\n';
-        for (const l of langRows) {
-          statsSection += `  - ${l.language}: ${l.c} 文件\n`;
-        }
-      }
-      overview += statsSection;
     } catch {}
   }
 
-  fs.writeFileSync(path.join(outputDir, 'overview.md'), overview || '# Overview\n\n（暂无内容）\n', 'utf-8');
+  // Module tree
+  let tree = [];
+  const treePath = path.join(outputDir, 'module_tree.json');
+  if (fs.existsSync(treePath)) {
+    try { tree = JSON.parse(fs.readFileSync(treePath, 'utf-8')); } catch {}
+  }
+
+  // Stage 2: Build mermaid diagram + module table (always)
+  let md = readme ? `${readme}\n\n---\n` : '';
+
+  if (tree.length > 0) {
+    md += '\n\n## 🏗️ 架构概览\n\n### 模块依赖关系\n\n```mermaid\nflowchart LR\n';
+    const added = new Set();
+    for (const mod of tree) {
+      const modId = mod.slug.replace(/[^a-zA-Z0-9]/g, '_');
+      md += `  ${modId}[${mod.name}]\n`;
+      if (mod.dependencies) {
+        for (const dep of mod.dependencies) {
+          const depSlug = slugify(dep).replace(/[^a-zA-Z0-9]/g, '_');
+          const edge = `${modId}-->${depSlug}`;
+          if (!added.has(edge)) { md += `  ${edge}\n`; added.add(edge); }
+        }
+      }
+    }
+    md += '```\n\n';
+
+    md += '### 模块清单\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
+    for (const mod of tree) {
+      const deps = mod.dependencies?.length ? mod.dependencies.join(', ') : '-';
+      const depBy = mod.dependents?.length ? mod.dependents.join(', ') : '-';
+      md += `| **${mod.name}** | ${mod.files?.length || 0} | ${deps} | ${depBy} |\n`;
+    }
+    md += '\n';
+  }
+
+  // Stats section
+  md += `\n\n---\n\n## 📊 代码统计\n\n- **文件数:** ${stats.files}\n- **符号数:** ${stats.nodes}\n`;
+  if (stats.lang.length > 0) {
+    md += '- **语言:**\n';
+    for (const l of stats.lang) md += `  - ${l.language}: ${l.c} 文件\n`;
+  }
+
+  // Stage 3: LLM generates introductory sections with fixed template
+  if (llmConfig && llmConfig.apiKey && tree.length > 0) {
+    const moduleSummary = tree.map(m =>
+      `- ${m.name} (${m.files?.length || 0} files)${m.dependencies?.length ? ' → depends: ' + m.dependencies.join(', ') : ''}`
+    ).join('\n');
+    const exportSummary = stats.topExports ? stats.topExports.slice(0, 10).map(e =>
+      `- ${e.name} (${e.kind}) at ${e.file_path} (referenced ${e.refs} times)`
+    ).join('\n') : '';
+
+    const prompt = `Write a project overview document for the codebase described below.
+
+## Fixed template — you MUST follow this structure exactly:
+
+### 项目简介
+(2-3 sentences explaining what this project does, its main purpose)
+
+### 架构分层
+(3-5 sentences describing the high-level architecture: how modules are organized, what layers exist, how data flows between them)
+
+### 核心模块
+(List 3-5 most important modules and explain what each does in 1-2 sentences)
+
+### 技术栈
+(1-2 sentences on the main languages and technologies, based on the stats below)
+
+## Data
+README excerpt: ${readme?.slice(0, 500) || '(none)'}
+Languages: ${stats.lang.map((l) => l.language + ' (' + l.c + ' files)').join(', ')}
+Module tree: ${moduleSummary}
+Key exports: ${exportSummary}
+Total files: ${stats.files}, total symbols: ${stats.nodes}
+
+Output ONLY the Markdown content for the sections above. Use Chinese for all prose.`;
+
+    try {
+      const llmContent = await callLLM(prompt, llmConfig, 4096);
+      if (llmContent) {
+        // Prepend LLM sections, keep programmatic sections at the bottom
+        md = `${llmContent}\n\n---\n\n${md}`;
+      }
+    } catch {}
+  }
+
+  fs.writeFileSync(path.join(outputDir, 'overview.md'), md, 'utf-8');
   console.log('  ✓ overview.md generated');
 }
+      db.close();
+
 
 /** Read source file content, with size limit. Returns { path, code } or null. */
 function readFileSnippet(repoPath, filePath, maxLines = 50) {
@@ -677,28 +720,38 @@ async function generateModulePage(mod, repoPath, outputDir, llmConfig, exportsBy
   const deps = mod.dependencies && mod.dependencies.length > 0 ? mod.dependencies.join(', ') : '无';
   const depBy = mod.dependents && mod.dependents.length > 0 ? mod.dependents.join(', ') : '无（入口层）';
 
-  const prompt = `Generate a developer documentation page for the module "${mod.name}".
+  const prompt = `Generate a documentation page for module "${mod.name}". Follow the template EXACTLY.
 
-## Module Info
-- **Files:** ${mod.files.join(', ')}
-- **Depends on:** ${deps}
-- **Used by:** ${depBy}
+## Fixed Template
 
-## Source Code Snippets
+### 职责
+(2-3 sentences explaining what this module does and why it exists)
+
+### 核心符号
+
+| 符号 | 类型 | 说明 |
+|------|------|------|
+| (List key exported functions, classes, interfaces with brief 1-line descriptions) |
+
+### 依赖关系
+
+- **依赖:** ${deps}
+- **被依赖:** ${depBy}
+
+(1-2 sentences on how this module connects to others)
+
+### 关键流程
+(If call edges reveal a data flow, describe in 2-3 sentences. Otherwise: "无显著流程。")
+
+## Data
+Files: ${mod.files.join(', ')}
+Source snippets:
 ${sourceSection}
+Intra-module calls: ${intraEdges.length > 0 ? intraEdges.map(e => e.caller + ' → ' + e.callee).join(', ') : '无'}
+Outgoing: ${outgoingEdges.length > 0 ? outgoingEdges.map(e => e.caller + ' → ' + e.callee).join(', ') : '无'}
+Incoming: ${incomingEdges.length > 0 ? incomingEdges.map(e => e.caller + ' → ' + e.callee).join(', ') : '无'}
 
-## Call Relationships (from codegraph)
-${intraEdges.length > 0 ? 'Intra-module calls:\n' + intraEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : '（无内部调用）'}
-${outgoingEdges.length > 0 ? '\nOutgoing calls (to other modules):\n' + outgoingEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : ''}
-${incomingEdges.length > 0 ? '\nIncoming calls (from other modules):\n' + incomingEdges.map(e => `- ${e.caller} → ${e.callee}`).join('\n') : ''}
-
-Write a Markdown document that includes:
-1. **Module purpose** — what this module does and why it exists
-2. **Core symbols** — key exports (functions, classes, interfaces) with brief descriptions
-3. **Dependencies** — how it connects to other modules
-4. **Key flows** — if the call edges suggest a data flow or execution path, describe it
-
-Output ONLY the Markdown content. Use Chinese for all prose.`;
+Output ONLY the filled template with Chinese prose. Do not add extra sections.`;
 
   const content = await callLLM(prompt, llmConfig, 8192);
   if (content) {
@@ -728,8 +781,8 @@ async function generateModulePages(result, repoPath, outputDir, llmConfig) {
   console.log(`  ✓ ${count}/${tree.length} module pages generated`);
 }
 
-/** Generate data-model.md from codegraph nodes with kind=interface/type/class. */
-function generateDataModelPage(repoPath, outputDir) {
+/** Generate data-model.md with LLM per-group descriptions + field table. */
+async function generateDataModelPage(repoPath, outputDir, llmConfig) {
   const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
   if (!fs.existsSync(dbPath)) return;
 
@@ -737,14 +790,13 @@ function generateDataModelPage(repoPath, outputDir) {
   const rows = db.prepare(`
     SELECT name, kind, file_path, signature, docstring,
       (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name AND n2.file_path = nodes.file_path) AS refs
-    FROM nodes
-    WHERE kind IN ('interface', 'class') AND is_exported = 1
+    FROM nodes WHERE kind IN ('interface', 'class') AND is_exported = 1
     ORDER BY refs DESC LIMIT 40
   `).all();
   db.close();
-
   if (rows.length === 0) return;
 
+  // Group by top-level directory
   const groups = {};
   for (const r of rows) {
     const dir = r.file_path.split('/')[0];
@@ -752,15 +804,43 @@ function generateDataModelPage(repoPath, outputDir) {
     groups[dir].push(r);
   }
 
-  let md = '# 📐 数据结构设计\n\n核心 interface 和 class 定义，按模块分组。\n\n';
+  let md = '# 📐 数据结构设计\n\n核心 interface 和 class 定义。\n\n';
+
   for (const [dir, items] of Object.entries(groups)) {
     md += `## ${dir}\n\n`;
-    md += '| 名称 | 类型 | 文件 | 引用次数 | 签名 |\n';
-    md += '|------|------|------|----------|------|\n';
+
+    // Use LLM to describe each struct if available, otherwise fallback to table
+    if (llmConfig && llmConfig.apiKey) {
+      const itemList = items.map(i =>
+        `### ${i.name}\n- **kind:** ${i.kind}\n- **file:** ${i.file_path}\n- **signature:** ${i.signature || '-'}\n- **docstring:** ${(i.docstring || '-').slice(0, 200)}\n- **references:** ${i.refs}\n`
+      ).join('\n');
+
+      const prompt = `Describe each data structure below with a fixed format.
+
+Fixed format for EACH structure:
+### {name}
+**用途:** (1-2 sentences on what this struct/interface represents and where it's used)
+
+| 字段 | 类型 | 说明 |
+| (LLM fills this table based on the signature and context) |
+
+Structures to describe:
+${itemList}
+
+References count indicates how many other code symbols reference this type — higher means more central.
+Only output the formatted descriptions. Use Chinese for prose.`;
+
+      const result = await callLLM(prompt, llmConfig, 4096);
+      if (result) {
+        md += result + '\n\n';
+        continue;
+      }
+    }
+
+    // Fallback: table format
+    md += '| 名称 | 类型 | 文件 | 引用次数 |\n|------|------|------|----------|\n';
     for (const item of items) {
-      const sig = (item.signature || '').slice(0, 80);
-      const doc = item.docstring ? item.docstring.slice(0, 60).replace(/\n/g, ' ') : '';
-      md += `| \`${item.name}\` | ${item.kind} | \`${item.file_path}\` | ${item.refs} | ${doc || sig} |\n`;
+      md += `| \`${item.name}\` | ${item.kind} | \`${item.file_path}\` | ${item.refs} |\n`;
     }
     md += '\n';
   }
@@ -818,8 +898,8 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
     const llmConfig = loadLlmConfig();
     fs.mkdirSync(outputDir, { recursive: true });
     const result = await generateModuleTree(resolvedPath, outputDir, llmConfig);
-    generateDataModelPage(resolvedPath, outputDir);
-    await generateOverview(resolvedPath, outputDir);
+    await generateDataModelPage(resolvedPath, outputDir, llmConfig);
+    await generateOverview(resolvedPath, outputDir, llmConfig);
 
     // Generate module pages if --modules flag is set
     if (withModules && result && result.tree && llmConfig.apiKey) {
