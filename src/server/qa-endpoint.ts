@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import type { ServerResponse } from 'http';
@@ -783,6 +784,7 @@ export function createQaEndpoint(
     let session = sessionId ? sessions.get(sessionId) : undefined;
     let qid: number | undefined;
     const qRefRe = /#Q(\d+)/g;
+      let calibratedContext = '';
 
     if (!session) {
       // Use the client-provided sessionId if it looks like a valid ID,
@@ -825,6 +827,25 @@ export function createQaEndpoint(
         }
       } catch (e) {
         log('error', 'failed to create #Q entry', { error: (e as Error)?.message });
+      }
+
+      // Fetch calibrated answers for referenced #Q entries
+      if (qRefs.length > 0) {
+        const calParts: string[] = [];
+        for (const refQid of qRefs) {
+          try {
+            const refEntry = qaStore.getEntryByQid(refQid);
+            if (refEntry) {
+              const cal = qaStore.getCalibratedAnswer(refEntry.id);
+              if (cal) {
+                calParts.push('#Q' + refQid + ': ' + refEntry.question + '\n标准答案（版本 ' + cal.version + '）: ' + cal.answer.slice(0, 2000));
+              }
+            }
+          } catch {}
+        }
+        if (calParts.length > 0) {
+          calibratedContext = '\n\n## 引用的历史已校准问答\n以下 #Q 条目已被团队校准过，请参考其标准答案：\n\n' + calParts.join('\n\n');
+        }
       }
     } else {
       // Follow-up question: reuse session's existing #Q, no new entry
@@ -1055,6 +1076,39 @@ export function createQaEndpoint(
       }
     } catch (e) {
       log('error', 'search failed', { error: (e as Error)?.message });
+    }
+
+    // Load relevant Wiki module pages for single-repo QA
+    let wikiModuleContext = '';
+    if (!isCrossRepo && entry && sources.length > 0) {
+      try {
+        const wikiDir = path.join(entry.storagePath, '.codegraph', 'wiki');
+        const moduleTreePath = path.join(wikiDir, 'module_tree.json');
+        await fs.access(moduleTreePath); // throws if not exist
+        const treeRaw = await fs.readFile(moduleTreePath, 'utf-8');
+        const tree = JSON.parse(treeRaw);
+        // Map source files to modules
+        const matchedSlugs = new Set<string>();
+        for (const src of sources) {
+          const fp = src.rawPath || src.filePath || '';
+          for (const mod of tree) {
+            if (mod.files && mod.files.some((f: string) => fp.includes(f) || f.includes(fp))) {
+              matchedSlugs.add(mod.slug);
+            }
+          }
+        }
+        // Load wiki pages for top 2 matched modules
+        let loadedCount = 0;
+        for (const slug of matchedSlugs) {
+          if (loadedCount >= 2) break;
+          try {
+            const mdPath = path.join(wikiDir, slug + '.md');
+            const content = await fs.readFile(mdPath, 'utf-8');
+            wikiModuleContext += '\n### ' + slug + '\n' + content.slice(0, 2000) + '\n';
+            loadedCount++;
+          } catch {}
+        }
+      } catch {}
     }
 
     // ── Pipeline: Intent Analysis + codegraph 工具编排 ──────────
