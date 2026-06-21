@@ -45,17 +45,17 @@ console.log(`Setting up repo: ${repoName}`);
 console.log(`  Path: ${repoPath}`);
 console.log('');
 
-// Step 1: codegraph init + index
-console.log('[1/2] Initializing codegraph index...');
+// Step 1: codebase-memory-mcp index
+console.log('[1/2] Indexing with codebase-memory-mcp...');
 try {
-  execFileSync('npx', ['codegraph', 'init', '--index', repoPath], {
+  execFileSync('codebase-memory-mcp', ['cli', 'index_repository', JSON.stringify({ repo_path: repoPath, mode: 'full' })], {
     stdio: 'inherit',
     timeout: 300_000,
     cwd: repoPath,
   });
-  console.log('  ✓ codegraph init + index complete');
+  console.log('  ✓ codebase-memory-mcp index complete');
 } catch (err) {
-  console.error(`  ✗ codegraph init failed: ${err.message}`);
+  console.error(`  ✗ index failed: ${err.message}`);
   process.exit(1);
 }
 
@@ -86,8 +86,8 @@ fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2) + '\n', 'utf-8'
 
 console.log('');
 console.log(`Done. Repo "${repoName}" is ready for OpenCodeWiki.`);
-console.log(`  Code index: ${repoPath}/.codegraph/`);
-console.log(`  Registry:   ${registryFile}`);
+console.log(`  Index stored: ~/.cache/codebase-memory-mcp/`);
+console.log(`  Registry:     ${registryFile}`);
 console.log('');
 console.log('Next steps:');
 console.log(`  Start server:   npm run dev`);

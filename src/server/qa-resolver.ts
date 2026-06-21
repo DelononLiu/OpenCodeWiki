@@ -16,6 +16,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 
 // ── 向量搜索接口（由外部注入，避免 ESM/TS 编译路径问题）────────────────
 export interface VectorSearchAPI {
@@ -305,7 +306,7 @@ export class QaResolver {
 
     const lines: string[] = ['## PIPELINE INITIAL FINDINGS'];
     lines.push(`Intent: ${this.describeIntent(intent.intent)}`);
-    lines.push('The following are initial search results. Use codegraph tools (codegraph_search, codegraph_context, codegraph_callers, codegraph_callees, codegraph_impact) to dig deeper as needed.');
+    lines.push('The following are initial search results. Use codebase-memory tools (search_graph, get_code_snippet, trace_path) to dig deeper as needed.');
     lines.push('');
 
     const top = matches.slice(0, 5);
@@ -663,18 +664,20 @@ export class QaResolver {
           const vecResults = this.vs.vectorSearch(repo.name, queryVec, 10);
           if (vecResults.length === 0) continue;
           // 向量结果映射为 PipelineMatch
-          const codegraphDb = path.join(repo.storagePath, '.codegraph', 'codegraph.db');
+          const projectName = repo.storagePath ? repo.storagePath.replace(/^\//, '').replace(/\//g, '-') : repo.name;
+          const cbmDbDir = path.join(os.homedir(), '.cache', 'codebase-memory-mcp');
+          const codegraphDb = path.join(cbmDbDir, projectName + '.db');
           try {
             const { DatabaseSync } = await import('node:sqlite');
             const db = new DatabaseSync(codegraphDb);
             const vecMatches: PipelineMatch[] = vecResults.map(v => {
-              const row: any = db.prepare('SELECT name, file_path, start_line, kind FROM nodes WHERE id = ?').get(v.nodeId);
+              const row: any = db.prepare('SELECT name, file_path, start_line, label FROM nodes WHERE id = ?').get(v.nodeId);
               return {
                 name: row?.name || '',
                 filePath: row?.file_path || '',
                 startLine: row?.start_line || 1,
                 endLine: row?.start_line || 1,
-                kind: (row?.kind || 'unknown') as MatchKind,
+                kind: (row?.label || 'unknown') as MatchKind,
                 score: v.score * 100,
                 snippet: '',
                 repo: repo.name,
@@ -730,9 +733,45 @@ export class QaResolver {
     return all.sort((a, b) => b.score - a.score).slice(0, 20);
   }
 
-  /** Parse codegraph_search output into PipelineMatch[] */
+  /** Parse codebase-memory-mcp search_graph JSON output into PipelineMatch[] */
   private parseResults(rawText: string, repoName: string): PipelineMatch[] {
     if (!rawText) return [];
+
+    // 先尝试 JSON 解析（codebase-memory-mcp 输出）
+    if (rawText.startsWith('{')) {
+      try {
+        const data = JSON.parse(rawText);
+        // search_graph BM25 模式: data.results[]
+        if (Array.isArray(data.results)) {
+          return data.results.map((r: any) => ({
+            name: r.name || '',
+            filePath: r.file_path || r.file || '',
+            startLine: r.start_line || 1,
+            endLine: r.end_line || r.start_line || 1,
+            kind: this.classifyCbmKind(r.label || r.kind || ''),
+            score: r.rank !== undefined ? Math.round(100 + r.rank) : 60,
+            snippet: '',
+            repo: repoName,
+          }));
+        }
+        // trace_path 输出: data.callers[] / data.callees[]
+        const items = [...(data.callers || []), ...(data.callees || [])];
+        if (items.length > 0) {
+          return items.map((c: any) => ({
+            name: c.name || '',
+            filePath: c.qualified_name?.split('.').slice(2).join('/') || '',
+            startLine: 1,
+            endLine: 1,
+            kind: 'reference' as MatchKind,
+            score: Math.max(10, 100 - (c.hop || 0) * 30),
+            snippet: '',
+            repo: repoName,
+          }));
+        }
+      } catch {}
+    }
+
+    // 兼容旧 markdown 格式（过渡期）
     const matches: PipelineMatch[] = [];
     const lines = rawText.split('\n');
     let currentName = '';
@@ -768,24 +807,18 @@ export class QaResolver {
             repo: repoName,
           });
         }
-        continue;
-      }
-
-      if (/^[/.\w]/.test(trimmed) && (trimmed.startsWith('/') || trimmed.startsWith('src/') || trimmed.startsWith('./') || trimmed.startsWith('../') || trimmed.startsWith('lib/') || trimmed.startsWith('packages/'))) {
-        matches.push({
-          name: currentName || path.basename(trimmed),
-          filePath: trimmed,
-          startLine: 1,
-          endLine: 1,
-          kind: this.classifyKind(currentKind),
-          score: 50,
-          snippet: '',
-          repo: repoName,
-        });
       }
     }
 
     return matches;
+  }
+
+  /** Map codebase-memory-mcp label to internal MatchKind */
+  private classifyCbmKind(label: string): MatchKind {
+    const k = (label || '').toLowerCase();
+    if (['function', 'method', 'class', 'interface', 'type', 'enum'].includes(k)) return 'definition';
+    if (['variable', 'property', 'field', 'parameter'].includes(k)) return 'declaration';
+    return 'reference';
   }
 
   /** Map codegraph kind string to internal MatchKind */

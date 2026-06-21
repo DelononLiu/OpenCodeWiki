@@ -8,13 +8,17 @@
  *   npm run reindex --hook <repo-name-or-path>        # git post-merge hook（安静模式）
  */
 
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
 function resolvePath(p) {
   return path.resolve(p.replace(/^~/, os.homedir()));
+}
+
+function repoPathToProjectName(p) {
+  return p.replace(/^\//, '').replace(/\//g, '-');
 }
 
 const registryFile = path.join(os.homedir(), '.opencodewiki', 'registry.json');
@@ -31,14 +35,26 @@ function resolveRepo(input) {
 }
 
 function ensureReady(rp) {
-  if (!fs.existsSync(path.join(rp, '.codegraph'))) {
-    console.error(`✗ CodeGraph not initialized at ${rp}. Run 'npm run index' first.`);
+  try {
+    const out = execFileSync('codebase-memory-mcp', ['cli', 'index_status',
+      JSON.stringify({ project: repoPathToProjectName(rp) }),
+    ], { encoding: 'utf-8', timeout: 30_000 });
+    const jsonLine = out.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const data = JSON.parse(jsonLine);
+    if (data.status !== 'ready') {
+      console.error(`✗ Repo not indexed at ${rp}. Run 'npm run index' first.`);
+      process.exit(1);
+    }
+  } catch {
+    console.error(`✗ codebase-memory-mcp not available or repo not indexed at ${rp}.`);
     process.exit(1);
   }
 }
 
-function codegraphSync(rp) {
-  execFileSync('npx', ['codegraph', 'sync', rp], { stdio: 'inherit', timeout: 120_000, cwd: rp });
+function fastSync(rp) {
+  execFileSync('codebase-memory-mcp', ['cli', 'index_repository',
+    JSON.stringify({ repo_path: rp, mode: 'fast' }),
+  ], { stdio: 'inherit', timeout: 120_000, cwd: rp });
 }
 
 function updateRegistry(rp) {
@@ -65,7 +81,6 @@ if (mode === '--watch' || mode === '-w') {
   console.log(`[watch] 监听中: ${repoName} (${repoPath})`);
   console.log('[watch] 文件变更后自动增量同步...\n');
 
-  // 忽略的目录/文件模式
   const ignore = /(node_modules|\.git|dist|build|target|\.codegraph|\/\.)/;
 
   const ac = new AbortController();
@@ -78,12 +93,11 @@ if (mode === '--watch' || mode === '-w') {
       if (event.eventType !== 'change') continue;
       const rel = path.relative(repoPath, event.filename || '');
       if (ignore.test(rel)) continue;
-      // 防抖 1s
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         console.log(`[watch] 变更: ${rel}`);
         try {
-          codegraphSync(repoPath);
+          fastSync(repoPath);
           console.log(`[watch] ✓ 增量同步完成`);
         } catch (e) {
           console.error(`[watch] ✗ 同步失败: ${e.message}`);
@@ -96,15 +110,19 @@ if (mode === '--watch' || mode === '-w') {
   process.exit(0);
 
 } else if (mode === '--hook') {
-  // ── Git hook 模式（安静，只输出错误） ──
+  // ── Git hook 模式（安静） ──
   const resolved = resolveRepo(input);
   repoPath = resolved.path; repoName = resolved.name;
   if (!fs.existsSync(repoPath)) process.exit(1);
-  try { execSync(`npx codegraph sync "${repoPath}"`, { stdio: 'pipe', timeout: 120_000, cwd: repoPath }); } catch {}
+  try {
+    execFileSync('codebase-memory-mcp', ['cli', 'index_repository',
+      JSON.stringify({ repo_path: repoPath, mode: 'fast' }),
+    ], { stdio: 'pipe', timeout: 120_000, cwd: repoPath });
+  } catch {}
   process.exit(0);
 
 } else {
-  // ── 全量重新索引（原有逻辑） ──
+  // ── 全量重新索引 ──
   const resolved = resolveRepo(input);
   repoPath = resolved.path; repoName = resolved.name;
   if (!fs.existsSync(repoPath)) { console.error(`✗ Repo not found: ${repoPath}`); process.exit(1); }
@@ -115,18 +133,26 @@ if (mode === '--watch' || mode === '-w') {
   console.log('');
 
   try {
-    const before = execFileSync('npx', ['codegraph', 'status', repoPath], { encoding: 'utf-8', timeout: 30_000, cwd: repoPath });
-    const m = before.match(/\*\*Files indexed:\*\*\s*(\d+)/);
-    if (m) console.log(`  Before: ${m[1]} files`);
+    const before = execFileSync('codebase-memory-mcp', ['cli', 'index_status',
+      JSON.stringify({ project: repoPathToProjectName(repoPath) }),
+    ], { encoding: 'utf-8', timeout: 30_000 });
+    const jsonLine = before.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const data = JSON.parse(jsonLine);
+    if (data.nodes) console.log(`  Before: ${data.nodes} nodes, ${data.edges} edges`);
   } catch {}
 
-  execFileSync('npx', ['codegraph', 'index', repoPath], { stdio: 'inherit', timeout: 600_000, cwd: repoPath });
+  execFileSync('codebase-memory-mcp', ['cli', 'index_repository',
+    JSON.stringify({ repo_path: repoPath, mode: 'full' }),
+  ], { stdio: 'inherit', timeout: 600_000, cwd: repoPath });
   console.log('  ✓ Re-index complete');
 
   try {
-    const after = execFileSync('npx', ['codegraph', 'status', repoPath], { encoding: 'utf-8', timeout: 30_000, cwd: repoPath });
-    console.log('');
-    console.log(after.trim());
+    const after = execFileSync('codebase-memory-mcp', ['cli', 'index_status',
+      JSON.stringify({ project: repoPathToProjectName(repoPath) }),
+    ], { encoding: 'utf-8', timeout: 30_000 });
+    const jsonLine = after.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const data = JSON.parse(jsonLine);
+    console.log(`  After: ${data.nodes} nodes, ${data.edges} edges`);
   } catch {}
 
   updateRegistry(repoPath);

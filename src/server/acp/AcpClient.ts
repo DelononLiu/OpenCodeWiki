@@ -267,9 +267,9 @@ export class AcpClient {
         cwd: this._cwd,
         mcpServers: [
           {
-            name: 'codegraph',
-            command: 'npx',
-            args: ['codegraph', 'serve', '--mcp', '--no-watch', '--path', this._cwd],
+            name: 'codebase-memory',
+            command: 'codebase-memory-mcp',
+            args: [],
             env: [],
           },
         ],

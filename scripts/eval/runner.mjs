@@ -22,15 +22,19 @@ try {
   vs = await import('../../src/server/vector-store.mjs');
 } catch {}
 
-// 从 codegraph.db 加载节点名/路径，供向量搜索结果转换为 evaluate 格式
+// 从 codebase-memory-mcp DB 加载节点名/路径
+function repoPathToProjectName(p) {
+  return p.replace(/^\//, '').replace(/\//g, '-');
+}
 async function getNodesForRepo(repoPath) {
   const cacheKey = repoPath;
   const cached = getNodesForRepo._cache?.get(cacheKey);
   if (cached) return cached;
   try {
+    const projectName = repoPathToProjectName(repoPath);
     const { DatabaseSync } = await import('node:sqlite');
-    const db = new DatabaseSync(repoPath + '/.codegraph/codegraph.db');
-    const rows = db.prepare('SELECT id, name, file_path AS filePath, kind FROM nodes').all();
+    const db = new DatabaseSync(path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db'));
+    const rows = db.prepare('SELECT id, name, file_path AS filePath, label AS kind FROM nodes').all();
     db.close();
     const map = new Map(rows.map(r => [r.id, r]));
     (getNodesForRepo._cache ??= new Map()).set(cacheKey, map);
@@ -68,15 +72,22 @@ function getRepoPath(name) {
 
 function codegraphSearch(query, repoPath, limit = 10) {
   try {
-    const stdout = execFileSync('codegraph', [
-      'query', query,
-      '--path', repoPath,
-      '--limit', String(limit),
-      '--json',
+    const projectName = repoPathToProjectName(repoPath);
+    const stdout = execFileSync('codebase-memory-mcp', ['cli', 'search_graph',
+      JSON.stringify({ query, project: projectName, limit }),
     ], { encoding: 'utf-8', timeout: 30000 });
-    return JSON.parse(stdout);
+    const jsonLine = stdout.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const data = JSON.parse(jsonLine);
+    // 兼容 codebase-memory-mcp 输出格式 → 转成旧格式 [{ node: { name, filePath }, score }]
+    if (data.results) {
+      return data.results.map(r => ({
+        node: { id: '', name: r.name, filePath: r.file_path, kind: r.label },
+        score: r.rank !== undefined ? Math.max(0, 100 + r.rank) : 50,
+      }));
+    }
+    return [];
   } catch (e) {
-    console.error(`[runner] codegraph query failed: ${query}`, e.message);
+    console.error(`[runner] search_graph failed: ${query}`, e.message);
     return [];
   }
 }
@@ -209,21 +220,21 @@ async function main() {
       }
     }
 
-    // ── 图传播重打分：从 top 结果沿调用图传播 ──
+    // ── 图传播重打分（通过 codebase-memory-mcp DB） ──
     if (fusedResults.length > 2) {
       try {
+        const projectName = repoPathToProjectName(repoPath);
         const { DatabaseSync } = await import('node:sqlite');
-        const db = new DatabaseSync(repoPath + '/.codegraph/codegraph.db');
+        const db = new DatabaseSync(path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db'));
         const boostScores = new Map();
-        // 只传播 top 3 的结果
         for (const r of fusedResults.slice(0, 3)) {
           const nodeId = r.node?.id;
           if (!nodeId) continue;
           const edges = db.prepare(
-            "SELECT target FROM edges WHERE source = ? AND kind IN ('calls', 'references') LIMIT 15"
+            "SELECT target_id FROM edges WHERE source_id = ? AND type IN ('CALLS', 'USAGE') LIMIT 15"
           ).all(nodeId);
           for (const e of edges) {
-            boostScores.set(e.target, (boostScores.get(e.target) || 0) + 0.15);
+            boostScores.set(e.target_id, (boostScores.get(e.target_id) || 0) + 0.15);
           }
         }
         db.close();

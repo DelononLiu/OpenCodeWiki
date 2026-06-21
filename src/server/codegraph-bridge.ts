@@ -4,7 +4,6 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
-import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
 import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
@@ -14,19 +13,7 @@ import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
 import { setupAuth } from './auth/index.js';
-
-// Codegraph is optional — the server can run without it (search/QA will be degraded)
-let ToolHandler: any, CodeGraph: any;
-try {
-  const cgModule = await import('@colbymchenry/codegraph/dist/mcp/index.js');
-  const cgCore = await import('@colbymchenry/codegraph');
-  ToolHandler = cgModule.ToolHandler;
-  CodeGraph = cgCore.CodeGraph;
-} catch {
-  console.warn('[codegraph] Codegraph engine not available — search/QA features will be limited');
-  ToolHandler = null;
-  CodeGraph = null;
-}
+import { CbmBridge, getBridge } from './cbm-bridge.js';
 
 // Vector store — 可选，提供混合检索（FTS5 + 向量 + RRF）
 try {
@@ -75,12 +62,12 @@ async function saveRegistry(entries: RegistryEntry[]): Promise<void> {
 
 async function getCodegraphStatsFor(projectPath: string) {
   try {
-    const result = await handler.execute('codegraph_status', { projectPath });
-    const text = result?.content?.[0]?.text || '';
-    const files = parseInt(text.match(/\*\*Files indexed:\*\*\s*(\d+)/)?.[1] || '0', 10);
-    const nodes = parseInt(text.match(/\*\*Total nodes:\*\*\s*(\d+)/)?.[1] || '0', 10);
-    const edges = parseInt(text.match(/\*\*Total edges:\*\*\s*(\d+)/)?.[1] || '0', 10);
-    return { files, nodes, edges };
+    const projectName = CbmBridge.repoPathToProjectName(projectPath);
+    const result = await handler.execute('index_status', { project: projectName });
+    const text = result?.content?.[0]?.text || '{}';
+    const data = JSON.parse(text);
+    // codebase-memory-mcp index_status 不直接返回 file 数，用 nodes/edges 估算
+    return { files: data.nodes || 0, nodes: data.nodes || 0, edges: data.edges || 0 };
   } catch {
     return { files: 0, nodes: 0, edges: 0 };
   }
@@ -110,50 +97,73 @@ const vendorDir = path.resolve(rootDir, 'vendor');
 const qaIndexFile = path.resolve(rootDir, 'src', 'qa', 'index.html');
 const homeIndexFile = path.resolve(rootDir, 'src', 'home', 'index.html');
 
+const handler = await initHandler();
+
 async function initHandler(): Promise<any> {
-  if (!ToolHandler) {
-    // Return a stub handler when codegraph is not installed
+  const b = getBridge(rootDir);
+  if (!b.isAvailable()) {
+    console.warn('[cbm] codebase-memory-mcp not available — search/QA will be degraded');
     return {
       execute: async (_method: string, _args?: any) => ({ content: [{ text: '' }] }),
     };
   }
-  const codegraphDir = path.join(rootDir, '.codegraph');
-  let cg: any = null;
-  try {
-    await fs.access(codegraphDir);
-    cg = await CodeGraph.open(rootDir);
-  } catch {
-    try {
-      cg = await CodeGraph.init(rootDir, { index: false });
-    } catch {}
-  }
-  return new ToolHandler(cg);
+  console.log('[cbm] Using codebase-memory-mcp as index engine');
+  return b;
 }
 
 /** Dynamic wiki pages: slugs that are generated from codegraph data instead of static .md files. */
 const DYNAMIC_WIKI_PAGES = ['dependencies', 'impact-map', 'heatmap', 'gotchas', 'data-model'];
 
-/** Open a repo's codegraph DB and return helper or null. */
-function openCodegraphDb(repoPath: string): DatabaseSync | null {
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+/**
+ * 通过 codebase-memory-mcp 获取某个 repo 的架构数据（缓存到全局避免重复调 CLI）。
+ * 返回 get_architecture 的完整 JSON 对象，或 null。
+ */
+let _archCache: Record<string, any> = {};
+async function getArchitecture(repoPath: string): Promise<any | null> {
+  if (_archCache[repoPath]) return _archCache[repoPath];
   try {
-    if (!fsSync.existsSync(dbPath)) return null;
-    return new DatabaseSync(dbPath);
+    const projectName = CbmBridge.repoPathToProjectName(repoPath);
+    const result = await handler.execute('get_architecture', { project: projectName });
+    const text = result?.content?.[0]?.text;
+    if (!text) return null;
+    const data = JSON.parse(text);
+    if (data.error) return null;
+    _archCache[repoPath] = data;
+    return data;
   } catch { return null; }
+}
+setInterval(() => { _archCache = {}; }, 10 * 60 * 1000);
+
+/**
+ * 通过 codebase-memory-mcp 搜索指定 label 的符号。
+ * 返回 search_graph 的 results[] 或空数组。
+ */
+async function searchByLabel(repoPath: string, label: string, limit = 40): Promise<any[]> {
+  try {
+    const projectName = CbmBridge.repoPathToProjectName(repoPath);
+    const result = await handler.execute('search_graph', {
+      name_pattern: '.*',
+      label,
+      project: projectName,
+      limit,
+    });
+    const text = result?.content?.[0]?.text;
+    if (!text) return [];
+    return JSON.parse(text).results || [];
+  } catch { return []; }
 }
 
 /** Generate the 依赖图谱 page — mermaid graph of directory-level dependencies. */
 async function generateDependenciesPage(repoPath: string): Promise<string> {
-  const db = openCodegraphDb(repoPath);
+  const arch = await getArchitecture(repoPath);
   let dirDeps = '';
-  if (db) {
-    // Get all files grouped by top-level directory
-    const files = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all() as any[];
-    db.close();
+  if (arch?.file_tree) {
     const dirs = new Set<string>();
-    for (const f of files) {
-      const parts = f.path.split('/');
-      if (parts.length >= 2) dirs.add(parts[0]);
+    for (const entry of arch.file_tree) {
+      if (entry.type === 'file') {
+        const parts = entry.path.split('/');
+        if (parts.length >= 2) dirs.add(parts[0]);
+      }
     }
     const sortedDirs = [...dirs].sort();
     dirDeps = sortedDirs.map(d => `  ${d.replace(/[^a-zA-Z0-9]/g, '_')}[${d}]`).join('\n');
@@ -161,45 +171,36 @@ async function generateDependenciesPage(repoPath: string): Promise<string> {
 
   return `## 🌐 依赖图谱
 
-本页展示了仓库中顶层目录之间的依赖关系。数据来源于 codegraph 代码分析。
+本页展示了仓库中顶层目录之间的依赖关系。数据来源于 codebase-memory-mcp 代码分析。
 
 \`\`\`mermaid
 flowchart LR
 ${dirDeps || '  empty[（暂无数据）]'}
 \`\`\`
 
-> 此页面由 codegraph 数据库动态生成，每次访问自动更新。
+> 此页面由 codebase-memory-mcp 动态生成，每次访问自动更新。
 `;
 }
 
 /** Generate the 影响地图 page — modules with widest impact radius. */
 async function generateImpactMapPage(repoPath: string): Promise<string> {
-  const db = openCodegraphDb(repoPath);
+  const arch = await getArchitecture(repoPath);
   let impactMd = '*（暂无数据）*';
-  if (db) {
-    // Top files by node count + edge count
-    const topFiles = db.prepare(`
-      SELECT f.path, f.node_count,
-        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.source = n.id WHERE n.file_path = f.path) AS edge_count
-      FROM files f ORDER BY (f.node_count * 2 + edge_count) DESC LIMIT 15
-    `).all() as any[];
-    db.close();
-    if (topFiles.length > 0) {
-      impactMd = '| 文件 | 符号数 | 关联边 | 影响分 |\n|------|--------|--------|--------|\n';
-      for (const f of topFiles) {
-        const score = (f.node_count || 0) * 2 + (f.edge_count || 0);
-        impactMd += `| \`${f.path}\` | ${f.node_count || 0} | ${f.edge_count || 0} | ${score} |\n`;
-      }
+  if (arch?.hotspots && arch.hotspots.length > 0) {
+    impactMd = '| 符号 | 文件 | 扇入（调用者数） | 影响分 |\n|------|------|----------------|--------|\n';
+    for (const h of arch.hotspots.slice(0, 15)) {
+      const score = (h.fan_in || 0) * 2;
+      impactMd += `| \`${h.name}\` | \`${h.file}\` | ${h.fan_in || 0} | ${score} |\n`;
     }
   }
 
   return `## 🔗 影响地图
 
-按"影响半径"排序——符号越多、关联边越多的文件，修改时需要关注的影响面越大。
+按"影响半径"排序——被调用越多、扇入越高的符号，修改时需要关注的影响面越大。
 
 ${impactMd}
 
-> 此页面由 codegraph 数据库动态生成。
+> 此页面由 codebase-memory-mcp 动态生成。
 `;
 }
 
@@ -225,21 +226,12 @@ async function generateHeatmapPage(repoPath: string): Promise<string> {
       .slice(0, 10);
   } catch {}
 
-  // Dimension 2: codegraph coupling
-  const db = openCodegraphDb(repoPath);
-  let couplingRows: any[] = [];
-  if (db) {
-    couplingRows = db.prepare(`
-      SELECT f.path, f.node_count,
-        (SELECT COUNT(*) FROM edges e JOIN nodes n ON e.source = n.id WHERE n.file_path = f.path) AS edge_count
-      FROM files f WHERE f.node_count > 0
-      ORDER BY edge_count DESC LIMIT 10
-    `).all() as any[];
-    db.close();
-  }
+  // Dimension 2: codebase-memory hotspots
+  const arch = await getArchitecture(repoPath);
+  const hotspots = arch?.hotspots?.slice(0, 10) || [];
 
   let html = '## 📊 代码热力图\n\n';
-  html += '结合三个维度：**Git 变更频率** · **关联复杂度** · **符号密度**\n\n';
+  html += '结合三个维度：**Git 变更频率** · **符号热度（扇入）** · **模块耦合度**\n\n';
 
   html += '### 🔄 高频变更文件（最近 100 次提交）\n\n';
   if (gitChurn.length > 0) {
@@ -251,17 +243,17 @@ async function generateHeatmapPage(repoPath: string): Promise<string> {
     html += '*暂无 git 数据*\n';
   }
 
-  html += '\n### 🔗 高耦合文件（关联边最多）\n\n';
-  if (couplingRows.length > 0) {
-    html += '| 文件 | 符号数 | 关联边 |\n|------|--------|--------|\n';
-    for (const f of couplingRows) {
-      html += `| \`${f.path}\` | ${f.node_count} | ${f.edge_count || 0} |\n`;
+  html += '\n### 🔥 高热度符号（扇入最高）\n\n';
+  if (hotspots.length > 0) {
+    html += '| 符号 | 文件 | 扇入 |\n|------|------|------|\n';
+    for (const h of hotspots) {
+      html += `| \`${h.name}\` | \`${h.file}\` | ${h.fan_in || 0} |\n`;
     }
   } else {
-    html += '*暂无 codegraph 数据*\n';
+    html += '*暂无 codebase-memory-mcp 数据*\n';
   }
 
-  html += '\n> 此页面由 Git 历史和 codegraph 数据库动态生成。\n';
+  html += '\n> 此页面由 Git 历史和 codebase-memory-mcp 动态生成。\n';
   return html;
 }
 
@@ -296,40 +288,35 @@ async function generateGotchasPage(repoPath: string, repoName: string): Promise<
 }
 
 
-/** Generate the 数据结构 page — from codegraph exported interfaces/classes. */
+/** Generate the 数据结构 page — from codebase-memory-mcp Interface/Class symbols. */
 async function generateDataModelPage(repoPath: string): Promise<string> {
-  const db = openCodegraphDb(repoPath);
-  if (!db) return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{6682}\u{65E0}\u{6570}\u{636E}\u{3002}\n';
-  try {
-    const rows = db.prepare(`
-      SELECT name, kind, file_path, signature, docstring,
-        (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name AND n2.file_path = nodes.file_path) AS refs
-      FROM nodes WHERE kind IN ('interface', 'class') AND is_exported = 1 ORDER BY refs DESC LIMIT 40
-    `).all() as any[];
-    db.close();
-    if (rows.length === 0) return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{6682}\u{65E0}\u{6838}\u{5FC3}\u{6570}\u{636E}\u{7ED3}\u{6784}\u{3002}\n';
-    const groups: Record<string, any[]> = {};
-    for (const r of rows) {
-      const dir = r.file_path.split('/')[0];
-      if (!groups[dir]) groups[dir] = [];
-      groups[dir].push(r);
-    }
-    let md = '# \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\u{8BBE}\u{8BA1}\n\n\u{6838}\u{5FC3} interface \u{548C} class \u{5B9A}\u{4E49}\u{FF0C}\u{6309}\u{6A21}\u{5757}\u{5206}\u{7EC4}\u{3002}\n\n';
-    for (const [dir, items] of Object.entries(groups)) {
-      md += `## ${dir}\n\n`;
-      md += '| \u{540D}\u{79F0} | \u{7C7B}\u{578B} | \u{6587}\u{4EF6} | \u{5F15}\u{7528}\u{6B21}\u{6570} | \u{7B7E}\u{540D} |\n|------|------|------|----------|------|\n';
-      for (const item of items) {
-        const sig = (item.signature || '').slice(0, 80);
-        const doc = (item.docstring || '').slice(0, 60).replace(/\n/g, ' ');
-        md += `| \`${item.name}\` | ${item.kind} | \`${item.file_path}\` | ${item.refs} | ${doc || sig} |\n`;
-      }
-      md += '\n';
-    }
-    return md;
-  } catch {
-    db.close();
-    return '## \u{1F4D0} \u{6570}\u{636E}\u{7ED3}\u{6784}\n\n\u{52A0}\u{8F7D}\u{5931}\u{8D25}\u{3002}\n';
+  const [interfaces, classes] = await Promise.all([
+    searchByLabel(repoPath, 'Interface', 40),
+    searchByLabel(repoPath, 'Class', 40),
+  ]);
+  const rows = [...interfaces, ...classes];
+
+  if (rows.length === 0) return '## 📐 数据结构\n\n暂无核心数据结构。\n';
+
+  const groups: Record<string, any[]> = {};
+  for (const r of rows) {
+    const dir = (r.file_path || r.file || '').split('/')[0];
+    if (!dir) continue;
+    if (!groups[dir]) groups[dir] = [];
+    groups[dir].push(r);
   }
+
+  let md = '# 📐 数据结构设计\n\n核心 Interface 和 Class 定义，按模块分组。\n\n';
+  for (const [dir, items] of Object.entries(groups)) {
+    md += `## ${dir}\n\n`;
+    md += '| 名称 | 类型 | 文件 | 扇入 | 签名 |\n|------|------|------|------|------|\n';
+    for (const item of items) {
+      const sig = (item.signature || '').slice(0, 80);
+      md += `| \`${item.name}\` | ${item.label || item.kind || ''} | \`${item.file_path || item.file || ''}\` | ${item.in_degree || 0} | ${sig} |\n`;
+    }
+    md += '\n';
+  }
+  return md;
 }
 
 
@@ -682,70 +669,7 @@ app.get('/qa/*', sendQaPage);
 app.get('/', sendHomePage);
 app.get('/:repoName/qa', sendQaPage);
 
-const handler = await initHandler();
-
-app.post('/api/search', async (req, res) => {
-  const result = await handler.execute('codegraph_search', req.body);
-  res.json(result);
-});
-
-app.post('/api/context', async (req, res) => {
-  const result = await handler.execute('codegraph_context', req.body);
-  res.json(result);
-});
-
-app.post('/api/impact', async (req, res) => {
-  const result = await handler.execute('codegraph_impact', req.body);
-  res.json(result);
-});
-
-app.get('/api/status', async (_req, res) => {
-  const result = await handler.execute('codegraph_status', {});
-  res.json(result);
-});
-
-app.post('/api/files', async (req, res) => {
-  const result = await handler.execute('codegraph_files', req.body);
-  res.json(result);
-});
-
-app.post('/api/callers', async (req, res) => {
-  const result = await handler.execute('codegraph_callers', req.body);
-  res.json(result);
-});
-
-app.post('/api/callees', async (req, res) => {
-  const result = await handler.execute('codegraph_callees', req.body);
-  res.json(result);
-});
-
-app.post('/api/node', async (req, res) => {
-  const result = await handler.execute('codegraph_node', req.body);
-  res.json(result);
-});
-
-app.post('/api/explore', async (req, res) => {
-  const result = await handler.execute('codegraph_explore', req.body);
-  res.json(result);
-});
-
-// ── Iteration 3: 增量索引 + 多库路由 API ──
-
-app.get('/api/repos', async (_req, res) => {
-  const registry = await loadRegistry();
-  const list = await Promise.all(registry.map(async (r) => {
-    let status = 'unknown';
-    try {
-      const cgStatus = await handler.execute('codegraph_status', { projectPath: r.path });
-      const text = cgStatus?.content?.[0]?.text || '';
-      if (text.includes('Index is up to date')) status = 'ready';
-      else if (text.includes('Files:')) status = 'indexed';
-      else status = 'noindex';
-    } catch {}
-    return { name: r.name, path: r.path, status, indexedAt: r.indexedAt, files: r.files, nodes: r.nodes };
-  }));
-  res.json(list);
-});
+// ── 增量索引 + 多库路由 API ──
 
 app.post('/api/reindex', express.json(), async (req, res) => {
   const { repo, full } = req.body || {};
@@ -753,9 +677,13 @@ app.post('/api/reindex', express.json(), async (req, res) => {
   const entry = registry.find(r => r.name === repo || r.path === repo);
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
   try {
-    const cmd = full ? 'index' : 'sync';
     const { execFileSync } = await import('child_process');
-    execFileSync('npx', ['codegraph', cmd, entry.path], { stdio: 'inherit', timeout: 600_000, cwd: entry.path });
+    const projectName = CbmBridge.repoPathToProjectName(entry.path);
+    const mode = full ? 'full' : 'fast';
+    execFileSync('codebase-memory-mcp', ['cli', 'index_repository', JSON.stringify({
+      repo_path: entry.path,
+      mode,
+    })], { stdio: 'inherit', timeout: 600_000, cwd: entry.path });
     res.json({ ok: true, repo: entry.name });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -792,7 +720,27 @@ const resolveLLMConfig = async () => {
   };
 };
 
+/**
+ * 解析 search_graph 的 JSON 输出（兼容旧 markdown 格式）。
+ * codebase-memory-mcp 返回 JSON，可直接解析。
+ */
 function parseSearchText(text: string): { filePath: string; startLine: number; endLine: number; name?: string }[] {
+  // 如果是 JSON 格式（新 codebase-memory-mcp 输出）
+  if (text.startsWith('{')) {
+    try {
+      const data = JSON.parse(text);
+      if (data.results) {
+        return data.results.map((r: any) => ({
+          filePath: r.file_path || r.file || '',
+          startLine: r.start_line || 1,
+          endLine: r.end_line || r.start_line || 1,
+          name: r.name || '',
+        }));
+      }
+    } catch {}
+  }
+
+  // 兼容旧 markdown 格式（过渡期）
   const results: { filePath: string; startLine: number; endLine: number; name?: string }[] = [];
   const lines = text.split('\n');
   let currentName: string | undefined;
@@ -858,25 +806,48 @@ const search = async (query: string, repo?: string) => {
   }
 };
 
-/** Run codegraph_callers for a symbol in a specific repo. */
+/** Run codegraph_callers (trace_path inbound) for a symbol in a specific repo. */
 const searchCallers = async (symbol: string, repo?: string) => {
   try {
-    const args: Record<string, unknown> = { symbol, limit: 15 };
-    const projectPath = searchRepoPath(repo);
-    if (projectPath) args.projectPath = projectPath;
-    const result = await handler.execute('codegraph_callers', args);
-    return result?.content?.[0]?.text || '';
+    const projectName = repo ? CbmBridge.repoPathToProjectName(
+      loadRegistrySync().find(r => r.name === repo)?.path || repo
+    ) : CbmBridge.repoPathToProjectName(rootDir);
+    const result = await handler.execute('trace_path', {
+      function_name: symbol,
+      direction: 'inbound',
+      project: projectName,
+    });
+    const text = result?.content?.[0]?.text || '{}';
+    const data = JSON.parse(text);
+    if (data.callers?.length) {
+      return data.callers.map((c: any) => `### ${c.name} (hop: ${c.hop})\n${c.qualified_name}`).join('\n');
+    }
+    return '';
   } catch { return ''; }
 };
 
-/** Run codegraph_impact for a symbol in a specific repo. */
+/** Run trace_path (both directions) for impact analysis of a symbol. */
 const searchImpact = async (symbol: string, repo?: string) => {
   try {
-    const args: Record<string, unknown> = { symbol, depth: 2 };
-    const projectPath = searchRepoPath(repo);
-    if (projectPath) args.projectPath = projectPath;
-    const result = await handler.execute('codegraph_impact', args);
-    return result?.content?.[0]?.text || '';
+    const projectName = repo ? CbmBridge.repoPathToProjectName(
+      loadRegistrySync().find(r => r.name === repo)?.path || repo
+    ) : CbmBridge.repoPathToProjectName(rootDir);
+    const result = await handler.execute('trace_path', {
+      function_name: symbol,
+      direction: 'both',
+      depth: 2,
+      project: projectName,
+    });
+    const text = result?.content?.[0]?.text || '{}';
+    const data = JSON.parse(text);
+    const parts: string[] = [];
+    if (data.callers?.length) {
+      parts.push('Callers:\n' + data.callers.map((c: any) => `- ${c.name} (hop: ${c.hop})`).join('\n'));
+    }
+    if (data.callees?.length) {
+      parts.push('Callees:\n' + data.callees.map((c: any) => `- ${c.name} (hop: ${c.hop})`).join('\n'));
+    }
+    return parts.join('\n\n');
   } catch { return ''; }
 };
 
@@ -940,10 +911,18 @@ app.post('/api/repos', async (req, res) => {
   const { name, path: repoPath } = req.body;
   if (!name || !repoPath) { res.status(400).json({ error: 'Missing name or path' }); return; }
   const absPath = path.resolve(repoPath);
+  const projectName = CbmBridge.repoPathToProjectName(absPath);
+  // 验证索引是否存在（通过检测 index_status）
   try {
-    await fs.access(path.join(absPath, '.codegraph'));
+    const check = await handler.execute('index_status', { project: projectName });
+    const text = check?.content?.[0]?.text || '{}';
+    const data = JSON.parse(text);
+    if (data.status !== 'ready' || !data.nodes) {
+      res.status(400).json({ error: 'Repo not indexed. Run: codebase-memory-mcp cli index_repository \'{"repo_path":"' + absPath + '"}\'' });
+      return;
+    }
   } catch {
-    res.status(400).json({ error: 'No .codegraph directory found at ' + absPath + '. Run `npx codegraph init` first.' });
+    res.status(400).json({ error: 'Repo not indexed or codebase-memory-mcp not available. Run: codebase-memory-mcp cli index_repository \'{"repo_path":"' + absPath + '"}\'' });
     return;
   }
   const registry = await loadRegistry();
