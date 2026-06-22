@@ -158,6 +158,56 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       overview += '\n> 点击模块名查看详细说明（需运行 \`npm run wiki -- <repo> --extra-pages\` 生成）。\n';
     }
 
+    // ── 快速开始 ──
+    let quickstart = '\n\n---\n\n## 🚀 快速开始\n\n';
+    let hasQuickstart = false;
+    // 尝试从 README 提取构建命令
+    const readmePath = [path.join(repoPath, 'README.md'), path.join(repoPath, 'README'), path.join(repoPath, 'readme.md')]
+      .find(p => { try { return fsSync.existsSync(p); } catch { return false; } });
+    if (readmePath) {
+      try {
+        const readme = fsSync.readFileSync(readmePath, 'utf-8');
+        const codeBlocks = readme.match(/```(?:bash|sh|shell|console)\n([\s\S]*?)```/g);
+        if (codeBlocks) {
+          quickstart += '以下命令从 README 中提取：\n\n';
+          for (const block of codeBlocks.slice(0, 3)) {
+            quickstart += '```bash\n' + block.replace(/```(?:bash|sh|shell|console)\n/, '').replace(/```$/, '').trim() + '\n```\n\n';
+          }
+          hasQuickstart = true;
+        }
+      } catch {}
+    }
+    // fallback: 检测构建系统
+    if (!hasQuickstart) {
+      if (fsSync.existsSync(path.join(repoPath, 'Makefile'))) {
+        quickstart += '```bash\nmake\n```\n\n（检测到 Makefile）\n';
+        hasQuickstart = true;
+      } else if (fsSync.existsSync(path.join(repoPath, 'CMakeLists.txt'))) {
+        quickstart += '```bash\nmkdir build && cd build && cmake .. && make\n```\n\n（检测到 CMake 构建系统）\n';
+        hasQuickstart = true;
+      } else if (fsSync.existsSync(path.join(repoPath, 'package.json'))) {
+        quickstart += '```bash\nnpm install\nnpm start\n```\n\n（检测到 Node.js 项目）\n';
+        hasQuickstart = true;
+      }
+    }
+    if (hasQuickstart) overview += quickstart;
+
+    // ── 目录结构 ──
+    const topDirs = new Set<string>();
+    for (const f of files) {
+      const parts = (f as any).file_path?.split('/') || [];
+      if (parts.length >= 2 && !parts[0].startsWith('.')) topDirs.add(parts[0]);
+    }
+    if (topDirs.size > 0) {
+      overview += '\n\n---\n\n## 📁 目录结构\n\n';
+      overview += '| 目录 | 说明 |\n|------|------|\n';
+      for (const dir of [...topDirs].sort()) {
+        const count = (files as any[]).filter((f: any) => f.file_path?.startsWith(dir + '/')).length;
+        const hint = dir === 'src' ? '源码' : dir === 'docs' ? '文档' : dir === 'tests' || dir === 'test' || dir === '__tests__' ? '测试' : dir === 'scripts' ? '脚本' : dir === 'config' ? '配置' : '';
+        overview += `| \`${dir}/\` | ${hint}（${count} 文件） |\n`;
+      }
+    }
+
     // ── 扩展统计 ──
     let statsSection = `\n\n---\n\n## 📊 代码统计\n\n`;
     statsSection += `| 指标 | 数值 |\n|------|------|\n`;
@@ -176,7 +226,7 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
         .map(([ext, count]) => `| ${ext} | ${count} 文件 |\n`).join('');
       statsSection += `| **语言** | |\n${langRows}`;
     }
-    // 入口文件（常见的入口模式）
+    // 入口文件
     const mainFiles = (files as any[]).filter((f: any) =>
       /(main|index|app|cli|server|entry)\.(ts|js|mjs|py|go|rs)$/i.test(f.file_path || '')
     );
@@ -187,6 +237,15 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       }
     }
     overview += statsSection;
+
+    // ── 相关页面 ──
+    overview += '\n\n---\n\n## 📖 相关页面\n\n';
+    overview += '| 页面 | 说明 |\n|------|------|\n';
+    overview += '| [数据结构](data-model) | Interface / Class 定义 |\n';
+    overview += '| [依赖图谱](dependencies) | 模块间依赖关系图 |\n';
+    overview += '| [影响地图](impact-map) | 高扇入符号（修改需谨慎） |\n';
+    overview += '| [代码热力图](heatmap) | 高频变更文件 + 热点符号 |\n';
+
     await fs.writeFile(path.join(outputDir, 'overview.md'), overview || '# Overview\n\n（暂无内容）\n', 'utf-8');
 
     // ── Generate data-model.md ──
