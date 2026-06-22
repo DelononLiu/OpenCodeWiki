@@ -1162,25 +1162,36 @@ export function createQaEndpoint(
         const refinedSources = resolver.getRefinedSources();
         const sourceMatches = refinedSources.length > 0 ? refinedSources : matches;
         if (sourceMatches.length > 0) {
-          // 去重 + 过滤 bootstrap/worktree 副本
-          const seen = new Set<string>();
-          sources = sourceMatches.filter(m => {
-            if (m.filePath.includes('/.kilo/')) return false;
-            const key = m.filePath;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          }).map((m, i) => {
+          // 按文件聚合，保留有 snippet 的那条，过滤 .kilo/ 副本
+          const fileBest = new Map<string, typeof sourceMatches[0]>();
+          for (const m of sourceMatches) {
+            if (m.filePath.includes('/.kilo/')) continue;
+            const existing = fileBest.get(m.filePath);
+            const hasGoodSnippet = m.snippet && !m.snippet.includes('ambiguous') && m.snippet !== '{}' && m.snippet.length <= 500;
+            if (!existing || (hasGoodSnippet && !existing.snippet)) {
+              fileBest.set(m.filePath, m);
+            }
+          }
+          sources = [...fileBest.entries()].map(([path, m], i) => {
             let snippet = m.snippet || '';
-            if (snippet.includes('ambiguous') || snippet === '{}' || snippet.length > 500) {
-              snippet = '';
+            if (snippet.includes('ambiguous') || snippet === '{}' || snippet.length > 500) snippet = '';
+            // snippet 为空时读文件补几行预览
+            if (!snippet && entry?.storagePath && path) {
+              try {
+                const fullPath = path.join(entry.storagePath, path);
+                const content = fsSync.readFileSync(fullPath, 'utf-8');
+                const lines = content.split('\n');
+                const start = Math.max(0, (m.startLine || 1) - 2);
+                const end = Math.min(lines.length, (m.endLine || m.startLine || 1) + 2);
+                snippet = lines.slice(start, end).map((l, j) => `${start + j + 1}: ${l}`).join('\n');
+              } catch {}
             }
             return {
-              filePath: m.filePath,
+              filePath: path,
               label: m.kind === 'definition' ? 'Definition' : m.kind === 'declaration' ? 'Declaration' : 'Reference',
               startLine: m.startLine,
               endLine: m.endLine,
-              fileName: m.filePath?.split('/').pop() ?? '?',
+              fileName: path?.split('/').pop() ?? '?',
               snippet,
               refId: i,
             };
