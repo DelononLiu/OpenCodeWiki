@@ -485,26 +485,21 @@ export class QaResolver {
     return ranked;
   }
 
-  /** where-is: 精确定位符号定义的位置（仅搜符号，不展开） */
+  /** where-is: 精确定位符号定义的位置 */
   private async searchWhereIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
-    // Only search by exact symbol names — no extra fluff terms
-    const terms = intent.symbols.length > 0 ? intent.symbols : intent.searchTerms.slice(0, 3);
+    // 搜所有 searchTerms，不限制个数
+    const terms = [...new Set([...intent.symbols, ...intent.searchTerms])].filter(t => t.length >= 2);
     const allMatches: PipelineMatch[] = [];
-
     for (const term of terms) {
       const repoMatches = await this.multiRepoSsearch(term, repos);
       allMatches.push(...repoMatches);
     }
-
     let ranked = this.rankAndDedup(allMatches);
-
-    // LLM mode: expand top definition with context
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
     }
-
     return ranked;
   }
 
@@ -633,6 +628,13 @@ export class QaResolver {
 
   private rawSearch(query: string, repo?: RepoInfo): Promise<string> {
     const args: any = { query, maxResults: 30 };
+    if (repo?.storagePath) args.projectPath = repo.storagePath;
+    return this.safeTool('codegraph_search', args);
+  }
+
+  /** 按符号名精确搜索（name_pattern 模式），用于 where-is 定位 */
+  private rawSearchByName(name: string, repo?: RepoInfo): Promise<string> {
+    const args: any = { name_pattern: name, limit: 10 };
     if (repo?.storagePath) args.projectPath = repo.storagePath;
     return this.safeTool('codegraph_search', args);
   }
