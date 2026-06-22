@@ -945,6 +945,30 @@ ${repoInfo}
     return [...new Set(candidates)];
   }
 
+  /**
+   * 从问题中提取中文短语作为额外搜索词。
+   * 英文符号正则对中文不可见，需要单独提取。
+   * 问题 "kcode中小助手和任务流的区别" → ["小助手", "任务流"]
+   */
+  private extractChinesePhrases(question: string): string[] {
+    const phrases: string[] = [];
+    // 匹配 2+ 连续中文字符序列
+    const matches = question.match(/[一-鿿㐀-䶿豈-﫿]{2,}/g);
+    if (!matches) return phrases;
+    for (const seq of matches) {
+      // 按常见中文虚词拆分，获取独立概念短语
+      const parts = seq.split(/[的和与及或而但并以及还有、]/);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        // 过滤单字 + 通用疑问词
+        if (trimmed.length >= 2 && !['什么', '如何', '怎么', '哪个', '为什么', '是否', '这个', '那个', '区别', '差异', '不同'].includes(trimmed)) {
+          if (!phrases.includes(trimmed)) phrases.push(trimmed);
+        }
+      }
+    }
+    return phrases.slice(0, 3); // 最多 3 个中文短语
+  }
+
   private buildSearchTerms(intent: Intent, symbols: string[], question: string): string[] {
     const terms: string[] = [];
 
@@ -1001,6 +1025,11 @@ ${repoInfo}
         terms.push(...symbols.map(s => `${s} reference`));
         break;
     }
+
+    // 【中文支持】在英文符号之外，额外提取中文概念短语作为搜索词
+    // extractSymbols() 的正则只匹配英文标识符，中文短语对其不可见
+    const chinesePhrases = this.extractChinesePhrases(question);
+    terms.push(...chinesePhrases);
 
     return [...new Set(terms)].filter(t => t.length >= 2);
   }
