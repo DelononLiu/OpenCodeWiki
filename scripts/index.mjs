@@ -77,10 +77,26 @@ const existing = registry.find(r => r.name === repoName);
 
 if (existing) {
   existing.path = repoPath;
-  if (indexedAt) { existing.indexedAt = indexedAt; existing.files = nodes; existing.nodes = nodes; existing.edges = edges; }
+  // 更新 stats
+  try {
+    const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+    const out2 = execFileSync('codebase-memory-mcp', ['cli', 'index_status', JSON.stringify({ project: projectName })], { encoding: 'utf-8', timeout: 10_000 });
+    const jsonLine2 = out2.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const stats2 = JSON.parse(jsonLine2);
+    if (stats2.nodes) { existing.indexedAt = new Date().toISOString(); existing.nodes = stats2.nodes; existing.edges = stats2.edges; }
+  } catch {}
   console.log(`  ✓ Updated existing entry for "${repoName}"`);
 } else {
-  registry.push({ name: repoName, path: repoPath, indexedAt, files: nodes, nodes, edges });
+  const entry = { name: repoName, path: repoPath };
+  // 通过 index_status 查询 stats
+  try {
+    const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+    const out2 = execFileSync('codebase-memory-mcp', ['cli', 'index_status', JSON.stringify({ project: projectName })], { encoding: 'utf-8', timeout: 10_000 });
+    const jsonLine2 = out2.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
+    const stats = JSON.parse(jsonLine2);
+    if (stats.nodes) { entry.indexedAt = new Date().toISOString(); entry.nodes = stats.nodes; entry.edges = stats.edges; }
+  } catch {}
+  registry.push(entry);
   console.log(`  ✓ Registered "${repoName}"`);
 }
 
