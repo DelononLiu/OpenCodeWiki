@@ -676,13 +676,21 @@ const TEMPLATES: Record<string, string> = {
 - ## 结构设计 — 优先使用 mermaid 图，说明分层或核心组件。
 - ## 核心流程 — 关键数据流或调用链，说明数据流转和关键节点。
 - ## 模块关系 — 依赖关系或通信方式，跨边界时注意接口约定。`,
+
+  F: `### 模板 F：代码定位
+适用于"XX 实现在哪"、"定义在哪里"、"入口在哪"等定位类问题。
+
+- **1 句话给出核心位置（文件:行号，不加标题）。**
+- ## 核心入口 — 文件:行号 + 函数签名，说明功能。
+- ## 内部结构 — 关键子函数/结构体的文件路径和行号，说明职责。
+- ## 调用链 — 从入口到核心逻辑的调用路径。`,
 };
 
 function selectTemplate(intent?: string, domain?: string): string {
   // intent + domain → 模板映射
   const map: Record<string, string> = {
     'what-is_general': 'B',
-    'where-is_general': 'B',
+    'where-is_general': 'F',
     'how-to_general': 'D',
     'why-error_general': 'A',
     'what-structure_general': 'E',
