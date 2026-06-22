@@ -13,9 +13,9 @@
     "watch": "node scripts/reindex.mjs --watch",
     "postinstall": "node scripts/postinstall.mjs",
     "setup": "npm install --ignore-scripts && node scripts/postinstall.mjs",
-    "eval:qa": "EMBED_ENGINE=local LD_LIBRARY_PATH=node_modules/sharp/vendor/8.14.5/lib:$LD_LIBRARY_PATH node scripts/eval/runner.mjs",
-    "eval:report": "node scripts/eval/report.mjs",
-    "eval:answer": "node scripts/eval/answer-runner.mjs"
+    "eval:qa": "EMBED_ENGINE=local LD_LIBRARY_PATH=node_modules/sharp/vendor/8.14.5/lib:$LD_LIBRARY_PATH node eval/runner.mjs",
+    "eval:report": "node eval/report.mjs",
+    "eval:answer": "bash eval/eval.sh"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.22.1",

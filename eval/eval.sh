@@ -1,7 +1,7 @@
 #!/bin/bash
-# qa-eval/eval.sh — 自动评测 QA 回答质量
+# eval.sh — 自动评测 QA 回答质量
 set -e
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
 CONFIG_FILE="$HOME/.opencodewiki/config.json"
 if [ -f "$CONFIG_FILE" ]; then
@@ -12,9 +12,9 @@ else
   echo "错误：未找到 $CONFIG_FILE"; exit 1
 fi
 
-CASE_ID=$(printf "%03d" "${1:-$(ls qa-eval/cases/*.json | sort | tail -1 | sed 's|.*/||;s|\.json$||')}")
-CASE_FILE="qa-eval/cases/${CASE_ID}.json"
-RESULT_FILE="qa-eval/results/${CASE_ID}.json"
+CASE_ID=$(printf "%03d" "${1:-$(ls cases/*.json | sort | tail -1 | sed 's|.*/||;s|\.json$||')}")
+CASE_FILE="cases/${CASE_ID}.json"
+RESULT_FILE="results/${CASE_ID}.json"
 TMPDIR=$(mktemp -d)
 
 if [ ! -f "$CASE_FILE" ]; then echo "错误：未找到 $CASE_FILE"; exit 1; fi
@@ -65,7 +65,7 @@ python3 -c "import json; print(json.load(open('$CASE_FILE'))['reference'])" > "$
 echo "$QUESTION" > "$TMPDIR/question.txt"
 
 export CASE_ID COMMIT_HASH TMPDIR
-python3 qa-eval/score.py > "$RESULT_FILE" 2>&1 || {
+python3 score.py > "$RESULT_FILE" 2>&1 || {
   echo "评分 API 调用失败，请检查 config.json 中的 API Key"
   cat "$RESULT_FILE"
   rm -rf "$TMPDIR"
@@ -85,7 +85,7 @@ if 'error' in r:
     exit(0)
 dim = r.get('scores', {})
 row = f'| {datetime.date.today()} | $CASE_ID | $COMMIT_HASH | {r.get(\"total\",0)} | {dim.get(\"completeness\",0)} | {dim.get(\"code_refs\",0)} | {dim.get(\"structure\",0)} | {dim.get(\"depth\",0)} | {dim.get(\"actionability\",0)} |\n'
-with open('qa-eval/METRICS.md', 'a') as f:
+with open('METRICS.md', 'a') as f:
     f.write(row)
 print('METRICS.md 已更新')
 " 2>/dev/null || true
