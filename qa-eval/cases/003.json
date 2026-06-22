@@ -1,0 +1,7 @@
+{
+  "id": "003",
+  "question": "llama.cpp 的 batch 推理实现在哪",
+  "reference": "llama.cpp 的 Batch 推理实现\n\n核心入口（公共 API）\n函数: llama_decode() — src/llama-context.cpp:4046–4055，llama_encode() — src/llama-context.cpp:4035–4044\n\n内部实现分层\n1. 数据结构\nllama_batch — include/llama.h:240–249\nllama_ubatch — src/llama-batch.h:15–69\nllama_batch_allocr — src/llama-batch.h:72–173 / src/llama-batch.cpp:1–920\n\n2. 解码/编码主流程\nllama_context::decode() — src/llama-context.cpp:1676–2052\nprocess_ubatch() 处理每个微批\n\n3. 微批处理核心\nllama_context::process_ubatch() — src/llama-context.cpp:1300–1370\n\n4. Batch 拆分策略\nsplit_simple() 简单线性拆分\nsplit_equal() 按等长序列集拆分\nsplit_seq() 按序列集拆分\n\n5. 参数控制\nn_batch：逻辑最大 batch 大小\nn_ubatch：物理最大微批大小\n\n总结调用链\nllama_decode(batch) → llama_context::decode() → balloc->init() → memory->init_batch() → loop: split → process_ubatch() → model.build_graph() → graph_compute()",
+  "answers": [],
+  "scores": []
+}
