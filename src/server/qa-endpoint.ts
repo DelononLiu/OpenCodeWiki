@@ -1158,17 +1158,33 @@ export function createQaEndpoint(
           log('info', 'pipeline context', { len: pipelineContext.length, mode });
         }
 
-        // 用 pipeline 匹配结果替换 sources，供前端右侧列表展示
-        if (matches.length > 0) {
-          sources = matches.map((m, i) => ({
-            filePath: m.filePath,
-            label: m.kind === 'definition' ? 'Definition' : m.kind === 'declaration' ? 'Declaration' : 'Reference',
-            startLine: m.startLine,
-            endLine: m.endLine,
-            fileName: m.filePath?.split('/').pop() ?? '?',
-            snippet: m.snippet || '',
-            refId: i,
-          }));
+        // 用 pipeline 精筛结果替换 sources（只展示第二轮精选文件，不含第一轮噪声）
+        const refinedSources = resolver.getRefinedSources();
+        const sourceMatches = refinedSources.length > 0 ? refinedSources : matches;
+        if (sourceMatches.length > 0) {
+          // 去重 + 过滤 bootstrap/worktree 副本
+          const seen = new Set<string>();
+          sources = sourceMatches.filter(m => {
+            if (m.filePath.includes('/.kilo/')) return false;
+            const key = m.filePath;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).map((m, i) => {
+            let snippet = m.snippet || '';
+            if (snippet.includes('ambiguous') || snippet === '{}' || snippet.length > 500) {
+              snippet = '';
+            }
+            return {
+              filePath: m.filePath,
+              label: m.kind === 'definition' ? 'Definition' : m.kind === 'declaration' ? 'Declaration' : 'Reference',
+              startLine: m.startLine,
+              endLine: m.endLine,
+              fileName: m.filePath?.split('/').pop() ?? '?',
+              snippet,
+              refId: i,
+            };
+          });
         }
       } catch (pipelineErr) {
         log('warn', 'pipeline error (non-fatal)', { error: (pipelineErr as Error)?.message });

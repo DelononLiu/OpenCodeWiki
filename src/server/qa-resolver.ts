@@ -192,10 +192,15 @@ export class QaResolver {
   private llm: LLMConfig | null = null;
   /** 第2轮深读结果，由 buildLLMContext 使用 */
   private _deepSnippets: Map<string, string> = new Map();
+  /** 第2轮精筛结果，供前端右侧列表展示（只有精选文件，不含第一轮噪声） */
+  private _sourceMatches: PipelineMatch[] = [];
 
   constructor(
     private executeTool: (tool: string, args: any) => Promise<{ content: [{ text: string }] }>,
   ) {}
+
+  /** 第2轮精筛结果（供前端展示），无第二轮时返回空 */
+  getRefinedSources(): PipelineMatch[] { return this._sourceMatches; }
 
   /** 注入向量搜索服务（可选，不注入时纯 FTS5）*/
   setVectorSearch(vs: VectorSearchAPI) { this.vs = vs; }
@@ -313,9 +318,19 @@ export class QaResolver {
           newTerms: filter.newTerms,
         }));
         // 深读选中文件
+        const refinedMatches: PipelineMatch[] = [];
         if (filter.selectedFiles.length > 0) {
           const deepSnippets = await this.deepReadFiles(filter.selectedFiles, repos);
           this._deepSnippets = deepSnippets;
+          // 选中文件本身作为精筛结果（只输出文件路径，不做全仓 grep）
+          for (const f of filter.selectedFiles) {
+            refinedMatches.push({
+              name: path.basename(f.filePath),
+              filePath: f.filePath,
+              startLine: 1, endLine: 1, kind: 'reference', score: 100,
+              snippet: '', repo: f.repo,
+            });
+          }
         }
 
         // 用新词补搜 BM25
@@ -333,10 +348,14 @@ export class QaResolver {
           }
           if (extra.length > 0) {
             console.log('[qa]   ▸ round2 new matches:', extra.length);
+            refinedMatches.push(...extra);
             matches.push(...extra);
           }
           matches = this.rankAndDedup(matches);
         }
+
+        // 保存精筛结果供前端展示（不含第一轮噪声）
+        this._sourceMatches = this.rankAndDedup(refinedMatches);
       }
     }
 
@@ -1031,13 +1050,14 @@ export class QaResolver {
             {
               role: 'system',
               content: `你是一个代码搜索助手。第一轮搜索后得到了候选文件列表。你的任务是：
-1. 选出最需要深度阅读的 3-5 个文件（选特征明显的核心文件，不要选通用工具文件）
-2. 提出新的第二轮搜索关键词（从代码片段里提取更深层的函数名/类名）
+1. 选出最需要深度阅读的 3-5 个源代码文件
+2. 提出新的第二轮搜索关键词
 
 规则：
-- 只从候选列表中选，不要编造
-- 优先选文件路径包含特征词的文件（如 Handler/Pipeline/Manager/Core 等），跳过通用文件
-- newTerms 必须是代码片段中出现过的符号名
+- 只从候选列表中选
+- **优先选源代码文件**（.ts/.js/.py/.go/.rs/.cpp 等），跳过文档（.md）、日志、配置文件等
+- 优先选特征明显的核心模块文件（如含 Handler/Pipeline/Flow/Task/Assistant 等），跳过通用工具文件
+- newTerms 必须是代码片段中出现过的函数名/类名
 
 返回 JSON 格式：
 {"selectedFiles":[{"filePath":"src/view/SomeHandler.ts","repo":"kcode"}],"newTerms":["newSearchTerm"],"reasoning":"..."}`
