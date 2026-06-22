@@ -336,15 +336,15 @@ export function resetBridge(): void {
 /**
  * 启动 Express 服务。作为主入口运行时自动调用。
  *
- * 动态导入 codegraph-bridge.ts（内部管理 Express 路由和 app.listen），
+ * 动态导入 server.ts（内部管理 Express 路由和 app.listen），
  * 使其在导入时自动完成服务器初始化和监听。
  *
- * 这替代了旧 codegraph-bridge.ts 作为入口点的角色，实现
- * cbm-bridge → codegraph-bridge 的单向依赖关系。
+ * 这替代了server.ts 作为入口点的角色，实现
+ * cbm-bridge → server 的单向依赖关系。
  */
 export async function startServer(): Promise<void> {
   console.log('[cbm-bridge] Starting OpenCodeWiki server...');
-  await import('./codegraph-bridge.js');
+  await import('./server.js');
 }
 
 // ── 主入口检测 ──────────────────────────────────────────────

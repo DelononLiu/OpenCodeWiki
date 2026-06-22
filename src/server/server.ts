@@ -111,7 +111,7 @@ async function initHandler(): Promise<any> {
   return b;
 }
 
-/** Dynamic wiki pages: slugs that are generated from codegraph data instead of static .md files. */
+/** Dynamic wiki pages: slugs that are generated from codebase-memory-mcp data instead of static .md files. */
 const DYNAMIC_WIKI_PAGES = ['dependencies', 'impact-map', 'heatmap', 'gotchas', 'data-model'];
 
 /**
@@ -187,10 +187,30 @@ async function generateImpactMapPage(repoPath: string): Promise<string> {
   const arch = await getArchitecture(repoPath);
   let impactMd = '*（暂无数据）*';
   if (arch?.hotspots && arch.hotspots.length > 0) {
+    // 从 qualified_name 提取文件路径
+    // home-long2015-Code-kcode.src.core.ConfigService.ConfigService.get
+    // → src/core/ConfigService.ts
+    function qnToFile(qn: string): string {
+      const parts = qn.split('.');
+      const start = parts.indexOf('src');
+      if (start < 0) return qn;
+      const fileParts: string[] = [];
+      for (let i = start; i < parts.length; i++) {
+        if (i > start && parts[i] === parts[i - 1]) break; // 文件名与类名重复
+        fileParts.push(parts[i]);
+      }
+      return fileParts.join('/') + '.ts';
+    }
     impactMd = '| 符号 | 文件 | 扇入（调用者数） | 影响分 |\n|------|------|----------------|--------|\n';
-    for (const h of arch.hotspots.slice(0, 15)) {
+    const seen = new Set<string>();
+    for (const h of arch.hotspots) {
+      const fp = qnToFile(h.qualified_name || '');
+      const key = `${h.name}:${fp}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       const score = (h.fan_in || 0) * 2;
-      impactMd += `| \`${h.name}\` | \`${h.file}\` | ${h.fan_in || 0} | ${score} |\n`;
+      impactMd += `| \`${h.name}\` | \`${fp}\` | ${h.fan_in || 0} | ${score} |\n`;
+      if (seen.size >= 15) break;
     }
   }
 
@@ -295,11 +315,19 @@ async function generateDataModelPage(repoPath: string): Promise<string> {
     searchByLabel(repoPath, 'Class', 40),
   ]);
   const rows = [...interfaces, ...classes];
-
   if (rows.length === 0) return '## 📐 数据结构\n\n暂无核心数据结构。\n';
 
-  const groups: Record<string, any[]> = {};
+  // 过滤 .kilo/ 副本 + 按 name:file 去重
+  const dedup = new Map<string, any>();
   for (const r of rows) {
+    const fp = r.file_path || r.file || '';
+    if (fp.includes('/.kilo/')) continue;
+    const key = `${r.name}:${fp}`;
+    if (!dedup.has(key)) dedup.set(key, r);
+  }
+
+  const groups: Record<string, any[]> = {};
+  for (const r of dedup.values()) {
     const dir = (r.file_path || r.file || '').split('/')[0];
     if (!dir) continue;
     if (!groups[dir]) groups[dir] = [];
@@ -806,7 +834,7 @@ const search = async (query: string, repo?: string) => {
   }
 };
 
-/** Run codegraph_callers (trace_path inbound) for a symbol in a specific repo. */
+/** Run search_graph (trace_path inbound) for a symbol in a specific repo. */
 const searchCallers = async (symbol: string, repo?: string) => {
   try {
     const projectName = repo ? CbmBridge.repoPathToProjectName(
@@ -1002,7 +1030,7 @@ app.post('/api/wiki/generate', async (req, res) => {
 
   if (!entry) { res.status(404).json({ error: `Repo "${repoName}" not found` }); return; }
 
-  // Run codegraph-based wiki generation in background
+  // Run codebase-memory-mcp wiki generation in background
   generateWiki(entry.path).then(result => {
     if (result.success) {
       console.log(`[wiki] ${repoName}: generated successfully`);

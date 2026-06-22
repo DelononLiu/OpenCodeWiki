@@ -1,15 +1,13 @@
 /**
- * chunker.mjs — 类/文件/模块级代码块索引
+ * chunker.mjs — 类/文件/模块级代码块索引（暂未启用）
  *
- * 在符号级索引（codegraph node）之上，补充粗粒度代码块：
- *   - 类级 chunk:  整个类 + 所有方法
- *   - 文件级 chunk: 文件 exports + 核心符号
- *   - 模块级 chunk: 目录下所有文件 + 入口文件
- *
- * 每个 chunk 独立嵌入向量，检索时符号级 + chunk 级并行搜，RRF 融合。
+ * 需要 codebase-memory-mcp DB 支持。
+ * 当前未在任何地方 import，待需要时完善。
  */
 
 import { DatabaseSync } from 'node:sqlite';
+import path from 'path';
+import os from 'os';
 import { embedText, ensureTable, upsertVectors, setMeta, getMeta, vectorSearch, rrfMerge } from './vector-store.mjs';
 
 const CHUNK_REPO = '__chunks__';
@@ -18,16 +16,17 @@ const CHUNK_REPO = '__chunks__';
  * 为一个仓库生成所有级别的 chunk 并嵌入向量
  */
 export async function buildChunks(repoName, repoPath) {
-  const db = new DatabaseSync(repoPath + '/.codegraph/codegraph.db');
+  const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+  const db = new DatabaseSync(path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db'));
   ensureTable(CHUNK_REPO);
 
   const chunks = [];
 
   // ── 1. 类级 chunk ──
   const classes = db.prepare(`
-    SELECT n.id, n.name, n.file_path, n.start_line, n.end_line, n.docstring, n.signature
+    SELECT n.id, n.name, n.file_path, n.start_line, n.end_line
     FROM nodes n
-    WHERE n.kind = 'class'
+    WHERE n.label = 'class'
     ORDER BY n.file_path, n.start_line
   `).all();
 

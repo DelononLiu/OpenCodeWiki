@@ -1,7 +1,7 @@
 /**
  * qa-store.ts — SQLite 持久化层 for #Q 问答沉淀体系
  *
- * 独立 SQLite 数据库 `~/.opencodewiki/qa.db`，与 codegraph 索引库分离。
+ * 独立 SQLite 数据库 `~/.opencodewiki/qa.db`，与 codebase-memory-mcp 索引库分离。
  * 使用 Node 内置 node:sqlite (DatabaseSync), 无需安装 better-sqlite3。
  */
 

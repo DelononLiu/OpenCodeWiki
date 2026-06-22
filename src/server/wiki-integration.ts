@@ -1,7 +1,7 @@
 /**
  * Codegraph Wiki Integration
  *
- * Reads wiki content generated from codegraph data stored in
+ * Reads wiki content generated from codebase-memory-mcp data stored in
  * `.codegraph/wiki/` directory. The wiki is generated via the
  * `scripts/wiki.mjs` CLI or the `/api/wiki/generate` endpoint.
  *
@@ -37,7 +37,7 @@ export interface WikiGenerateResult {
 }
 
 /**
- * Generate wiki for a repo using codegraph DB.
+ * Generate wiki for a repo using codebase-memory-mcp DB.
  * Creates module_tree.json and overview.md from the codegraph index.
  * Returns a promise that resolves when done.
  */
@@ -86,7 +86,7 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
     const dirMap: Record<string, string[]> = {};
     const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor']);
     for (const f of files) {
-      const parts = (f as any).path.split('/');
+      const parts = (f as any).file_path.split('/');
       const topDir = parts.length >= 2 && !SKIP_DIRS.has(parts[0]) ? parts[0] : null;
       if (topDir) {
         if (!dirMap[topDir]) dirMap[topDir] = [];

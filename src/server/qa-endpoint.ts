@@ -757,7 +757,7 @@ export function createQaEndpoint(
   searchCallers?: (symbol: string, repo?: string) => Promise<string>,
   searchImpact?: (symbol: string, repo?: string) => Promise<string>,
   crossRepoScope?: string[],  // if set, cross-repo queries are limited to these repo names
-  handler?: any,  // codegraph handler — enables pipeline mode
+  handler?: any,  // cbm-bridge handler — enables pipeline mode
 ) {
   // Eager init: pre-start ACP clients for all indexed repos
   if (ACP_ENABLED && listRepos) {
