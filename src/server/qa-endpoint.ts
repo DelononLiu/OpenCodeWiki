@@ -1120,7 +1120,7 @@ export function createQaEndpoint(
           (tool: string, args: any) => handler.execute(tool, args),
         );
 
-        // 注入向量搜索（由 codegraph-bridge.ts 先设置全局变量）
+        // 注入向量搜索（由 cbm-bridge.ts 先设置全局变量）
         const vs = (globalThis as any).__vectorStore;
         if (vs) resolver.setVectorSearch(vs);
         if (llmConfig?.apiKey) resolver.setLLMConfig({ apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model });

@@ -293,7 +293,7 @@ let _bridge: CbmBridge | null = null;
 
 /**
  * 获取共享 CbmBridge 实例（应用启动时设置 selfRepoPath）。
- * 供 codegraph-bridge 和 qa-resolver 使用。
+ * 供 cbm-bridge 和 qa-resolver 使用。
  */
 export function getBridge(selfRepoPath?: string): CbmBridge {
   if (!_bridge) {

@@ -144,7 +144,7 @@ router.post('/entry/:qid/relate', (req, res) => {
  * - 同时创建 mode='lightweight' 的 #Q 记录
  * - 返回搜索结果：代码片段列表
  *
- * 由 codegraph-bridge 注册路由时代入 search 回调。
+ * 由 cbm-bridge 注册路由时代入 search 回调。
  */
 export function createLightweightSearchHandler(
   search: (query: string, repo?: string) => Promise<{ sources: any[]; flows?: string }>
