@@ -484,7 +484,7 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
 
   if (fs.existsSync(dbPath)) {
     const db = new DatabaseSync(dbPath);
-    const allFiles = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+    const allFiles = db.prepare("SELECT DISTINCT file_path AS path FROM nodes WHERE file_path IS NOT NULL AND file_path != '' AND file_path NOT LIKE 'node_modules/%' AND file_path NOT LIKE '.%'").all();
     // Assign files to modules: try name matching first, fall back to directory grouping
     const modFiles = {};
     for (const name of moduleNames) {
@@ -538,8 +538,8 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
     // Compute dependencies from codebase-memory-mcp edges
     const edges = db.prepare(`
       SELECT n1.file_path AS caller, n2.file_path AS callee
-      FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
-      WHERE e.kind IN ('calls','imports','references') AND n1.file_path != n2.file_path
+      FROM edges e JOIN nodes n1 ON e.source_id = n1.id JOIN nodes n2 ON e.target_id = n2.id
+      WHERE e.type IN ('calls','imports') AND n1.file_path != n2.file_path
     `).all();
     db.close();
 
@@ -692,11 +692,12 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
   if (fs.existsSync(dbPath)) {
     try {
       const db = new DatabaseSync(dbPath);
-      stats.files = db.prepare('SELECT COUNT(*) AS c FROM files').get().c;
+      const _fc = db.prepare("SELECT COUNT(DISTINCT file_path) AS c FROM nodes WHERE file_path IS NOT NULL AND file_path != ''").get() as any;
+      stats.files = _fc?.c || 0;
       stats.nodes = db.prepare('SELECT COUNT(*) AS c FROM nodes').get().c;
-      stats.lang = db.prepare("SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != '' GROUP BY language ORDER BY c DESC LIMIT 5").all();
-      stats.topExports = db.prepare("SELECT name, kind, file_path, (SELECT COUNT(*) FROM edges e JOIN nodes n2 ON e.target = n2.id WHERE n2.name = nodes.name) AS refs FROM nodes WHERE is_exported = 1 ORDER BY refs DESC LIMIT 20").all();
-      allFiles = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%'").all();
+      stats.lang = []; // 新 DB 无 language 字段
+      stats.topExports = []; // 新 DB 无 is_exported 字段
+      allFiles = db.prepare("SELECT DISTINCT file_path AS path FROM nodes WHERE file_path IS NOT NULL AND file_path != '' AND file_path NOT LIKE 'node_modules/%' AND file_path NOT LIKE '.%'").all();
       db.close();
     } catch {}
   }
@@ -1031,8 +1032,8 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
           }
           cgEdges = cgDb.prepare(`
             SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS count
-            FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
-            WHERE e.kind IN ('calls','imports','references') AND n1.file_path != n2.file_path
+            FROM edges e JOIN nodes n1 ON e.source_id = n1.id JOIN nodes n2 ON e.target_id = n2.id
+            WHERE e.type IN ('calls','imports') AND n1.file_path != n2.file_path
             GROUP BY n1.file_path, n2.file_path ORDER BY count DESC
           `).all();
           cgDb.close();
