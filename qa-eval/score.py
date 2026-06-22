@@ -36,7 +36,7 @@ body = json.dumps({
         {"role": "user", "content": prompt}
     ],
     "max_tokens": 1000,
-    "temperature": 0.5,
+    "temperature": 0,
     "thinking": {"type": "disabled"}
 }).encode()
 
