@@ -165,33 +165,55 @@ export class CbmBridge {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
-      if (result.status !== 0) {
-        // 非零退出，尝试从 stdout 提取错误信息
-        const lines = (result.stdout || '').trim().split('\n').filter(l => l.startsWith('{'));
-        const errJson = lines.pop() || '{}';
+      // spawnSync 内部错误（ENOENT 等），不抛异常而是通过 error 属性返回
+      if (result.error) {
         return {
-          content: [{ type: 'text', text: errJson }],
+          content: [{ type: 'text', text: JSON.stringify({
+            error: result.error.message || String(result.error),
+            tool: cbmTool,
+          }) }],
+          isError: true,
+        };
+      }
+
+      if (result.status !== 0) {
+        // 非零退出 — 合并 stdout + stderr 错误信息
+        const stderr = (result.stderr || '').trim();
+        const stdout = (result.stdout || '').trim();
+        const lines = stdout.split('\n').filter(l => l.startsWith('{'));
+        const jsonStr = lines.pop() || '{}';
+        let errData: any;
+        try { errData = JSON.parse(jsonStr); } catch { errData = { stdout: jsonStr }; }
+        if (stderr && !errData.error) errData.error = stderr;
+        if (!errData.error) errData.error = `Exit code ${result.status}`;
+        return {
+          content: [{ type: 'text', text: JSON.stringify(errData) }],
           isError: true,
         };
       }
 
       // 过滤非 JSON 日志行，取最后一行 JSON
-      const lines = (result.stdout || '').trim().split('\n').filter(l => l.startsWith('{'));
+      const stdoutTrim = (result.stdout || '').trim();
+      const lines = stdoutTrim.split('\n').filter(l => l.startsWith('{'));
       const jsonStr = lines.pop() || '{}';
 
       return { content: [{ type: 'text', text: jsonStr }] };
 
     } catch (err: any) {
+      const errMsg = err?.message || String(err);
       return {
-        content: [{ type: 'text', text: '{}' }],
+        content: [{ type: 'text', text: JSON.stringify({ error: errMsg, tool: cbmTool }) }],
         isError: true,
       };
     }
   }
 
-  /** 检查二进制是否可用 */
-  isAvailable(): boolean {
-    if (!this.binaryChecked) {
+  /**
+   * 检查二进制是否可用。
+   * @param forceRecheck 设为 true 时忽略缓存，重新检测
+   */
+  isAvailable(forceRecheck = false): boolean {
+    if (forceRecheck || !this.binaryChecked) {
       try {
         execFileSync(this.binaryPath, ['--version'], { stdio: 'pipe', encoding: 'utf-8', timeout: 5000 });
         this.binaryAvailable = true;
@@ -305,4 +327,38 @@ export function getBridge(selfRepoPath?: string): CbmBridge {
 /** 测试用：重置单例 */
 export function resetBridge(): void {
   _bridge = null;
+}
+
+// ═════════════════════════════════════════════════════════════
+//  服务启动
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * 启动 Express 服务。作为主入口运行时自动调用。
+ *
+ * 动态导入 codegraph-bridge.ts（内部管理 Express 路由和 app.listen），
+ * 使其在导入时自动完成服务器初始化和监听。
+ *
+ * 这替代了旧 codegraph-bridge.ts 作为入口点的角色，实现
+ * cbm-bridge → codegraph-bridge 的单向依赖关系。
+ */
+export async function startServer(): Promise<void> {
+  console.log('[cbm-bridge] Starting OpenCodeWiki server...');
+  await import('./codegraph-bridge.js');
+}
+
+// ── 主入口检测 ──────────────────────────────────────────────
+
+const entryFile = process.argv[1] || '';
+const isMainEntry =
+  entryFile.endsWith('cbm-bridge.ts') ||
+  entryFile.endsWith('cbm-bridge.js') ||
+  entryFile.endsWith('/cbm-bridge.ts') ||
+  entryFile.endsWith('/cbm-bridge.js');
+
+if (isMainEntry) {
+  startServer().catch(err => {
+    console.error('[cbm-bridge] Failed to start server:', err);
+    process.exit(1);
+  });
 }
