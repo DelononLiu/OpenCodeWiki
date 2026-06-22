@@ -1007,16 +1007,17 @@ export class QaResolver {
             {
               role: 'system',
               content: `你是一个代码搜索助手。第一轮搜索后得到了候选文件列表。你的任务是：
-1. 选出最需要深度阅读的 3-5 个文件（文件路径要完整）
-2. 根据观察到的文件内容，提出新的搜索关键词（1-2 个），用于第二轮搜索
+1. 选出最需要深度阅读的 3-5 个文件
+2. 提出新的第二轮搜索关键词
 
 规则：
-- selectedFiles 中的 filePath 必须来自候选列表中的完整路径
-- newTerms 是第二轮要搜的关键词，应是代码中实际出现的符号名（如 assistant、pipeline）
-- 不要编造文件，只能从候选列表中选
+- selectedFiles 的 filePath 必须来自候选列表
+- newTerms 必须是候选文件代码中出现过的**函数名、类名、变量名或文件名模式**（如 assistantPipeline、TaskFlowHandler）
+- newTerms 不能和第一轮搜索词重复，要更深一层（看到 AssistantHandler → 补搜 AssistantStreamHandler）
+- 不要编造，只能从候选列表中的代码片段里提取
 
 返回 JSON 格式：
-{"selectedFiles":[{"filePath":"src/view/AssistantHandler.ts","repo":"kcode"},...],"newTerms":["assistant","pipeline"],"reasoning":"看到小助手相关文件里出现 assistant 符号，需要补搜"}`,
+{"selectedFiles":[{"filePath":"src/view/AssistantHandler.ts","repo":"kcode"},{"filePath":"src/taskflow/TaskFlow.ts","repo":"kcode"}],"newTerms":["assistantPipeline","TaskFlowHandler"],"reasoning":"AssistantHandler 里引用了 assistantStreamHandler，TaskFlow 里提到了 TaskFlowHandler 等"}`
             },
             { role: 'user', content: `问题：${question}\n\n${candidates}` },
           ],
@@ -1040,7 +1041,8 @@ export class QaResolver {
   }
 
   /**
-   * 并行深读选中文件：用 get_code_snippet 或 grep 取关键代码段。
+   * 并行深读选中文件：读大段源码而非单符号摘要。
+   * 策略：get_code_snippet 主符号 + grep 关联函数 + 直接读文件前 N 行。
    */
   private async deepReadFiles(
     files: { filePath: string; repo: string }[],
@@ -1049,16 +1051,27 @@ export class QaResolver {
     const result = new Map<string, string>();
     const tasks = files.map(async (f) => {
       const repo = repos.find(r => r.name === f.repo || r.storagePath?.includes(f.repo));
-      if (!repo) return;
-      const symbolName = path.basename(f.filePath).replace(/\.[^.]+$/, '');
-      let content = await this.rawContext(symbolName, repo).catch(() => '');
-      if (!content) {
-        const grepResult = await this.rawGrep(symbolName, repo);
-        if (grepResult.length > 0) {
-          content = grepResult.map(g => g.snippet).filter(Boolean).join('\n---\n');
+      if (!repo || !repo.storagePath) return;
+
+      const fullPath = path.join(repo.storagePath, f.filePath);
+      const parts: string[] = [];
+      const baseName = path.basename(f.filePath).replace(/\.[^.]+$/, '');
+
+      // 1) get_code_snippet 读主符号
+      const ctx = await this.rawContext(baseName, repo).catch(() => '');
+      if (ctx) parts.push(ctx.slice(0, 1500));
+
+      // 2) 直接读文件前 120 行（覆盖类定义、import、关键函数签名）
+      try {
+        const fileContent = await fs.readFile(fullPath, 'utf-8');
+        const lines = fileContent.split('\n');
+        const header = lines.slice(0, Math.min(120, lines.length)).join('\n');
+        if (header && !parts.some(p => p.includes(header.slice(0, 80)))) {
+          parts.push(`// 文件头 1-${Math.min(120, lines.length)} 行\n${header}`);
         }
-      }
-      if (content) result.set(f.filePath, content.slice(0, 2000));
+      } catch {}
+
+      if (parts.length > 0) result.set(f.filePath, parts.join('\n\n---\n\n').slice(0, 3500));
     });
     await Promise.all(tasks);
     return result;
