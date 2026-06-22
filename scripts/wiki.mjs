@@ -1040,22 +1040,8 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
       }
       await generateModulePages({ tree: modTree, moduleMap: {}, exportsByFile: cgExports, edges: cgEdges }, resolvedPath, outputDir, llmConfig);
     }
-    if (withModules && !llmConfig.apiKey) {
-      console.log('  ⚠ --modules requires LLM API key. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
-    }
-
-    // Step 4: Generate extra pages
-    if (withModules) {
-      console.log(`\n[${step}/${totalSteps}] Generating extra pages...`);
-      const llmConfig = loadLlmConfig();
-      if (!llmConfig.apiKey) {
-        console.log('  ⚠ No LLM API key found, skipping extra pages. Set OPENAI_API_KEY or configure ~/.opencodewiki/config.json');
-      } else {
-        console.log('');
-        await generateExternalApi(resolvedPath, outputDir, llmConfig, targetLang);
-        await generateCore(resolvedPath, outputDir, llmConfig, targetLang);
-        await generateHotModules(resolvedPath, outputDir, llmConfig, targetLang);
-      }
+    if (withModules && !loadLlmConfig().apiKey) {
+      console.log('  ⚠ --modules requires LLM API key.');
     }
 
     console.log('\n✓ Wiki generated successfully');
