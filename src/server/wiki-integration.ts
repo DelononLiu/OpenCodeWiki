@@ -158,9 +158,34 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       overview += '\n';
     }
 
+    // ── 扩展统计 ──
     let statsSection = `\n\n---\n\n## 📊 代码统计\n\n`;
-    statsSection += `- **文件数:** ${files.length}\n`;
-    statsSection += `- **符号数:** ${nodeCount.c}\n`;
+    statsSection += `| 指标 | 数值 |\n|------|------|\n`;
+    statsSection += `| 文件数 | ${files.length} |\n`;
+    statsSection += `| 符号数 | ${nodeCount.c} |\n`;
+    // 语言分布
+    const extMap = new Map<string, number>();
+    for (const f of files) {
+      const ext = (f as any).file_path?.split('.').pop()?.toLowerCase() || '?';
+      extMap.set(ext, (extMap.get(ext) || 0) + 1);
+    }
+    if (extMap.size > 0) {
+      const langRows = [...extMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([ext, count]) => `| ${ext} | ${count} 文件 |\n`).join('');
+      statsSection += `| **语言** | |\n${langRows}`;
+    }
+    // 入口文件（常见的入口模式）
+    const mainFiles = (files as any[]).filter((f: any) =>
+      /(main|index|app|cli|server|entry)\.(ts|js|mjs|py|go|rs)$/i.test(f.file_path || '')
+    );
+    if (mainFiles.length > 0) {
+      statsSection += '\n### 🚪 入口文件\n\n';
+      for (const mf of mainFiles) {
+        statsSection += `- \`${mf.file_path}\`\n`;
+      }
+    }
     overview += statsSection;
     await fs.writeFile(path.join(outputDir, 'overview.md'), overview || '# Overview\n\n（暂无内容）\n', 'utf-8');
 
