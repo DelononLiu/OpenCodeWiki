@@ -40,6 +40,8 @@ export interface IntentResult {
   intent: Intent;
   symbols: string[];
   searchTerms: string[];
+  /** 原始问题中提取的中文短语，用于 grep 直接搜文件内容（BM25 对中文无效） */
+  chineseTerms?: string[];
   reasoning?: string;
 }
 
@@ -208,21 +210,22 @@ export class QaResolver {
   async analyzeIntent(question: string, repoDescs?: string[], history?: string): Promise<IntentResult> {
     let intent: Intent;
     let reasoning = '';
+    let english_query: string | undefined;
 
     if (this.llm && repoDescs) {
       const result = await this.classifyByLLM(question, repoDescs, history);
       reasoning = 'llm';
       if (result) {
         intent = result.intent;
+        english_query = result.english_query;
         reasoning += ' scope:' + result.scope;
       } else {
         intent = this.classifyIntentWithScore(question).intent;
         reasoning = 'llm-rule-fallback';
       }
     } else if (this.llm) {
-      // 无 repo 信息时只做 intent 分类
       const llmIntent = await this.classifyByLLM(question, []);
-      if (llmIntent) { intent = llmIntent.intent; reasoning = 'llm'; }
+      if (llmIntent) { intent = llmIntent.intent; english_query = llmIntent.english_query; reasoning = 'llm'; }
       else { intent = this.classifyIntentWithScore(question).intent; reasoning = 'llm-rule-fallback'; }
     } else {
       intent = this.classifyIntentWithScore(question).intent;
@@ -230,8 +233,23 @@ export class QaResolver {
     }
 
     const symbols = this.extractSymbols(question);
-    const searchTerms = this.buildSearchTerms(intent, symbols, question);
-    return { intent, symbols, searchTerms, reasoning };
+    let searchTerms = this.buildSearchTerms(intent, symbols, question);
+
+    // 用 LLM 翻译的英文关键词替换中文词。
+    // 每个关键词作为独立搜索词，各自 BM25 搜索后合并结果，
+    // 比整句翻译权重更集中、匹配更精准。
+    if (english_query) {
+      const keywords = english_query.split(/\s+/).filter(k => k.length >= 2 && !CODE_KEYWORDS.has(k));
+      console.log('[qa]   ▸ english_query:', english_query);
+      console.log('[qa]   ▸ keywords:', JSON.stringify(keywords));
+      searchTerms = [
+        ...searchTerms.filter(t => !/[一-鿿]/.test(t)),
+        ...keywords.slice(0, 3),
+      ];
+    }
+
+    console.log('[qa]   ▸ searchTerms:', JSON.stringify(searchTerms));
+    return { intent, symbols, searchTerms, reasoning, chineseTerms: this.extractChinesePhrases(question) };
   }
 
   // ═══════════════════════════════════════════════════
@@ -244,17 +262,37 @@ export class QaResolver {
 
   /**
    * Step 2: 按意图编排 codegraph 工具链搜索
+   *
+   * 所有 intent 共用的增强：
+   * - 中文术语 grep：当问题含中文时，用 search_code 直接搜文件内容中的中文短语
+   *   （BM25 索引不支持中文 tokenization，但 grep 模式可以在源码/注释里精确匹配）
    */
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    let matches: PipelineMatch[];
     switch (intent.intent) {
-      case 'what-is':        return this.searchWhatIs(intent, repos, mode);
-      case 'where-is':       return this.searchWhereIs(intent, repos, mode);
-      case 'how-to':         return this.searchHowTo(intent, repos, mode);
-      case 'why-error':      return this.searchWhyError(intent, repos, mode);
-      case 'what-structure': return this.searchWhatStructure(intent, repos, mode);
-      case 'what-impact':    return this.searchWhatImpact(intent, repos, mode);
-      default:               return this.searchWhatIs(intent, repos, mode);
+      case 'what-is':        matches = await this.searchWhatIs(intent, repos, mode); break;
+      case 'where-is':       matches = await this.searchWhereIs(intent, repos, mode); break;
+      case 'how-to':         matches = await this.searchHowTo(intent, repos, mode); break;
+      case 'why-error':      matches = await this.searchWhyError(intent, repos, mode); break;
+      case 'what-structure': matches = await this.searchWhatStructure(intent, repos, mode); break;
+      case 'what-impact':    matches = await this.searchWhatImpact(intent, repos, mode); break;
+      default:               matches = await this.searchWhatIs(intent, repos, mode); break;
     }
+
+    // 中文 grep 补充：所有 intent 共用——直接搜文件内容中的中文短语
+    if (intent.chineseTerms?.length) {
+      for (const ct of intent.chineseTerms) {
+        for (const repo of repos) {
+          const grepMatches = await this.rawGrep(ct, repo);
+          if (grepMatches.length > 0) matches.push(...grepMatches);
+        }
+      }
+      if (matches.length > 0) {
+        matches = this.rankAndDedup(matches);
+      }
+    }
+
+    return matches;
   }
 
   /**
@@ -309,13 +347,13 @@ export class QaResolver {
     lines.push('The following are initial search results. Use codebase-memory tools (search_graph, get_code_snippet, trace_path) to dig deeper as needed.');
     lines.push('');
 
-    const top = matches.slice(0, 5);
+    const top = matches.slice(0, 10);
     for (const m of top) {
       const kindTag = m.kind !== 'unknown' ? ` [${m.kind}]` : '';
       const repoTag = m.repo ? `${m.repo}:` : '';
       lines.push(`- **${m.name || path.basename(m.filePath)}**${kindTag} — ${repoTag}${m.filePath}:${m.startLine || 1} (score: ${m.score})`);
     }
-    if (matches.length > 5) {
+    if (matches.length > 10) {
       lines.push(`\n+${matches.length - 5} more. Use codegraph_search with "${intent.searchTerms[0] || ''}" for full results.`);
     }
 
@@ -340,7 +378,7 @@ export class QaResolver {
 
     // LLM mode: expand top results with full definition
     if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 5), repos);
+      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
     }
 
     return ranked;
@@ -361,7 +399,7 @@ export class QaResolver {
 
     // LLM mode: expand top definition with context
     if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 5), repos);
+      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
     }
 
     return ranked;
@@ -421,7 +459,7 @@ export class QaResolver {
 
     // LLM mode: expand with context for deeper analysis
     if (mode === 'llm' && ranked.length > 0) {
-      ranked = await this.expandWithContext(ranked.slice(0, 5), repos);
+      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
     }
 
     return ranked;
@@ -441,7 +479,7 @@ export class QaResolver {
 
     // LLM mode: expand top matches with actual definition content
     if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 5), repos);
+      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
     }
 
     return ranked;
@@ -487,7 +525,7 @@ export class QaResolver {
   // ═══════════════════════════════════════════════════
 
   private rawSearch(query: string, repo?: RepoInfo): Promise<string> {
-    const args: any = { query, maxResults: 15 };
+    const args: any = { query, maxResults: 30 };
     if (repo?.storagePath) args.projectPath = repo.storagePath;
     return this.safeTool('codegraph_search', args);
   }
@@ -527,8 +565,28 @@ export class QaResolver {
     return this.safeTool('codegraph_impact', args);
   }
 
-  /** Simple recursive grep within a repo directory */
+  /**
+   * grep 搜索：优先用 codebase-memory-mcp 的 search_code（快速、全深度），
+   * 失败时回退到文件系统遍历。
+   */
   private async rawGrep(pattern: string, repo: RepoInfo): Promise<PipelineMatch[]> {
+    // 优先走 search_code（索引内的全深度搜索）
+    if (repo.storagePath) {
+      try {
+        const raw = await this.safeTool('search_code', {
+          pattern,
+          projectPath: repo.storagePath,
+          mode: 'compact',
+          maxResults: 50,
+        });
+        if (raw) {
+          const parsed = this.parseGrepResults(raw, repo.name || path.basename(repo.storagePath));
+          if (parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+
+    // 回退：文件系统遍历（depth 限制为 4，覆盖大部分源码结构）
     const matches: PipelineMatch[] = [];
     const grepExts = new Set([
       '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -537,9 +595,8 @@ export class QaResolver {
       '.md', '.json', '.yaml', '.yml', '.conf', '.cfg', '.ini',
       '.toml', '.xml', '.gradle', '.cmake', '.mak',
     ]);
-
     try {
-      await this.grepWalk(repo.storagePath, pattern, repo.storagePath, matches, grepExts, 2);
+      await this.grepWalk(repo.storagePath, pattern, repo.storagePath, matches, grepExts, 4);
     } catch {}
     return matches;
   }
@@ -813,6 +870,26 @@ export class QaResolver {
     return matches;
   }
 
+  /** 解析 search_code（grep 模式）的 JSON 输出为 PipelineMatch[] */
+  private parseGrepResults(rawText: string, repoName: string): PipelineMatch[] {
+    try {
+      const data = JSON.parse(rawText);
+      if (!Array.isArray(data.results)) return [];
+      return data.results.map((r: any) => ({
+        name: r.node || path.basename(r.file || ''),
+        filePath: r.file || '',
+        startLine: r.start_line || 1,
+        endLine: r.end_line || r.start_line || 1,
+        kind: 'reference' as MatchKind,
+        score: 60 - (r.in_degree || 0), // 扇入越高排名越前
+        snippet: '',
+        repo: repoName,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /** Map codebase-memory-mcp label to internal MatchKind */
   private classifyCbmKind(label: string): MatchKind {
     const k = (label || '').toLowerCase();
@@ -886,9 +963,10 @@ export class QaResolver {
     return { intent: best, score };
   }
 
-  /** LLM 分类——返回 intent + scope，异常时返回 null */
-  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string } | null> {
+  /** LLM 分类——返回 intent + scope + english_query，异常时返回 null */
+  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string; english_query?: string } | null> {
     if (!this.llm) return null;
+    const hasChinese = /[一-鿿]/.test(question);
     const repoInfo = repoDescs.length > 0
       ? `可用仓库：\n${repoDescs.map(r => `- ${r}`).join('\n')}`
       : '';
@@ -905,9 +983,9 @@ export class QaResolver {
 
 范围（scope）：single（只搜提问中提到的仓库）| cross-compare（跨库对比）| cross-call（跨库调用链）| global-search（全库搜索）
 
-${repoInfo}
+${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_query 字段：从中提取对代码搜索有用的英文关键词，空格分隔。不要完整句子翻译，只输出能匹配代码符号名的关键词（如"小助手"→"assistant helper"，"任务流"→"task workflow flow"）。' : ''}
 
-返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"}` +
+返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
   (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
@@ -924,7 +1002,7 @@ ${repoInfo}
         const validIntents: Intent[] = ['what-is', 'where-is', 'how-to', 'why-error', 'what-structure', 'what-impact'];
         const intent = validIntents.find(i => parsed.intent?.includes(i));
         if (!intent) return null;
-        return { intent, scope: parsed.scope || 'single' };
+        return { intent, scope: parsed.scope || 'single', english_query: parsed.english_query };
       } catch {
         return null;
       }
