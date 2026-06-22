@@ -63,7 +63,14 @@ function updateRegistry(rp, stats) {
     const entry = registry.find(r => r.path === rp);
     if (entry) {
       entry.indexedAt = new Date().toISOString();
-      if (stats) { entry.nodes = stats.nodes; entry.edges = stats.edges; }
+      if (!entry.vcs) {
+        if (fs.existsSync(path.join(rp, '.git'))) entry.vcs = 'git';
+        else if (fs.existsSync(path.join(rp, '.svn'))) entry.vcs = 'svn';
+      }
+      if (stats) {
+        entry.nodes = stats.nodes;
+        entry.edges = stats.edges;
+      }
       fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2) + '\n', 'utf-8');
     }
   } catch {}

@@ -88,13 +88,31 @@ if (existing) {
   console.log(`  ✓ Updated existing entry for "${repoName}"`);
 } else {
   const entry = { name: repoName, path: repoPath };
-  // 通过 index_status 查询 stats
+  // 检测 VCS
+  if (fs.existsSync(path.join(repoPath, '.git'))) entry.vcs = 'git';
+  else if (fs.existsSync(path.join(repoPath, '.svn'))) entry.vcs = 'svn';
+  // 查询索引统计
   try {
     const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
     const out2 = execFileSync('codebase-memory-mcp', ['cli', 'index_status', JSON.stringify({ project: projectName })], { encoding: 'utf-8', timeout: 10_000 });
     const jsonLine2 = out2.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
     const stats = JSON.parse(jsonLine2);
-    if (stats.nodes) { entry.indexedAt = new Date().toISOString(); entry.nodes = stats.nodes; entry.edges = stats.edges; }
+    if (stats.nodes) {
+      entry.indexedAt = new Date().toISOString();
+      entry.nodes = stats.nodes;
+      entry.edges = stats.edges;
+      // 从 DB 查文件数
+      try {
+        const { DatabaseSync } = await import('node:sqlite');
+        const cbmDb = path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db');
+        if (fs.existsSync(cbmDb)) {
+          const db = new DatabaseSync(cbmDb);
+          const f = db.prepare('SELECT COUNT(DISTINCT file_path) AS c FROM nodes WHERE file_path IS NOT NULL AND file_path != \'\'').get();
+          if (f) entry.files = f.c;
+          db.close();
+        }
+      } catch {}
+    }
   } catch {}
   registry.push(entry);
   console.log(`  ✓ Registered "${repoName}"`);
