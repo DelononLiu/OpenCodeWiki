@@ -246,8 +246,8 @@ export class QaResolver {
       const keywords = english_query.split(/\s+/).filter(k => k.length >= 2 && !CODE_KEYWORDS.has(k));
       console.log('[qa]   ▸ english_query:', english_query);
       console.log('[qa]   ▸ keywords:', JSON.stringify(keywords));
+      // 取最多 3 个不重复关键词
       const existing = new Set(searchTerms.filter(t => !/[一-鿿]/.test(t)));
-      // 去重：避免 "kcode" 既从符号提取又从句中出现
       for (const kw of keywords) {
         if (kw.length >= 2 && !existing.has(kw) && existing.size < 3) {
           existing.add(kw);
@@ -456,9 +456,11 @@ export class QaResolver {
 
     let ranked = this.rankAndDedup(allMatches);
 
-    // LLM mode: expand top results with full definition
-    if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
+    // LLM mode: expand top results with full definition, keep tail matches
+    if (mode === 'llm' && ranked.length > 0) {
+      const topN = Math.min(10, ranked.length);
+      const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
+      ranked = [...expanded, ...ranked.slice(topN)];
     }
 
     return ranked;
@@ -478,8 +480,10 @@ export class QaResolver {
     let ranked = this.rankAndDedup(allMatches);
 
     // LLM mode: expand top definition with context
-    if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
+    if (mode === 'llm' && ranked.length > 0) {
+      const topN = Math.min(10, ranked.length);
+      const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
+      ranked = [...expanded, ...ranked.slice(topN)];
     }
 
     return ranked;
@@ -539,7 +543,9 @@ export class QaResolver {
 
     // LLM mode: expand with context for deeper analysis
     if (mode === 'llm' && ranked.length > 0) {
-      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
+      const topN = Math.min(10, ranked.length);
+      const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
+      ranked = [...expanded, ...ranked.slice(topN)];
     }
 
     return ranked;
@@ -558,8 +564,10 @@ export class QaResolver {
     let ranked = this.rankAndDedup(allMatches);
 
     // LLM mode: expand top matches with actual definition content
-    if (mode === 'llm') {
-      ranked = await this.expandWithContext(ranked.slice(0, 10), repos);
+    if (mode === 'llm' && ranked.length > 0) {
+      const topN = Math.min(10, ranked.length);
+      const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
+      ranked = [...expanded, ...ranked.slice(topN)];
     }
 
     return ranked;
@@ -997,7 +1005,7 @@ export class QaResolver {
       const [repo, ...fileParts] = key.split(':');
       const filePath = fileParts.join(':');
       lines.push(`### ${filePath}  (${repo})  ~${entry.lines}行`);
-      for (const s of entry.snippets.slice(0, 3)) {
+      for (const s of entry.snippets.slice(0, 6)) {
         lines.push(`  ${s}`);
       }
     }
@@ -1023,17 +1031,16 @@ export class QaResolver {
             {
               role: 'system',
               content: `你是一个代码搜索助手。第一轮搜索后得到了候选文件列表。你的任务是：
-1. 选出最需要深度阅读的 3-5 个文件
-2. 提出新的第二轮搜索关键词
+1. 选出最需要深度阅读的 3-5 个文件（选特征明显的核心文件，不要选通用工具文件）
+2. 提出新的第二轮搜索关键词（从代码片段里提取更深层的函数名/类名）
 
 规则：
-- selectedFiles 的 filePath 必须来自候选列表
-- newTerms 必须是候选文件代码中出现过的**函数名、类名、变量名或文件名模式**（如 assistantPipeline、TaskFlowHandler）
-- newTerms 不能和第一轮搜索词重复，要更深一层（看到 AssistantHandler → 补搜 AssistantStreamHandler）
-- 不要编造，只能从候选列表中的代码片段里提取
+- 只从候选列表中选，不要编造
+- 优先选文件路径包含特征词的文件（如 Handler/Pipeline/Manager/Core 等），跳过通用文件
+- newTerms 必须是代码片段中出现过的符号名
 
 返回 JSON 格式：
-{"selectedFiles":[{"filePath":"src/view/AssistantHandler.ts","repo":"kcode"},{"filePath":"src/taskflow/TaskFlow.ts","repo":"kcode"}],"newTerms":["assistantPipeline","TaskFlowHandler"],"reasoning":"AssistantHandler 里引用了 assistantStreamHandler，TaskFlow 里提到了 TaskFlowHandler 等"}`
+{"selectedFiles":[{"filePath":"src/view/SomeHandler.ts","repo":"kcode"}],"newTerms":["newSearchTerm"],"reasoning":"..."}`
             },
             { role: 'user', content: `问题：${question}\n\n${candidates}` },
           ],
@@ -1055,6 +1062,7 @@ export class QaResolver {
       if (!Array.isArray(parsed.selectedFiles) && !Array.isArray(parsed.newTerms)) return null;
       console.log('[qa]   ▸ filterCandidates:', JSON.stringify({
         files: parsed.selectedFiles?.length || 0,
+        selected: (parsed.selectedFiles || []).map((f: any) => f.filePath),
         newTerms: parsed.newTerms,
       }));
       return {
