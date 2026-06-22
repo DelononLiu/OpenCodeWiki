@@ -220,10 +220,10 @@ function scanHotFiles(repoPath) {
 // ── Page generation ───────────────────────────────────────────
 
 async function generateExternalApi(repoPath, outputDir, llmConfig, lang) {
-  // Use codegraph DB exported symbols instead of regex
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  // Use codebase-memory-mcp DB exported symbols instead of regex
+  const dbPath = cbmDbPath(repoPath);
   if (!fs.existsSync(dbPath)) {
-    console.log('  ⚠ codegraph.db not found, skipping external-api');
+    console.log('  ⚠ codebase-memory-mcp DB not found, skipping external-api');
     return false;
   }
 
@@ -237,7 +237,7 @@ async function generateExternalApi(repoPath, outputDir, llmConfig, lang) {
   db.close();
 
   if (symbols.length === 0) {
-    console.log('  ⚠ No exported symbols found in codegraph, skipping external-api');
+    console.log('  ⚠ No exported symbols found, skipping external-api');
     return false;
   }
 
@@ -371,40 +371,45 @@ Generate a Markdown document that:
   return false;
 }
 
-// ── Codegraph Data Helpers ─────────────────────────────────────
+// ── codebase-memory-mcp Data Helpers ───────────────────────────
 
-/** Query codegraph DB for call edges between files. Returns { caller, callee } pairs. */
+/** 获取 codebase-memory-mcp DB 路径 */
+function cbmDbPath(repoPath) {
+  const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+  return path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db');
+}
+
+/** Query DB for call edges between files. Returns { caller, callee } pairs. */
 function queryCallEdges(db) {
-  // 跨文件 calls: source file path ← node → target file path
   const rows = db.prepare(`
     SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS count
     FROM edges e
-    JOIN nodes n1 ON e.source = n1.id
-    JOIN nodes n2 ON e.target = n2.id
-    WHERE e.kind IN ('calls', 'imports', 'references')
-      AND n1.file_path != n2.file_path
-    GROUP BY n1.file_path, n2.file_path
-    ORDER BY count DESC
+    JOIN nodes n1 ON e.source_id = n1.id
+    JOIN nodes n2 ON e.target_id = n2.id
+    WHERE e.type IN ('calls', 'imports') AND n1.file_path != n2.file_path
+    GROUP BY n1.file_path, n2.file_path ORDER BY count DESC
   `).all();
   return rows;
 }
 
-/** Get exported symbols per file from codegraph DB. */
+/** Get exported symbols per file. */
 function queryExportsByFile(db) {
   const rows = db.prepare(`
-    SELECT file_path, name, kind FROM nodes WHERE is_exported = 1 ORDER BY file_path, name
+    SELECT file_path, name, label FROM nodes
+    WHERE label IN ('function','method','class','interface','struct')
+    ORDER BY file_path, name
   `).all();
   const map = {};
   for (const r of rows) {
     if (!map[r.file_path]) map[r.file_path] = [];
-    map[r.file_path].push({ name: r.name, kind: r.kind });
+    map[r.file_path].push({ name: r.name, kind: r.label });
   }
   return map;
 }
 
 /** Get all source files (excluding generated/config). */
 function querySourceFiles(db) {
-  return db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%' AND path NOT LIKE 'dist/%' AND path NOT LIKE 'target/%'").all();
+  return db.prepare("SELECT DISTINCT file_path FROM nodes WHERE file_path IS NOT NULL AND file_path != '' AND file_path NOT LIKE '.%' AND file_path NOT LIKE 'node_modules/%' AND file_path NOT LIKE 'dist/%' AND file_path NOT LIKE 'target/%'").all();
 }
 
 /** Build a file-list string for LLM grouping prompt. */
@@ -412,14 +417,14 @@ function formatFileListForGrouping(files, exportsByFile) {
   const lines = [];
   const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor', 'scripts']);
   for (const f of files) {
-    const parts = f.path.split('/');
+    const parts = f.file_path.split('/');
     if (SKIP_DIRS.has(parts[0])) continue;
-    const exps = exportsByFile[f.path];
+    const exps = exportsByFile[f.file_path];
     if (exps && exps.length > 0) {
       const syms = exps.map(e => `${e.name}(${e.kind})`).join(', ');
-      lines.push(`- ${f.path}: ${syms}`);
+      lines.push(`- ${f.file_path}: ${syms}`);
     } else {
-      lines.push(`- ${f.path}`);
+      lines.push(`- ${f.file_path}`);
     }
   }
   return lines.join('\n');
@@ -467,14 +472,14 @@ async function callLLMJson(prompt, llmConfig, systemPrompt) {
 // ── Codegraph Wiki Generation ──────────────────────────────────
 
 /** Build module_tree.json from architecture modules (identified by overview) + codegraph file mapping.
- *  Uses codegraph edges to determine dependencies between modules. */
+ *  Uses codebase-memory-mcp edges to determine dependencies between modules. */
 async function buildModuleTree(repoPath, outputDir, moduleNames) {
   if (!moduleNames || moduleNames.length === 0) {
     console.log('  ⚠ No modules identified, skipping module tree');
     return [];
   }
 
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const dbPath = cbmDbPath(repoPath);
   const tree = [];
 
   if (fs.existsSync(dbPath)) {
@@ -530,7 +535,7 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
       }
     }
 
-    // Compute dependencies from codegraph edges
+    // Compute dependencies from codebase-memory-mcp edges
     const edges = db.prepare(`
       SELECT n1.file_path AS caller, n2.file_path AS callee
       FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
@@ -564,7 +569,7 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
       });
     }
   } else {
-    // No codegraph DB: use module names as-is
+    // No codebase-memory-mcp DB: use module names as-is
     for (const name of moduleNames) {
       tree.push({ name, slug: slugify(name), files: [], dependencies: [], dependents: [] });
     }
@@ -577,9 +582,9 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
 
 /** Generate module_tree.json with LLM grouping + edge data. */
 async function generateModuleTree(repoPath, outputDir, llmConfig) {
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const dbPath = cbmDbPath(repoPath);
   if (!fs.existsSync(dbPath)) {
-    console.log('  ⚠ codegraph.db not found, skipping module tree');
+    console.log('  ⚠ codebase-memory-mcp DB not found, skipping module tree');
     return null;
   }
 
@@ -671,7 +676,7 @@ Module names should be short and descriptive (e.g. "Authentication", "API Gatewa
   return { tree, moduleMap, exportsByFile, edges };
 }
 
-/** Generate overview.md with LLM using fixed template + codegraph data.
+/** Generate overview.md with LLM using fixed template + codebase-memory-mcp data.
  *  Returns array of identified module names for building module_tree.json. */
 async function generateOverview(repoPath, outputDir, llmConfig) {
   // Stage 1: Gather data (no module tree dependency)
@@ -683,7 +688,7 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
 
   let stats = { files: 0, nodes: 0, lang: [] };
   let allFiles = [];
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const dbPath = cbmDbPath(repoPath);
   if (fs.existsSync(dbPath)) {
     try {
       const db = new DatabaseSync(dbPath);
@@ -887,7 +892,7 @@ async function generateModulePages(result, repoPath, outputDir, llmConfig) {
 
 /** Generate data-model.md with LLM per-group descriptions + field table. */
 async function generateDataModelPage(repoPath, outputDir, llmConfig) {
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const dbPath = cbmDbPath(repoPath);
   if (!fs.existsSync(dbPath)) return;
 
   const db = new DatabaseSync(dbPath);
@@ -976,25 +981,24 @@ if (!repoPath) {
 
 const resolvedPath = resolvePath(repoPath);
 const outputDir = path.join(resolvedPath, '.codegraph', 'wiki');
-const codegraphDb = path.join(resolvedPath, '.codegraph', 'codegraph.db');
+const cbmDb = cbmDbPath(resolvedPath);
 const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
 
 (async () => {
   const totalSteps = extraPages ? 4 : 2;
   let step = 1;
 
-  // Step 1: Check codegraph index exists
-  if (!fs.existsSync(codegraphDb)) {
-    console.log(`[${step}/${totalSteps}] No codegraph index found at ${codegraphDb}`);
-    console.log('  Please run codegraph index first: cd <repo> && npx codegraph index');
-    console.log('  Or use: npm run index -- <repo-path>\n');
+  // Step 1: Check codebase-memory-mcp index exists
+  if (!fs.existsSync(cbmDb)) {
+    console.log(`[${step}/${totalSteps}] No codebase-memory-mcp index found at ${cbmDb}`);
+    console.log('  Please run: npm run index -- <repo-path>\n');
     process.exit(1);
   }
-  console.log(`[${step}/${totalSteps}] ✓ codegraph index found`);
+  console.log(`[${step}/${totalSteps}] ✓ index found`);
   step++;
 
-  // Step 2: Generate wiki from codegraph DB
-  console.log(`[${step}/${totalSteps}] Generating wiki from codegraph data...`);
+  // Step 2: Generate wiki from codebase-memory-mcp DB
+  console.log(`[${step}/${totalSteps}] Generating wiki from codebase-memory-mcp data...`);
   console.log('');
   step++;
 
@@ -1005,7 +1009,7 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
     // Step 1: Generate overview (identifies architecture modules via LLM)
     const overviewModules = await generateOverview(resolvedPath, outputDir, llmConfig);
 
-    // Step 2: Build module_tree.json from architecture modules + codegraph data
+    // Step 2: Build module_tree.json from architecture modules + codebase-memory-mcp data
     const modTree = await buildModuleTree(resolvedPath, outputDir, overviewModules);
 
     // Step 3: Generate data model page
@@ -1014,10 +1018,10 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
     // Step 4: Generate module pages using architecture-based tree
     if (withModules && modTree && modTree.length > 0 && llmConfig.apiKey) {
       console.log(`\n[${step}/${totalSteps}] Generating module pages (${modTree.length} modules)...`);
-      // Load codegraph data for module page generation
+      // Load codebase-memory-mcp data for module page generation
       let cgExports = {};
       let cgEdges = [];
-      const cgDbPath = path.join(resolvedPath, '.codegraph', 'codegraph.db');
+      const cgDbPath = cbmDbPath(resolvedPath);
       if (fs.existsSync(cgDbPath)) {
         try {
           const cgDb = new DatabaseSync(cgDbPath);
