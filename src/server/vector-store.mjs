@@ -21,9 +21,9 @@
  *   2. 放到 node_modules/@xenova/transformers/models/Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx
  *   3. 同时复制 config.json、tokenizer.json 等配套文件
  *
- * 与 codegraph 关系:
- *   - 向量库文件与 .codegraph/codegraph.db 平级
- *   - 通过 node.id 关联符号，不动 codegraph 引擎
+ * 与 codebase-memory-mcp 关系:
+ *   - 从 ~/.cache/codebase-memory-mcp/<project>.db 读取符号
+ *   - 通过 node.id 关联符号
  */
 
 import { DatabaseSync } from 'node:sqlite';
@@ -265,18 +265,20 @@ export function rrfMerge(ftsResults, vecResults, k = 60) {
 export async function embedRepo(repoName, repoPath) {
   ensureTable(repoName);
 
-  const codegraphDb = path.join(repoPath, '.codegraph', 'codegraph.db');
-  if (!fs.existsSync(codegraphDb)) {
-    console.error(`[vector-store] codegraph.db 不存在: ${codegraphDb}`);
+  // codebase-memory-mcp DB 路径
+  const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+  const cbmDb = path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db');
+  if (!fs.existsSync(cbmDb)) {
+    console.error(`[vector-store] codebase-memory-mcp DB 不存在: ${cbmDb}`);
     return 0;
   }
 
-  const srcDb = new DatabaseSync(codegraphDb);
+  const srcDb = new DatabaseSync(cbmDb);
   const rows = srcDb.prepare(`
-    SELECT id, name, qualified_name, docstring, signature
+    SELECT id, name, qualified_name, file_path
     FROM nodes
-    WHERE kind IN ('function', 'method', 'class', 'interface', 'struct', 'enum', 'type_alias', 'module', 'constant', 'variable')
-    ORDER BY kind
+    WHERE label IN ('function', 'method', 'class', 'interface', 'struct', 'enum', 'type_alias', 'module', 'constant', 'variable')
+    ORDER BY label
   `).all();
   srcDb.close();
 
@@ -288,7 +290,7 @@ export async function embedRepo(repoName, repoPath) {
     const batch = rows.slice(i, i + batchSize);
     const entries = [];
     for (const row of batch) {
-      const text = [row.name, row.qualified_name, row.docstring || '', row.signature || '']
+      const text = [row.name, row.qualified_name, row.file_path || '']
         .filter(Boolean).join('\n');
       if (!text.trim()) continue;
       const vector = await embedText(text);
