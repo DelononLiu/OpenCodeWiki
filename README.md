@@ -152,6 +152,24 @@ opencodewiki/
 
 ---
 
+## 📜 主要开源组件
+
+| 组件 | 用途 | 协议 |
+|------|------|------|
+| [codebase-memory-mcp](https://github.com/antigravity-ai/codebase-memory-mcp) | 代码语义图谱索引与 MCP 桥接 | MIT |
+| [@agentclientprotocol/sdk](https://github.com/agentclientprotocol/sdk) | MCP 协议客户端 SDK | Apache-2.0 |
+| [@xenova/transformers](https://github.com/huggingface/transformers.js) | 本地 ONNX 推理引擎（Embedding） | Apache-2.0 |
+| [@huggingface/tokenizers](https://github.com/huggingface/tokenizers) | 分词器 | Apache-2.0 |
+| [onnxruntime-web](https://github.com/microsoft/onnxruntime) | ONNX 跨平台运行时 | MIT |
+| [Express](https://github.com/expressjs/express) | HTTP 服务框架 | MIT |
+| [libvips](https://github.com/libvips/libvips) | 图片处理（vendor 离线包） | LGPL-2.1 |
+| [Highlight.js](https://github.com/highlightjs/highlight.js) | 代码高亮（vendor） | BSD-3-Clause |
+| [marked](https://github.com/markedjs/marked) | Markdown 渲染（vendor） | MIT |
+| [Mermaid](https://github.com/mermaid-js/mermaid) | 图表渲染（vendor） | MIT |
+| [SQLite (node:sqlite)](https://nodejs.org/api/sqlite.html) | 符号索引 + 数据存储，零编译依赖 | 内置 |
+
+---
+
 ## License
 
 MIT
