@@ -17,6 +17,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import os from 'os';
 import { DatabaseSync } from 'node:sqlite';
 
 /** Module tree node from GitNexus wiki. */
@@ -42,33 +43,43 @@ export interface WikiGenerateResult {
  */
 export async function generateWiki(repoPath: string): Promise<WikiGenerateResult> {
   const outputDir = wikiOutputDir(repoPath);
-  const dbPath = path.join(repoPath, '.codegraph', 'codegraph.db');
+  const projectName = repoPath.replace(/^\//, '').replace(/\//g, '-');
+  const dbPath = path.join(os.homedir(), '.cache', 'codebase-memory-mcp', projectName + '.db');
 
   if (!fsSync.existsSync(dbPath)) {
-    return { success: false, error: 'No codegraph DB found at ' + dbPath + '. Run codegraph index first.' };
+    return { success: false, error: 'codebase-memory-mcp DB not found at ' + dbPath + '. Run npm run index first.' };
   }
 
   try {
     await fs.mkdir(outputDir, { recursive: true });
 
-    // ── Query codegraph DB ──
+    // ── Query codebase-memory-mcp DB ──
     const db = new DatabaseSync(dbPath);
-    const files = db.prepare("SELECT path FROM files WHERE path NOT LIKE 'node_modules/%' AND path NOT LIKE '.%' AND path NOT LIKE 'dist/%' AND path NOT LIKE 'target/%'").all() as any[];
-    const exportsRows = db.prepare("SELECT file_path, name, kind FROM nodes WHERE is_exported = 1").all() as any[];
+    const files = db.prepare(
+      "SELECT DISTINCT file_path FROM nodes WHERE file_path IS NOT NULL AND file_path != '' AND file_path NOT LIKE '.%' AND file_path NOT LIKE 'node_modules/%' AND file_path NOT LIKE 'dist/%' AND file_path NOT LIKE 'target/%'"
+    ).all() as any[];
+    const exportsRows = db.prepare(
+      "SELECT file_path, name, label FROM nodes WHERE label IN ('function','method','class','interface','struct')"
+    ).all() as any[];
+    // 调用边：通过 source/target 节点关联到文件
     const edges = db.prepare(`
-      SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS count
-      FROM edges e JOIN nodes n1 ON e.source = n1.id JOIN nodes n2 ON e.target = n2.id
-      WHERE e.kind IN ('calls','imports','references') AND n1.file_path != n2.file_path
-      GROUP BY n1.file_path, n2.file_path ORDER BY count DESC
+      SELECT n1.file_path AS caller, n2.file_path AS callee, COUNT(*) AS cnt
+      FROM edges e
+      JOIN nodes n1 ON e.source_id = n1.id
+      JOIN nodes n2 ON e.target_id = n2.id
+      WHERE e.type IN ('calls','imports') AND n1.file_path != n2.file_path
+      GROUP BY n1.file_path, n2.file_path ORDER BY cnt DESC
     `).all() as any[];
     const dataModel = db.prepare(`
-      SELECT name, kind, file_path, signature, docstring,
-        (SELECT COUNT(*) FROM edges e2 JOIN nodes n3 ON e2.target = n3.id WHERE n3.name = nodes.name AND n3.file_path = nodes.file_path) AS refs
-      FROM nodes WHERE kind IN ('interface', 'class') AND is_exported = 1 ORDER BY refs DESC LIMIT 40
+      SELECT name, label, file_path, qualified_name
+      FROM nodes WHERE label IN ('interface','class') ORDER BY name LIMIT 40
     `).all() as any[];
-    const fileCount = db.prepare('SELECT COUNT(*) AS c FROM files').get() as any;
     const nodeCount = db.prepare('SELECT COUNT(*) AS c FROM nodes').get() as any;
-    const langRows = db.prepare("SELECT language, COUNT(*) AS c FROM files WHERE language IS NOT NULL AND language != '' GROUP BY language ORDER BY c DESC LIMIT 5").all() as any[];
+    const langRows = db.prepare(`
+      SELECT SUBSTR(file_path, INSTR(file_path, '.') + 1) AS ext, COUNT(*) AS c
+      FROM nodes WHERE file_path LIKE '%.%'
+      GROUP BY ext ORDER BY c DESC LIMIT 5
+    `).all() as any[];
     db.close();
 
     // ── Group files by top-level directory ──
@@ -79,7 +90,7 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       const topDir = parts.length >= 2 && !SKIP_DIRS.has(parts[0]) ? parts[0] : null;
       if (topDir) {
         if (!dirMap[topDir]) dirMap[topDir] = [];
-        dirMap[topDir].push((f as any).path);
+        dirMap[topDir].push((f as any).file_path);
       }
     }
 
@@ -148,14 +159,8 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
     }
 
     let statsSection = `\n\n---\n\n## 📊 代码统计\n\n`;
-    statsSection += `- **文件数:** ${fileCount.c}\n`;
+    statsSection += `- **文件数:** ${files.length}\n`;
     statsSection += `- **符号数:** ${nodeCount.c}\n`;
-    if (langRows.length > 0) {
-      statsSection += '- **语言:**\n';
-      for (const l of langRows) {
-        statsSection += `  - ${(l as any).language}: ${(l as any).c} 文件\n`;
-      }
-    }
     overview += statsSection;
     await fs.writeFile(path.join(outputDir, 'overview.md'), overview || '# Overview\n\n（暂无内容）\n', 'utf-8');
 
@@ -169,11 +174,10 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       }
       let dm = '# 📐 数据结构设计\n\n核心 interface 和 class 定义，按模块分组。\n\n';
       for (const [dir, items] of Object.entries(groups)) {
-        dm += `## ${dir}\n\n| 名称 | 类型 | 文件 | 引用次数 | 签名 |\n|------|------|------|----------|------|\n`;
+        dm += `## ${dir}\n\n| 名称 | 类型 | 文件 | 签名 |\n|------|------|------|------|\n`;
         for (const item of items) {
-          const sig = ((item as any).signature || '').slice(0, 80);
-          const doc = ((item as any).docstring || '').slice(0, 60).replace(/\n/g, ' ');
-          dm += `| \`${(item as any).name}\` | ${(item as any).kind} | \`${(item as any).file_path}\` | ${(item as any).refs} | ${doc || sig} |\n`;
+          const qualified = ((item as any).qualified_name || '').split('.').slice(-2).join('.');
+          dm += `| \`${(item as any).name}\` | ${(item as any).label} | \`${(item as any).file_path}\` | ${qualified} |\n`;
         }
         dm += '\n';
       }
