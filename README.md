@@ -159,6 +159,11 @@ opencodewiki/
 | [codebase-memory-mcp](https://github.com/antigravity-ai/codebase-memory-mcp) | 代码语义图谱索引与 MCP 桥接 | MIT |
 | [@xenova/transformers](https://github.com/huggingface/transformers.js) | 本地 ONNX Embedding 推理 | Apache-2.0 |
 | [Express](https://github.com/expressjs/express) | HTTP 服务框架 | MIT |
+| [@agentclientprotocol/sdk](https://github.com/agentclientprotocol/sdk) | MCP 协议客户端 SDK | Apache-2.0 |
+| [Highlight.js](https://github.com/highlightjs/highlight.js) | 代码高亮（vendor） | BSD-3-Clause |
+| [marked](https://github.com/markedjs/marked) | Markdown 渲染（vendor） | MIT |
+| [Mermaid](https://github.com/mermaid-js/mermaid) | 图表渲染（vendor） | MIT |
+| [SQLite (node:sqlite)](https://nodejs.org/api/sqlite.html) | 符号索引 + 数据存储，零编译依赖 | 内置 |
 
 ---
 
