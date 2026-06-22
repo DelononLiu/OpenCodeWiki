@@ -149,13 +149,13 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
       }
       overview += '```\n\n';
 
-      overview += '### 模块清单\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
+      overview += '### 模块索引\n\n| 模块 | 文件数 | 依赖 | 被依赖 |\n|------|--------|------|--------|\n';
       for (const mod of tree) {
         const deps = mod.dependencies?.length ? mod.dependencies.join(', ') : '-';
         const depBy = mod.dependents?.length ? mod.dependents.join(', ') : '-';
-        overview += `| **${mod.name}** | ${mod.files?.length || 0} | ${deps} | ${depBy} |\n`;
+        overview += `| [${mod.name}](${mod.slug}) | ${mod.files?.length || 0} | ${deps} | ${depBy} |\n`;
       }
-      overview += '\n';
+      overview += '\n> 点击模块名查看详细说明（需运行 \`npm run wiki -- <repo> --extra-pages\` 生成）。\n';
     }
 
     // ── 扩展统计 ──
