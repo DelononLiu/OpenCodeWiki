@@ -57,11 +57,15 @@ function fastSync(rp) {
   ], { stdio: 'inherit', timeout: 120_000, cwd: rp });
 }
 
-function updateRegistry(rp) {
+function updateRegistry(rp, stats) {
   try {
     const registry = JSON.parse(fs.readFileSync(registryFile, 'utf-8'));
     const entry = registry.find(r => r.path === rp);
-    if (entry) { entry.indexedAt = new Date().toISOString(); fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2) + '\n', 'utf-8'); }
+    if (entry) {
+      entry.indexedAt = new Date().toISOString();
+      if (stats) { entry.nodes = stats.nodes; entry.edges = stats.edges; }
+      fs.writeFileSync(registryFile, JSON.stringify(registry, null, 2) + '\n', 'utf-8');
+    }
   } catch {}
 }
 
@@ -153,7 +157,8 @@ if (mode === '--watch' || mode === '-w') {
     const jsonLine = after.trim().split('\n').filter(l => l.startsWith('{')).pop() || '{}';
     const data = JSON.parse(jsonLine);
     console.log(`  After: ${data.nodes} nodes, ${data.edges} edges`);
-  } catch {}
-
-  updateRegistry(repoPath);
+    updateRegistry(repoPath, data);
+  } catch {
+    updateRegistry(repoPath);
+  }
 }

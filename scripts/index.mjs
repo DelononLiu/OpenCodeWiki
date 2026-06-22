@@ -53,7 +53,8 @@ try {
     timeout: 300_000,
     cwd: repoPath,
   });
-  console.log('  ✓ codebase-memory-mcp index complete');
+  // index_repository 已输出 stats
+  console.log('  ✓ Index complete');
 } catch (err) {
   console.error(`  ✗ index failed: ${err.message}`);
   process.exit(1);
@@ -73,11 +74,13 @@ try {
 
 // Check for duplicate
 const existing = registry.find(r => r.name === repoName);
+
 if (existing) {
   existing.path = repoPath;
+  if (indexedAt) { existing.indexedAt = indexedAt; existing.files = nodes; existing.nodes = nodes; existing.edges = edges; }
   console.log(`  ✓ Updated existing entry for "${repoName}"`);
 } else {
-  registry.push({ name: repoName, path: repoPath });
+  registry.push({ name: repoName, path: repoPath, indexedAt, files: nodes, nodes, edges });
   console.log(`  ✓ Registered "${repoName}"`);
 }
 
