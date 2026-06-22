@@ -1157,6 +1157,19 @@ export function createQaEndpoint(
         if (pipelineContext) {
           log('info', 'pipeline context', { len: pipelineContext.length, mode });
         }
+
+        // 用 pipeline 匹配结果替换 sources，供前端右侧列表展示
+        if (matches.length > 0) {
+          sources = matches.map((m, i) => ({
+            filePath: m.filePath,
+            label: m.kind === 'definition' ? 'Definition' : m.kind === 'declaration' ? 'Declaration' : 'Reference',
+            startLine: m.startLine,
+            endLine: m.endLine,
+            fileName: m.filePath?.split('/').pop() ?? '?',
+            snippet: m.snippet || '',
+            refId: i,
+          }));
+        }
       } catch (pipelineErr) {
         log('warn', 'pipeline error (non-fatal)', { error: (pipelineErr as Error)?.message });
       }

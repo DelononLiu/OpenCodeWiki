@@ -42,6 +42,8 @@ export interface IntentResult {
   searchTerms: string[];
   /** 原始问题中提取的中文短语，用于 grep 直接搜文件内容（BM25 对中文无效） */
   chineseTerms?: string[];
+  /** 原始问题，用于两阶段搜索中的 LLM 筛选 */
+  question?: string;
   reasoning?: string;
 }
 
@@ -188,6 +190,8 @@ function reasonIncludesCrossRepo(q: string): boolean {
 export class QaResolver {
   private vs: VectorSearchAPI | null = null;
   private llm: LLMConfig | null = null;
+  /** 第2轮深读结果，由 buildLLMContext 使用 */
+  private _deepSnippets: Map<string, string> = new Map();
 
   constructor(
     private executeTool: (tool: string, args: any) => Promise<{ content: [{ text: string }] }>,
@@ -242,14 +246,18 @@ export class QaResolver {
       const keywords = english_query.split(/\s+/).filter(k => k.length >= 2 && !CODE_KEYWORDS.has(k));
       console.log('[qa]   ▸ english_query:', english_query);
       console.log('[qa]   ▸ keywords:', JSON.stringify(keywords));
-      searchTerms = [
-        ...searchTerms.filter(t => !/[一-鿿]/.test(t)),
-        ...keywords.slice(0, 3),
-      ];
+      const existing = new Set(searchTerms.filter(t => !/[一-鿿]/.test(t)));
+      // 去重：避免 "kcode" 既从符号提取又从句中出现
+      for (const kw of keywords) {
+        if (kw.length >= 2 && !existing.has(kw) && existing.size < 3) {
+          existing.add(kw);
+        }
+      }
+      searchTerms = [...existing];
     }
 
     console.log('[qa]   ▸ searchTerms:', JSON.stringify(searchTerms));
-    return { intent, symbols, searchTerms, reasoning, chineseTerms: this.extractChinesePhrases(question) };
+    return { intent, symbols, searchTerms, reasoning, chineseTerms: this.extractChinesePhrases(question), question };
   }
 
   // ═══════════════════════════════════════════════════
@@ -263,11 +271,13 @@ export class QaResolver {
   /**
    * Step 2: 按意图编排 codegraph 工具链搜索
    *
-   * 所有 intent 共用的增强：
-   * - 中文术语 grep：当问题含中文时，用 search_code 直接搜文件内容中的中文短语
-   *   （BM25 索引不支持中文 tokenization，但 grep 模式可以在源码/注释里精确匹配）
+   * 两阶段搜索策略：
+   *   第1轮 — BM25 + grep 广撒网，拿到候选文件列表
+   *   筛选  — LLM 看候选列表，选最相关文件 + 建议新搜索词
+   *   第2轮 — 搜新词（精准 BM25）+ 并行深读选中文件
    */
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // ── 第1轮：BM25 + grep ──
     let matches: PipelineMatch[];
     switch (intent.intent) {
       case 'what-is':        matches = await this.searchWhatIs(intent, repos, mode); break;
@@ -279,7 +289,7 @@ export class QaResolver {
       default:               matches = await this.searchWhatIs(intent, repos, mode); break;
     }
 
-    // 中文 grep 补充：所有 intent 共用——直接搜文件内容中的中文短语
+    // 中文 grep 补充
     if (intent.chineseTerms?.length) {
       for (const ct of intent.chineseTerms) {
         for (const repo of repos) {
@@ -287,11 +297,50 @@ export class QaResolver {
           if (grepMatches.length > 0) matches.push(...grepMatches);
         }
       }
-      if (matches.length > 0) {
-        matches = this.rankAndDedup(matches);
+    }
+
+    matches = this.rankAndDedup(matches);
+
+    // ── 第2轮：候选筛选 + 深读（仅 LLM 模式，有 LLM 配置且不是太简单的问题）──
+    if (mode === 'llm' && this.llm && intent.question && intent.question.length > 6 && matches.length > 0) {
+      const candidates = this.buildCandidateList(matches);
+      console.log('[qa]   ▸ round2 candidates:', candidates.length, 'chars,', matches.length, 'matches');
+      const filter = await this.filterCandidates(intent.question, candidates);
+
+      if (filter) {
+        console.log('[qa]   ▸ round2 filter:', JSON.stringify({
+          files: filter.selectedFiles.length,
+          newTerms: filter.newTerms,
+        }));
+        // 深读选中文件
+        if (filter.selectedFiles.length > 0) {
+          const deepSnippets = await this.deepReadFiles(filter.selectedFiles, repos);
+          this._deepSnippets = deepSnippets;
+        }
+
+        // 用新词补搜 BM25
+        if (filter.newTerms.length > 0) {
+          const extraIntent = { ...intent, searchTerms: filter.newTerms.slice(0, 2) };
+          let extra: PipelineMatch[];
+          switch (intent.intent) {
+            case 'what-is':        extra = await this.searchWhatIs(extraIntent, repos, mode); break;
+            case 'where-is':       extra = await this.searchWhereIs(extraIntent, repos, mode); break;
+            case 'how-to':         extra = await this.searchHowTo(extraIntent, repos, mode); break;
+            case 'why-error':      extra = await this.searchWhyError(extraIntent, repos, mode); break;
+            case 'what-structure': extra = await this.searchWhatStructure(extraIntent, repos, mode); break;
+            case 'what-impact':    extra = await this.searchWhatImpact(extraIntent, repos, mode); break;
+            default:               extra = await this.searchWhatIs(extraIntent, repos, mode); break;
+          }
+          if (extra.length > 0) {
+            console.log('[qa]   ▸ round2 new matches:', extra.length);
+            matches.push(...extra);
+          }
+          matches = this.rankAndDedup(matches);
+        }
       }
     }
 
+    console.log('[qa]   ▸ final matches:', matches.length);
     return matches;
   }
 
@@ -333,6 +382,21 @@ export class QaResolver {
 
     lines.push('');
     lines.push(`Total: ${matches.length} matches across ${byRepo.size} repos.`);
+
+    // 第2轮深读结果（如已执行）
+    if (this._deepSnippets.size > 0) {
+      lines.push('');
+      lines.push('## 第2轮深读 — 选中文件的源码关键段');
+      for (const [filePath, snippet] of this._deepSnippets) {
+        lines.push(`### ${filePath}`);
+        lines.push('```');
+        lines.push(snippet);
+        lines.push('```');
+      }
+      // 清空，避免影响下次查询
+      this._deepSnippets.clear();
+    }
+
     return lines.join('\n');
   }
 
@@ -888,6 +952,116 @@ export class QaResolver {
     } catch {
       return [];
     }
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  两阶段搜索 — 候选列表、筛选、深读
+  // ═══════════════════════════════════════════════════
+
+  /**
+   * 把第一轮搜索结果构造成结构化候选列表，供 LLM 筛选。
+   * 每组 = 文件 + 命中关键词 + 代码片段（LLM 据此判断相关性）。
+   */
+  private buildCandidateList(matches: PipelineMatch[]): string {
+    const fileMap = new Map<string, { repo: string; lines: number; snippets: string[] }>();
+    for (const m of matches) {
+      if (!m.filePath) continue;
+      const key = `${m.repo || ''}:${m.filePath}`;
+      if (!fileMap.has(key)) fileMap.set(key, { repo: m.repo || '', lines: 0, snippets: [] });
+      const entry = fileMap.get(key)!;
+      entry.lines = Math.max(entry.lines, m.endLine || m.startLine || 0);
+      const snippet = m.snippet || (m.name ? `${m.name}` : '');
+      if (snippet && !entry.snippets.includes(snippet.slice(0, 80))) {
+        entry.snippets.push(snippet.slice(0, 80));
+      }
+    }
+
+    const lines: string[] = ['## 候选文件列表（第一轮搜索）'];
+    for (const [key, entry] of fileMap) {
+      const [repo, ...fileParts] = key.split(':');
+      const filePath = fileParts.join(':');
+      lines.push(`### ${filePath}  (${repo})  ~${entry.lines}行`);
+      for (const s of entry.snippets.slice(0, 3)) {
+        lines.push(`  ${s}`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * LLM 筛选：从候选列表中选出最相关的文件，并建议第二轮搜索词。
+   * 模仿程序员"看到结果→想到新词"的迭代过程。
+   */
+  private async filterCandidates(question: string, candidates: string): Promise<{
+    selectedFiles: { filePath: string; repo: string }[];
+    newTerms: string[];
+  } | null> {
+    if (!this.llm || candidates.length < 50) return null;
+    try {
+      const res = await fetch(this.llm.baseUrl + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.llm.apiKey },
+        body: JSON.stringify({
+          model: this.llm.model,
+          messages: [
+            {
+              role: 'system',
+              content: `你是一个代码搜索助手。第一轮搜索后得到了候选文件列表。你的任务是：
+1. 选出最需要深度阅读的 3-5 个文件（文件路径要完整）
+2. 根据观察到的文件内容，提出新的搜索关键词（1-2 个），用于第二轮搜索
+
+规则：
+- selectedFiles 中的 filePath 必须来自候选列表中的完整路径
+- newTerms 是第二轮要搜的关键词，应是代码中实际出现的符号名（如 assistant、pipeline）
+- 不要编造文件，只能从候选列表中选
+
+返回 JSON 格式：
+{"selectedFiles":[{"filePath":"src/view/AssistantHandler.ts","repo":"kcode"},...],"newTerms":["assistant","pipeline"],"reasoning":"看到小助手相关文件里出现 assistant 符号，需要补搜"}`,
+            },
+            { role: 'user', content: `问题：${question}\n\n${candidates}` },
+          ],
+          max_tokens: 300,
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as any;
+      const text = data?.choices?.[0]?.message?.content || '';
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed.selectedFiles) && !Array.isArray(parsed.newTerms)) return null;
+      return {
+        selectedFiles: parsed.selectedFiles || [],
+        newTerms: (parsed.newTerms || []).filter((t: string) => t.length >= 2),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 并行深读选中文件：用 get_code_snippet 或 grep 取关键代码段。
+   */
+  private async deepReadFiles(
+    files: { filePath: string; repo: string }[],
+    repos: RepoInfo[],
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    const tasks = files.map(async (f) => {
+      const repo = repos.find(r => r.name === f.repo || r.storagePath?.includes(f.repo));
+      if (!repo) return;
+      const symbolName = path.basename(f.filePath).replace(/\.[^.]+$/, '');
+      let content = await this.rawContext(symbolName, repo).catch(() => '');
+      if (!content) {
+        const grepResult = await this.rawGrep(symbolName, repo);
+        if (grepResult.length > 0) {
+          content = grepResult.map(g => g.snippet).filter(Boolean).join('\n---\n');
+        }
+      }
+      if (content) result.set(f.filePath, content.slice(0, 2000));
+    });
+    await Promise.all(tasks);
+    return result;
   }
 
   /** Map codebase-memory-mcp label to internal MatchKind */
