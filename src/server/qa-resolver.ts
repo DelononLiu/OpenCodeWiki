@@ -487,16 +487,32 @@ export class QaResolver {
 
   /** where-is: 精确定位符号定义的位置 */
   private async searchWhereIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
-    // 搜所有 searchTerms，不限制个数
-    const terms = [...new Set([...intent.symbols, ...intent.searchTerms])].filter(t => t.length >= 2);
     const allMatches: PipelineMatch[] = [];
-    for (const term of terms) {
-      const repoMatches = await this.multiRepoSsearch(term, repos);
-      allMatches.push(...repoMatches);
+    for (const repo of repos) {
+      // 1) name_pattern 精确搜符号名（batch→匹配 llama_batch_allocr 等）
+      for (const t of intent.searchTerms) {
+        if (t.length < 2) continue;
+        const raw = await this.rawSearchByName(`.*${t}.*`, repo).catch(() => '');
+        const parsed = this.parseResults(raw, repo.name || '');
+        for (const m of parsed) {
+          // 用 get_code_snippet 补上行号
+          if (m.name) {
+            const ctx = await this.rawContext(m.name, repo).catch(() => '');
+            if (ctx) m.snippet = ctx.slice(0, 500);
+          }
+        }
+        allMatches.push(...parsed);
+      }
+      // 2) BM25 补充
+      for (const term of intent.searchTerms) {
+        const raw = await this.rawSearch(term, repo);
+        const parsed = this.parseResults(raw, repo.name || '');
+        allMatches.push(...parsed);
+      }
     }
     let ranked = this.rankAndDedup(allMatches);
     if (mode === 'llm' && ranked.length > 0) {
-      const topN = Math.min(10, ranked.length);
+      const topN = Math.min(15, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
     }
