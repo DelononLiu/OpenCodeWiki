@@ -1041,8 +1041,9 @@ export class QaResolver {
   }
 
   /**
-   * 并行深读选中文件：读大段源码而非单符号摘要。
-   * 策略：get_code_snippet 主符号 + grep 关联函数 + 直接读文件前 N 行。
+   * 并行深读选中文件：定位关键定义区域而非只读文件头。
+   * 策略：grep 找关键定义（class/interface/function/async）及其上下文，
+   * 覆盖核心逻辑所在区域而非仅仅是 import 区域。
    */
   private async deepReadFiles(
     files: { filePath: string; repo: string }[],
@@ -1054,24 +1055,42 @@ export class QaResolver {
       if (!repo || !repo.storagePath) return;
 
       const fullPath = path.join(repo.storagePath, f.filePath);
-      const parts: string[] = [];
+      const snippets: string[] = [];
+
+      // 1) get_code_snippet 按符号名读
       const baseName = path.basename(f.filePath).replace(/\.[^.]+$/, '');
-
-      // 1) get_code_snippet 读主符号
       const ctx = await this.rawContext(baseName, repo).catch(() => '');
-      if (ctx) parts.push(ctx.slice(0, 1500));
+      if (ctx) snippets.push(ctx.slice(0, 1200));
 
-      // 2) 直接读文件前 120 行（覆盖类定义、import、关键函数签名）
+      // 2) 找关键定义区域（class/interface/export/async function）并读上下文
       try {
         const fileContent = await fs.readFile(fullPath, 'utf-8');
         const lines = fileContent.split('\n');
-        const header = lines.slice(0, Math.min(120, lines.length)).join('\n');
-        if (header && !parts.some(p => p.includes(header.slice(0, 80)))) {
-          parts.push(`// 文件头 1-${Math.min(120, lines.length)} 行\n${header}`);
+        const defRe = /^\s*(export\s+)?(class|interface|type|enum|async|function|private|public)\s+\w/;
+        const defLines: number[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (defRe.test(lines[i])) defLines.push(i);
+        }
+
+        // 从每个定义行往前取 2 行注释，往后取 10 行内容
+        for (const dl of defLines.slice(0, 8)) {
+          const start = Math.max(0, dl - 2);
+          const end = Math.min(lines.length, dl + 12);
+          const block = lines.slice(start, end).join('\n');
+          if (!snippets.some(s => s.includes(block.slice(0, 60)))) {
+            snippets.push(block);
+          }
+        }
+
+        // 如果没有任何定义匹配，就取中间 80 行作为兜底
+        if (defLines.length === 0 && lines.length > 120) {
+          const mid = Math.floor(lines.length / 2);
+          const fallback = lines.slice(mid - 40, mid + 40).join('\n');
+          snippets.push(`// 文件中部 ${mid - 40 + 1}-${mid + 40} 行\n${fallback}`);
         }
       } catch {}
 
-      if (parts.length > 0) result.set(f.filePath, parts.join('\n\n---\n\n').slice(0, 3500));
+      if (snippets.length > 0) result.set(f.filePath, snippets.join('\n\n---\n\n').slice(0, 4000));
     });
     await Promise.all(tasks);
     return result;
