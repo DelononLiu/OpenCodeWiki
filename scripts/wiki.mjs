@@ -25,6 +25,9 @@ import path from 'path';
 import os from 'os';
 import { DatabaseSync } from 'node:sqlite';
 
+/** 全局 token 计数 */
+let globalTokenCount = 0;
+
 function resolvePath(p) {
   return path.resolve(p.replace(/^~/, os.homedir()));
 }
@@ -69,6 +72,11 @@ async function callLLM(prompt, llmConfig, maxTokens = 4096) {
       return null;
     }
     const data = await res.json();
+    const usage = data?.usage;
+    if (usage?.total_tokens) {
+      globalTokenCount = (globalTokenCount || 0) + usage.total_tokens;
+      console.log(`  [tokens] ${usage.total_tokens} (prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, total: ${globalTokenCount})`);
+    }
     return data?.choices?.[0]?.message?.content?.trim() || null;
   } catch (err) {
     console.error(`  ✗ LLM request failed: ${err.message}`);
@@ -692,7 +700,7 @@ async function generateOverview(repoPath, outputDir, llmConfig) {
   if (fs.existsSync(dbPath)) {
     try {
       const db = new DatabaseSync(dbPath);
-      const _fc = db.prepare("SELECT COUNT(DISTINCT file_path) AS c FROM nodes WHERE file_path IS NOT NULL AND file_path != ''").get() as any;
+      const _fc = db.prepare("SELECT COUNT(DISTINCT file_path) AS c FROM nodes WHERE file_path IS NOT NULL AND file_path != ''").get();
       stats.files = _fc?.c || 0;
       stats.nodes = db.prepare('SELECT COUNT(*) AS c FROM nodes').get().c;
       stats.lang = []; // 新 DB 无 language 字段
@@ -1045,7 +1053,7 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
       console.log('  ⚠ --modules requires LLM API key.');
     }
 
-    console.log('\n✓ Wiki generated successfully');
+    console.log(`\n✓ Wiki generated successfully (total tokens: ${globalTokenCount})`);
     console.log(`  View at: http://localhost:4747/${path.basename(resolvedPath)}`);
   } catch (err) {
     console.error(`✗ Wiki generation failed: ${err.message}`);
