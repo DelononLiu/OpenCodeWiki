@@ -159,7 +159,6 @@ opencodewiki/
 | [codebase-memory-mcp](https://github.com/antigravity-ai/codebase-memory-mcp) | 代码语义图谱索引与 MCP 桥接 | MIT |
 | [@xenova/transformers](https://github.com/huggingface/transformers.js) | 本地 ONNX Embedding 推理 | Apache-2.0 |
 | [Express](https://github.com/expressjs/express) | HTTP 服务框架 | MIT |
-| [libvips](https://github.com/libvips/libvips) | 图片处理（vendor 离线包） | LGPL-2.1 |
 
 ---
 
