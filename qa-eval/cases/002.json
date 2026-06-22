@@ -1,0 +1,7 @@
+{
+  "id": "002",
+  "question": "kcode 的插件系统是怎么工作的",
+  "reference": "kcode 插件系统概览\n\nkcode 的插件系统是完全自研的轻量级事件驱动架构，没有使用 tapable、webpack 或 EventEmitter 等第三方框架。整个系统围绕三个核心文件构建：\n\nsrc/core/plugin/\n├── PluginInterface.ts      # 插件接口定义\n├── PluginManager.ts        # 注册/激活/分发/配置持久化\n└── ExtensionPointRegistry.ts  # 类型安全的事件注册表\n\n1. 插件的定义\n每个插件实现 KCodePlugin 接口：\n\ninterface KCodePlugin {\n  id: string;\n  name: string;\n  version: string;\n  mode?: 'task' | 'assistant';\n  dependencies?: string[];\n  activate(api: PluginAPI): void | Promise<void>;\n  deactivate(): void | Promise<void>;\n}\n\n插件通过 PluginAPI 与核心交互——这是唯一的桥梁。\n\n2. 插件加载流程\n在 Panel.ts 的 initPlugins() 中完成两个阶段：\n- 静态导入 —— 硬编码的 import() 列表（8 个生产插件）\n- 注册 + 激活 —— pluginManager.register(plugin) → pluginManager.activateAll()\n\n3. 插件扩展点\n系统定义了 6 种扩展点：message、phaseChanged、toolCall、stream、uiOutputPanel、phaseHook。\n\n4. PluginAPI 核心能力\nonMessage / onPhaseChanged / onToolCall 等事件监听，\naddStreamProcessor / addOutputPanelTab 等 UI 扩展，\ngetPlugin/setPluginExport 跨插件通信，\ngetStore/getRouter/getAgentService 访问核心服务。\n\n5. 8 个生产插件\nDevice Manager、Demo Runner、TODO Manager、Review Manager、\nKnowledge Manager、Diff Viewer、Task Delegation、\nEnvironment Setup、Terminal Replay",
+  "answers": [],
+  "scores": []
+}
