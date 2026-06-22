@@ -397,6 +397,22 @@ export class QaResolver {
       this._deepSnippets.clear();
     }
 
+    // 对比类问题：引导 LLM 从源码中提取维度做结构化对比
+    if (intent.question && /区别|差异|vs|对比|difference|versus/i.test(intent.question)) {
+      lines.push('');
+      lines.push('### 对比维度指导');
+      lines.push('这是一个对比类问题。搜索结果中的文件分属两个系统，');
+      lines.push(`请根据搜索词「${intent.searchTerms.slice(0, 3).join('、')}」${intent.chineseTerms?.length ? `和中文概念「${intent.chineseTerms.join('、')}」` : ''}判断每个文件属于哪个系统。`);
+      lines.push('');
+      lines.push('请将搜索结果中的文件按所属系统分组，从以下方向对比：');
+      lines.push('- 状态管理（有状态 vs 无状态）');
+      lines.push('- 会话/Session 模型');
+      lines.push('- 消息/数据处理方式');
+      lines.push('- 入口出口与触发方式');
+      lines.push('- 存储与持久化');
+      lines.push('以对比表结尾。');
+    }
+
     return lines.join('\n');
   }
 
@@ -1022,20 +1038,31 @@ export class QaResolver {
             { role: 'user', content: `问题：${question}\n\n${candidates}` },
           ],
           max_tokens: 300,
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
+          temperature: 0.3,
+          thinking: { type: 'disabled' },
         }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) { console.log('[qa]   ▸ filterCandidates HTTP', res.status); return null; }
       const data = await res.json() as any;
-      const text = data?.choices?.[0]?.message?.content || '';
-      const parsed = JSON.parse(text);
+      const msg = data?.choices?.[0]?.message || {};
+      const text = msg.content || msg.reasoning_content || '';
+      if (!text) { console.log('[qa]   ▸ filterCandidates empty response'); return null; }
+      // 提取 JSON
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      const jsonStr = start >= 0 && end > start ? text.slice(start, end + 1) : text;
+      const parsed = JSON.parse(jsonStr);
       if (!Array.isArray(parsed.selectedFiles) && !Array.isArray(parsed.newTerms)) return null;
+      console.log('[qa]   ▸ filterCandidates:', JSON.stringify({
+        files: parsed.selectedFiles?.length || 0,
+        newTerms: parsed.newTerms,
+      }));
       return {
         selectedFiles: parsed.selectedFiles || [],
         newTerms: (parsed.newTerms || []).filter((t: string) => t.length >= 2),
       };
-    } catch {
+    } catch (e: any) {
+      console.log('[qa]   ▸ filterCandidates error:', e?.message?.slice(0, 100));
       return null;
     }
   }
