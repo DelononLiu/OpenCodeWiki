@@ -479,7 +479,7 @@ export class QaResolver {
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
-      ranked = [...expanded, ...ranked.slice(topN)];
+      ranked = expanded;
     }
 
     return ranked;
@@ -502,7 +502,7 @@ export class QaResolver {
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
-      ranked = [...expanded, ...ranked.slice(topN)];
+      ranked = expanded;
     }
 
     return ranked;
@@ -564,7 +564,7 @@ export class QaResolver {
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
-      ranked = [...expanded, ...ranked.slice(topN)];
+      ranked = expanded;
     }
 
     return ranked;
@@ -586,7 +586,7 @@ export class QaResolver {
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
-      ranked = [...expanded, ...ranked.slice(topN)];
+      ranked = expanded;
     }
 
     return ranked;
