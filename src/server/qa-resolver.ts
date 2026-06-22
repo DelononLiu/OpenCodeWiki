@@ -1008,7 +1008,7 @@ export class QaResolver {
   private buildCandidateList(matches: PipelineMatch[]): string {
     const fileMap = new Map<string, { repo: string; lines: number; snippets: string[] }>();
     for (const m of matches) {
-      if (!m.filePath) continue;
+      if (!m.filePath || m.filePath.includes('/.kilo/')) continue;
       const key = `${m.repo || ''}:${m.filePath}`;
       if (!fileMap.has(key)) fileMap.set(key, { repo: m.repo || '', lines: 0, snippets: [] });
       const entry = fileMap.get(key)!;
@@ -1127,8 +1127,8 @@ export class QaResolver {
           if (defRe.test(lines[i])) defLines.push(i);
         }
 
-        // 从每个定义行往前取 2 行注释，往后取 10 行内容
-        for (const dl of defLines.slice(0, 8)) {
+        // 从每个定义行往前取 2 行注释，往后取 12 行内容
+        for (const dl of defLines.slice(0, 12)) {
           const start = Math.max(0, dl - 2);
           const end = Math.min(lines.length, dl + 12);
           const block = lines.slice(start, end).join('\n');
