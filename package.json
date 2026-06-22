@@ -8,7 +8,7 @@
     "start": "bash scripts/start.sh",
     "build": "npx tsc",
     "wiki": "node scripts/wiki.mjs",
-    "index": "node scripts/setup-repo.mjs",
+    "index": "node scripts/index.mjs",
     "reindex": "node scripts/reindex.mjs",
     "watch": "node scripts/reindex.mjs --watch",
     "postinstall": "node scripts/postinstall.mjs",
