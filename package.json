@@ -7,7 +7,7 @@
     "dev": "bash scripts/start.sh --watch",
     "start": "bash scripts/start.sh",
     "build": "npx tsc",
-    "wiki": "node scripts/wiki.mjs",
+    "wiki": "npx tsx scripts/wiki.mjs",
     "index": "node scripts/index.mjs",
     "reindex": "node scripts/reindex.mjs",
     "watch": "node scripts/reindex.mjs --watch",

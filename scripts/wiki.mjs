@@ -4,16 +4,16 @@
  * Automatically runs `gitnexus analyze` if the index doesn't exist yet.
  *
  * Usage:
- *   node scripts/wiki.mjs <repo-path> [--force] [--lang zh|en] [--extra-pages]
+ *   npm run wiki <repo-path> [--force] [--lang zh|en] [--modules]
  *
  * Examples:
- *   node scripts/wiki.mjs ~/Code/myproject
- *   node scripts/wiki.mjs ~/Code/myproject --force
- *   node scripts/wiki.mjs ~/Code/myproject --lang zh
- *   node scripts/wiki.mjs ~/Code/myproject --extra-pages     # 额外生成 external-api / core / hot-modules
+ *   npm run wiki ~/Code/myproject
+ *   npm run wiki ~/Code/myproject --force
+ *   npm run wiki ~/Code/myproject --lang zh
+ *   npm run wiki ~/Code/myproject --modules     # 额外生成 external-api / core / hot-modules
  *
  * --lang zh:       extra-pages 时使用中文（LLM prompts 已内置中文输出）
- * --extra-pages:   自动扫描代码生成 外部API、Core、热点模块 页面
+ * --modules:   自动扫描代码生成 外部API、Core、热点模块 页面
  * Prerequisites:
  *   - gitnexus CLI installed (npm install -g gitnexus)
  *   - LLM configured (OPENAI_API_KEY or ~/.opencodewiki/config.json)
@@ -968,13 +968,12 @@ function slugify(name) {
 
 const repoPath = process.argv[2];
 const force = process.argv.includes('--force');
-const extraPages = process.argv.includes('--extra-pages');
 const withModules = process.argv.includes('--modules');
 const langIdx = process.argv.indexOf('--lang');
 const targetLang = langIdx >= 0 && process.argv[langIdx + 1] ? process.argv[langIdx + 1] : 'en';
 
 if (!repoPath) {
-  console.error('Usage: node scripts/wiki.mjs <repo-path> [--force] [--lang zh|en] [--extra-pages] [--modules]');
+  console.error('Usage: npm run wiki <repo-path> [--force] [--lang zh|en] [--modules]');
   console.error('  --modules: 同时生成每个模块的 markdown 页面（需要 LLM 配置）');
   process.exit(1);
 }
@@ -985,7 +984,7 @@ const cbmDb = cbmDbPath(resolvedPath);
 const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
 
 (async () => {
-  const totalSteps = extraPages ? 4 : 2;
+  const totalSteps = withModules ? 3 : 2;
   let step = 1;
 
   // Step 1: Check codebase-memory-mcp index exists
@@ -1046,7 +1045,7 @@ const pagesDir = path.join(resolvedPath, '.codegraph', 'wiki');
     }
 
     // Step 4: Generate extra pages
-    if (extraPages) {
+    if (withModules) {
       console.log(`\n[${step}/${totalSteps}] Generating extra pages...`);
       const llmConfig = loadLlmConfig();
       if (!llmConfig.apiKey) {
