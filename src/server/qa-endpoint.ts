@@ -1175,7 +1175,7 @@ export function createQaEndpoint(
           sources = [...fileBest.entries()].map(([path, m], i) => {
             let snippet = m.snippet || '';
             if (snippet.includes('ambiguous') || snippet === '{}' || snippet.length > 500) snippet = '';
-            // snippet 为空时读文件补几行预览
+            // snippet 为空时回退读磁盘文件补预览
             if (!snippet && entry?.storagePath && path) {
               try {
                 const fullPath = path.join(entry.storagePath, path);
@@ -1186,6 +1186,7 @@ export function createQaEndpoint(
                 snippet = lines.slice(start, end).map((l, j) => `${start + j + 1}: ${l}`).join('\n');
               } catch {}
             }
+            if (!snippet) return null; // 没预览不展示
             return {
               filePath: path,
               label: m.kind === 'definition' ? 'Definition' : m.kind === 'declaration' ? 'Declaration' : 'Reference',
@@ -1195,7 +1196,7 @@ export function createQaEndpoint(
               snippet,
               refId: i,
             };
-          });
+          }).filter(Boolean);
         }
       } catch (pipelineErr) {
         log('warn', 'pipeline error (non-fatal)', { error: (pipelineErr as Error)?.message });
