@@ -70,7 +70,7 @@ function getRepoPath(name) {
   return entry ? entry.path : null;
 }
 
-function codegraphSearch(query, repoPath, limit = 10) {
+function cbmSearch(query, repoPath, limit = 10) {
   try {
     const projectName = repoPathToProjectName(repoPath);
     const stdout = execFileSync('codebase-memory-mcp', ['cli', 'search_graph',
@@ -106,7 +106,7 @@ function evaluate(searchResult, golden) {
 
   for (let rank = 0; rank < results.length; rank++) {
     const r = results[rank];
-    // codegraph query --json returns [{ node: { name, filePath, ... }, score: ... }]
+    // codebase-memory-mcp search_graph returns [{ name, file_path, label, rank }]
     const node = r.node || r;
     const name = (node.name || '').toLowerCase();
     const filePath = (node.filePath || node.file_path || '').toLowerCase();
@@ -168,8 +168,8 @@ async function main() {
       continue;
     }
 
-    // ── FTS5 搜索（codegraph） ──
-    let ftsResults = codegraphSearch(q.question, repoPath, 10);
+    // ── FTS5 搜索 ──
+    let ftsResults = cbmSearch(q.question, repoPath, 10);
     // FTS5 无结果时用查询改写重试（驼峰拆词）
     if (ftsResults.length === 0) {
       try {
@@ -178,7 +178,7 @@ async function main() {
         // 用每个变体尝试搜索，取第一个有结果的
         for (const v of variants) {
           if (v === q.question || v.length < 3) continue;
-          ftsResults = codegraphSearch(v, repoPath, 10);
+          ftsResults = cbmSearch(v, repoPath, 10);
           if (ftsResults.length > 0) break;
         }
       } catch {}
@@ -192,7 +192,7 @@ async function main() {
         const queryVec = await vs.embedText(q.question);
         vecResults = vs.vectorSearch(q.repo, queryVec, 10);
         if (vecResults.length > 0) {
-          // 从 codegraph 加载向量结果对应的节点详情
+          // 从 codebase-memory-mcp 加载向量结果对应的节点详情
           const nodesMap = await getNodesForRepo(repoPath);
           const vecEnriched = vecResults.map(v => {
             const info = nodesMap.get(v.nodeId) || {};
