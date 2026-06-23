@@ -749,7 +749,7 @@ const resolveLLMConfig = async () => {
     baseUrl: process.env.LLM_BASE_URL || saved.baseUrl || 'https://api.openai.com/v1',
     model: process.env.LLM_MODEL || saved.model || 'gpt-4o-mini',
     maxTokens: 4096,
-    temperature: 0.3,
+    temperature: process.env.LLM_TEMPERATURE !== undefined ? parseFloat(process.env.LLM_TEMPERATURE) : (saved.temperature ?? 0.1),
     provider: saved.provider || 'openai',
   };
 };
