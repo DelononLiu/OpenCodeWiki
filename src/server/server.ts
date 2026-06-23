@@ -670,7 +670,10 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      // 前缀替换：API 路径 + 导航链接
       content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
+      content = content.replace(/(location\.href\s*=\s*['"\`])\/g, `$1${BASE_PATH}/`);
+      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -691,7 +694,10 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      // 前缀替换：API 路径 + 导航链接
       content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
+      content = content.replace(/(location\.href\s*=\s*['"\`])\/g, `$1${BASE_PATH}/`);
+      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -1531,6 +1537,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   if (BASE_PATH) {
     html = html.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
     html = html.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
+    html = html.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
   }
   res.type('html').send(html);
 }
