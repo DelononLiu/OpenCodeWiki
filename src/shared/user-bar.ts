@@ -44,7 +44,7 @@ export function userBarInitScript(): string {
 (function(){
   var bar = document.getElementById('userBar');
   if (!bar) return;
-  fetch('api/me', { credentials: 'same-origin' })
+  fetch((window.BASE_PATH || '') + '/api/me', { credentials: 'same-origin' })
     .then(function(r){ return r.json(); })
     .then(function(user){
       if (!user || !user.id) { bar.innerHTML = ''; return; }

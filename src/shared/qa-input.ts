@@ -155,7 +155,7 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
   if (!bar || !inp) return;
   var dd = document.getElementById(inp.id + '_dd');
   var repoList = [];
-  try { fetch('/api/repos').then(function(r){return r.json()}).then(function(a){ repoList = (a||[]).map(function(x){return x.name}); }).catch(function(){}); } catch(e) {}
+  try { fetch((window.BASE_PATH || '') + '/api/repos').then(function(r){return r.json()}).then(function(a){ repoList = (a||[]).map(function(x){return x.name}); }).catch(function(){}); } catch(e) {}
 
   var $CMD = ${JSON.stringify(CMD_ITEMS)};
   var $MAP = ${JSON.stringify(DOMAIN_CMD_MAP)};
@@ -295,7 +295,7 @@ export function qaInputInitScript(cfg: QaInputConfig): string {
 // ── Suggest autocomplete ──
 try {
 (function(){
-  var _api = ${cfg.suggestApi ? `'${cfg.suggestApi}'` : 'null'};
+  var _api = ${cfg.suggestApi ? `(window.BASE_PATH || '') + '/' + '${cfg.suggestApi}'` : 'null'};
   var _min = ${cfg.suggestMinChars ?? 2};
   var _deb = ${cfg.suggestDebounceMs ?? 300};
   if (!_api) return;
