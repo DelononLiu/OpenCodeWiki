@@ -881,6 +881,7 @@ export function createQaEndpoint(
     // Strip @cross tag
     if (hasCrossTag) question = question.replace(/@cross\b\s*/gi, '');
     let wikiContext = '';
+    let agentContext = '';
     let entry = undefined;
     if (isCrossRepo) {
       const allRepos = await listRepos!();
@@ -917,6 +918,8 @@ export function createQaEndpoint(
             wikiContext = await fs.readFile(path.join(wikiDir, 'index.md'), 'utf-8');
           } catch {}
         }
+        // Use .codegraph/wiki/overview.md as project context
+        if (wikiContext) agentContext = wikiContext;
       }
     }
 
@@ -1132,6 +1135,7 @@ export function createQaEndpoint(
         const vs = (globalThis as any).__vectorStore;
         if (vs) resolver.setVectorSearch(vs);
         if (llmConfig?.apiKey) resolver.setLLMConfig({ apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model });
+        if (agentContext) resolver.setAgentContext(agentContext);
 
         // Step 1: 意图分析（带仓库信息，让 LLM 同时判断 scope）
         const allRepoList = listRepos ? (await listRepos()).map(r => r.name) : [];
@@ -1320,6 +1324,7 @@ export function createQaEndpoint(
     }
 
     const systemPrompt = 'You are opencodewiki, a code analyst. Answer the question in DeepWiki style.\n\n' +
+      (agentContext ? `## 项目概览\n${agentContext}\n\n` : '') +
       '## RULES\n' +
       '- Always answer in Chinese.\n' +
       '- Use mermaid diagrams for architecture flows when relevant.\n' +
