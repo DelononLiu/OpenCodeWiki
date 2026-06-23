@@ -1,6 +1,7 @@
 {
   "id": "001",
   "question": "kcode中小助手和任务流的区别",
+  "repo": "kcode",
   "reference": "小助手 vs 任务流：核心区别\n\n下面从几个维度梳理它们的设计差异。\n\n一句话概括\n小助手 = 无状态的 对话式问答，类似 ChatGPT，一问一答，没有结构化流程\n任务流 = 有状态的 结构化工作流，分阶段（目标→方案→执行→自检→评审），附带协议解析、待办、知识提取等能力\n\n对比表\n| 维度 | 小助手 | 任务流 |\n| 本质 | 开放对话 | 阶段化任务执行 |\n| 会话 | 只有一个虚拟 ID __assistant__，所有消息共用 | 每个任务独立 session |\n| 系统提示词 | 单段固定 ASSISTANT_SYSTEM_PROMPT | 分阶段多层提示词（goal/plan/execute/self_verify/review） |\n| 协议解析 | 无 | 解析 [TASK_UPDATE]、<TODO_UPDATE>、<KNOWLEDGE_ENTRY>、[TASK_DELEGATE] |\n| 状态机 | 无（纯问答） | 5 阶段状态机：goal → plan → execute → self_verify → review |\n| 消息存储 | 单文件 assistant_messages.json | 每个任务独立存储 |\n| 消息压缩 | 有 | 无 |\n| 前端渲染 | 独立 assistantPipeline.ts | 共享 V3 renderManager.ts |\n| 流式处理 | AssistantStreamHandler | V2StreamHandler（协议解析+阶段触发） |\n| 审批流程 | 无 | approve/reject/partial-approve + diff |\n| 子任务 | 不支持 | [TASK_DELEGATE] 创建子任务 |\n| 知识提取 | 不支持 | 自动提取 <KNOWLEDGE_ENTRY> |\n| 进入方式 | 侧边栏、/ai 命令 | 侧边栏、/new、/feature、/debug |\n\n消息流\n小助手：\n输入 → AssistantHandler.handleMessage() → 拼接 ASSISTANT_SYSTEM_PROMPT → 发送到 __assistant__ session → AssistantStreamHandler → 前端 assistantPipeline.ts\n\n任务流：\n输入 → TaskSessionHandler.handleSendMessage() → TaskFlow 构建阶段提示词 → V2StreamHandler（processChunk 解析协议 + 阶段检查）→ 前端 V3 basePipeline + 确认卡片\n\n何时用哪个\n- 小助手：随便问问、快速验证想法\n- 任务流：有明确目标、需要方案评审、需要跟踪进度",
   "answers": [],
   "scores": []

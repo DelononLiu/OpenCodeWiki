@@ -8,26 +8,24 @@
   },
   "total": 15,
   "strengths": [
-    "指出了batch推理的核心数据结构`llama_batch_allocr`和初始化函数`llama_batch_init`，覆盖了关键实现文件`src/llama-batch.cpp`",
-    "提供了调用链的流程图，有助于理解整体流程",
-    "提到了`common_prompt_batch_decode`作为上层入口，并说明了其功能"
+    "提供了具体的文件路径和行号引用，如`src/llama-batch.cpp:877`",
+    "调用链描述清晰，从用户输入到内部拆分的流程完整",
+    "提到了`llama_batch_allocr`类的关键方法（init、get_batch、clear）"
   ],
   "weaknesses": [
-    "遗漏了核心入口`llama_decode()`和`llama_encode()`在`src/llama-context.cpp`中的实现，以及内部`decode()`和`process_ubatch()`等关键函数",
-    "代码引用不准确：`common_prompt_batch_decode`位于`common/common.cpp:1995`，但参考答案中未提及此函数，且该函数并非官方核心入口，而是示例代码中的辅助函数，导致引用偏离了核心实现",
-    "结构上未区分公共API和内部实现分层，将示例代码中的辅助函数与核心库函数混为一谈，降低了清晰度",
-    "深度不足：未涉及微批处理`process_ubatch()`、拆分策略（如`split_simple`、`split_equal`）以及参数`n_batch`和`n_ubatch`的控制逻辑",
-    "可执行性一般：读者可能误以为`common_prompt_batch_decode`是主要入口，而忽略了更底层的`llama_decode`和`llama_context::decode`，导致理解偏差"
+    "遗漏了核心入口`llama_decode()`和`llama_encode()`，以及`llama_context::decode()`和`process_ubatch()`等关键内部函数",
+    "对`llama_ubatch`结构体完全没有提及，这是微批处理的核心数据结构",
+    "对`n_batch`和`n_ubatch`参数控制没有说明，缺少对batch拆分策略（split_simple、split_equal、split_seq）的详细描述",
+    "部分行号（如split_simple的511行）标注为推测，不够准确"
   ],
   "suggestions": [
-    "补充核心入口`llama_decode()`和`llama_encode()`在`src/llama-context.cpp`中的位置，并说明其调用内部`decode()`和`process_ubatch()`的流程",
-    "修正代码引用：将`common_prompt_batch_decode`降级为示例代码中的辅助函数，并明确核心实现位于`src/llama-context.cpp`和`src/llama-batch.h/cpp`",
-    "增加分层结构：先列出公共API（如`llama_decode`），再展开内部数据结构（`llama_batch`、`llama_ubatch`、`llama_batch_allocr`）和核心处理函数（`decode`、`process_ubatch`）",
-    "深入细节：说明微批处理`process_ubatch`的作用、拆分策略（`split_simple`等）以及`n_batch`和`n_ubatch`参数如何控制batch大小",
-    "在调用链中突出`llama_decode`作为最终触发模型前向计算的函数，并明确`common_prompt_batch_decode`只是上层封装，不是核心实现"
+    "补充`llama_decode()`和`llama_encode()`作为核心入口，并引用`src/llama-context.cpp`中的具体行号",
+    "增加对`llama_ubatch`结构体的说明，以及`process_ubatch()`函数的角色",
+    "明确`n_batch`和`n_ubatch`参数的区别，并详细描述三种拆分策略（split_simple、split_equal、split_seq）",
+    "修正推测的行号，确保所有引用准确无误"
   ],
   "case": "003",
-  "date": "2026-06-23T22:20:44.683179",
-  "commit": "c4d381b",
-  "answer_len": 1376
+  "date": "2026-06-23T22:29:47.229103",
+  "commit": "11869fe",
+  "answer_len": 1321
 }

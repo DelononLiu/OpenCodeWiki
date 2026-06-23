@@ -19,7 +19,8 @@ TMPDIR=$(mktemp -d)
 
 if [ ! -f "$CASE_FILE" ]; then echo "错误：未找到 $CASE_FILE"; exit 1; fi
 QUESTION=$(python3 -c "import json; print(json.load(open('$CASE_FILE'))['question'])")
-echo "=== QA Eval: $CASE_ID ==="
+REPO=$(python3 -c "import json; print(json.load(open('$CASE_FILE')).get('repo','llama.cpp'))")
+echo "=== QA Eval: $CASE_ID ($REPO) ==="
 echo "问题: $QUESTION"
 
 # ── Step 1: 调 QA pipeline ──
@@ -27,7 +28,7 @@ echo "[1/3] 调用 QA pipeline..."
 RAW_FILE="$TMPDIR/qa-raw.txt"
 curl -s -X POST http://localhost:4747/codewiki/api/qa \
   -H "Content-Type: application/json" \
-  -d "{\"question\":\"$QUESTION\",\"repo\":\"${REPO:-llama.cpp}\"}" \
+  -d "{\"question\":\"$QUESTION\",\"repo\":\"$REPO\"}" \
   --max-time 120 > "$RAW_FILE" 2>/dev/null
 
 ANSWER_TEXT=$(python3 -c "
