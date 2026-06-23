@@ -670,6 +670,7 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -690,6 +691,7 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -1399,7 +1401,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     var el = document.getElementById('content');
     el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
 
-    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
@@ -1429,7 +1431,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     if (pageType === 'qa-curated') {
       params += '&calibrated=1';
     }
-    var url = 'api/qa/entries?' + params;
+    var url = '/api/qa/entries?' + params;
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
@@ -1476,7 +1478,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   function archiveQa(qid, btn) {
     btn.disabled = true;
     btn.textContent = '归档中...';
-    fetch('api/wiki/archive', {
+    fetch('/api/wiki/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ qid: qid }),
@@ -1497,7 +1499,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   }
 
   function loadArchivedEntries() {
-    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/archived';
+    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/archived';
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
         document.getElementById('archiveNav').innerHTML = '<div class="nav-item" style="color:var(--text-muted);font-size:12px">暂无归档</div>';
@@ -1528,6 +1530,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   html = html.replace('/* USER_BAR_JS */', userBarInitScript());
   if (BASE_PATH) {
     html = html.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+    html = html.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
   }
   res.type('html').send(html);
 }
