@@ -670,10 +670,6 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      // 前缀替换：API 路径 + 导航链接
-      content = content.replace(/("|')(\/api\/)/g, '$1' + BASE_PATH + '$2');
-      content = content.replace(/(location\.href\s*=\s*['"])\//g, '$1' + BASE_PATH + '/');
-      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, '$1' + BASE_PATH + '$2');
     }
     res.type('html').send(content);
   } catch {
@@ -694,10 +690,6 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      // 前缀替换：API 路径 + 导航链接
-      content = content.replace(/("|')(\/api\/)/g, '$1' + BASE_PATH + '$2');
-      content = content.replace(/(location\.href\s*=\s*['"])\//g, '$1' + BASE_PATH + '/');
-      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, '$1' + BASE_PATH + '$2');
     }
     res.type('html').send(content);
   } catch {
@@ -1002,7 +994,7 @@ app.get('/api/me', (req, res) => {
 const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope(), handler);
 app.post('/api/qa', qaHandler);
 
-app.get('/api/qa/session/:id', (req, res) => {
+app.get('api/qa/session/:id', (req, res) => {
   const session = getSession(req.params.id);
   if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
   res.json({
@@ -1011,15 +1003,15 @@ app.get('/api/qa/session/:id', (req, res) => {
   });
 });
 
-app.get('/api/qa/sessions/latest', (_req, res) => {
+app.get('api/qa/sessions/latest', (_req, res) => {
   res.json(listSessions('latest', 10));
 });
 
-app.get('/api/qa/sessions/frequent', (_req, res) => {
+app.get('api/qa/sessions/frequent', (_req, res) => {
   res.json(listFrequentQuestions(3));
 });
 
-app.get('/api/qa/questions/suggest', (req, res) => {
+app.get('api/qa/questions/suggest', (req, res) => {
   const q = (req.query.q as string || '').trim();
   const limit = Math.min(parseInt(req.query.limit as string) || 5, 10);
   if (q.length < 2) { res.json({ suggestions: [] }); return; }
@@ -1028,13 +1020,13 @@ app.get('/api/qa/questions/suggest', (req, res) => {
 
 // ── #Q 问答沉淀体系 API ─────────────────────────────────────
 const lightweightSearchHandler = createLightweightSearchHandler(search);
-app.post('/api/qa/lightweight-search', lightweightSearchHandler);
+app.post('api/qa/lightweight-search', lightweightSearchHandler);
 app.use('/api/qa', qaRouter);
 
 // ── Wiki API ──────────────────────────────────────────────
 
 /** Trigger wiki generation for a repo. */
-app.post('/api/wiki/generate', async (req, res) => {
+app.post('api/wiki/generate', async (req, res) => {
   const { repoName } = req.body;
   if (!repoName) { res.status(400).json({ error: 'Missing repoName' }); return; }
 
@@ -1057,7 +1049,7 @@ app.post('/api/wiki/generate', async (req, res) => {
 });
 
 /** Get wiki info for a repo: module tree + overview content. */
-app.get('/api/wiki/:repoName', async (req, res) => {
+app.get('api/wiki/:repoName', async (req, res) => {
   const { repoName } = req.params;
   const selfRepo = await resolveSelfRepo();
   const registry = await loadRegistry();
@@ -1071,7 +1063,7 @@ app.get('/api/wiki/:repoName', async (req, res) => {
 });
 
 /** Archive a calibrated #Q entry as a permanent wiki page. */
-app.post('/api/wiki/archive', async (req, res) => {
+app.post('api/wiki/archive', async (req, res) => {
   const { qid, notes } = req.body;
   if (!qid) { res.status(400).json({ error: 'Missing qid' }); return; }
   try {
@@ -1133,7 +1125,7 @@ ${cal.answer}
 });
 
 /** List archived wiki pages for a repo. */
-app.get('/api/wiki/:repoName/archived', async (req, res) => {
+app.get('api/wiki/:repoName/archived', async (req, res) => {
   const repoName = req.params.repoName;
   const selfRepo = await resolveSelfRepo();
   const registry = await loadRegistry();
@@ -1150,7 +1142,7 @@ app.get('/api/wiki/:repoName/archived', async (req, res) => {
 });
 
 /** Get a specific wiki page for a repo. Returns { page, content }. */
-app.get('/api/wiki/:repoName/:page', async (req, res) => {
+app.get('api/wiki/:repoName/:page', async (req, res) => {
   const repoName = req.params.repoName;
   const page = req.params.page;
   const selfRepo = await resolveSelfRepo();
@@ -1407,7 +1399,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     var el = document.getElementById('content');
     el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
 
-    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
@@ -1437,7 +1429,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     if (pageType === 'qa-curated') {
       params += '&calibrated=1';
     }
-    var url = '/api/qa/entries?' + params;
+    var url = 'api/qa/entries?' + params;
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
@@ -1484,7 +1476,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   function archiveQa(qid, btn) {
     btn.disabled = true;
     btn.textContent = '归档中...';
-    fetch('/api/wiki/archive', {
+    fetch('api/wiki/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ qid: qid }),
@@ -1505,7 +1497,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   }
 
   function loadArchivedEntries() {
-    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/archived';
+    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/archived';
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
         document.getElementById('archiveNav').innerHTML = '<div class="nav-item" style="color:var(--text-muted);font-size:12px">暂无归档</div>';
@@ -1536,8 +1528,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   html = html.replace('/* USER_BAR_JS */', userBarInitScript());
   if (BASE_PATH) {
     html = html.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-    html = html.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
-    html = html.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
   }
   res.type('html').send(html);
 }

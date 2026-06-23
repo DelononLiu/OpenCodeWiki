@@ -149,7 +149,7 @@ function triggerLightweightSearch(q) {
   clearTimeout(_lwTimer);
   if (q.length < 2) { searchPanel.style.display = 'none'; return; }
   _lwTimer = setTimeout(function() {
-    fetch('/api/qa/lightweight-search', {
+    fetch('api/qa/lightweight-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: q, sessionId: _homeSessionId }),
@@ -184,7 +184,7 @@ function homeRedirectToQa(q, filePath) {
   var _dm = window.__qaSelectedDomain ? window.__qaSelectedDomain() : null;
   if (_dm) params.set('domain', _dm);
   if (filePath) params.set('file', filePath);
-  setTimeout(function() { location.href = '/qa?' + params.toString(); }, 150);
+  setTimeout(function() { location.href = 'qa?' + params.toString(); }, 150);
 }
 
 qaInput.addEventListener('keydown', function(e) { if (e.defaultPrevented) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); homeRedirectToQa(qaInput.value.trim(), ''); } });
@@ -228,7 +228,7 @@ async function uploadHomeFile(file) {
   _homeFiles.set(file.name, { fileName: file.name, size: file.size });
   updateHomeChips();
   try {
-    await fetch('/api/upload?sessionId=' + encodeURIComponent(_homeSessionId) + '&name=' + encodeURIComponent(file.name), {
+    await fetch('api/upload?sessionId=' + encodeURIComponent(_homeSessionId) + '&name=' + encodeURIComponent(file.name), {
       method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
     });
     _homeFiles.set(file.name, { fileName: file.name, size: file.size, uploaded: true });
@@ -251,8 +251,8 @@ async function loadTeamActivity() {
   var body = document.getElementById('activityBody');
   try {
     var [todayRes, calRes] = await Promise.all([
-      fetch('/api/qa/entries?sort=latest&limit=5&status=active'),
-      fetch('/api/qa/entries?calibrated=1&sort=latest&limit=5'),
+      fetch('api/qa/entries?sort=latest&limit=5&status=active'),
+      fetch('api/qa/entries?calibrated=1&sort=latest&limit=5'),
     ]);
     var today = await todayRes.json();
     var calibrated = await calRes.json();
@@ -265,7 +265,7 @@ async function loadTeamActivity() {
 
     var rows = [];
     if (todayEntries.length > 0) {
-      rows.push('<a class="activity-row" href="/qa?repo=' + encodeURIComponent(todayEntries[0].repo) + '">' +
+      rows.push('<a class="activity-row" href="qa?repo=' + encodeURIComponent(todayEntries[0].repo) + '">' +
         '<span class="activity-icon">💬</span>' +
         '<span class="activity-text">今日问答 <strong>' + todayEntries.length + '</strong> 条</span>' +
         '<span class="activity-meta">' + todayEntries[0].repo + ' 等</span></a>');
@@ -298,7 +298,7 @@ async function loadTeamActivity() {
 // ── Repos ────────────────────────────────────────────────────────
 
 async function fetchRepos() {
-  var resp = await fetch('/api/repos');
+  var resp = await fetch('api/repos');
   if (!resp.ok) throw new Error('Server returned ' + resp.status);
   return resp.json();
 }
@@ -328,7 +328,7 @@ function renderGrid() {
   var html = '<div class="fade-in"><div class="add-card" onclick="toggleAnalyzer()"><div class="add-card-icon">+</div><div class="add-card-text">Add repo</div></div></div>';
   for (var i = 0; i < repos.length; i++) {
     var r = repos[i], stats = r.stats || {};
-    html += '<div class="fade-in"><a href="/' + encodeURIComponent(r.name) + '" class="repo-card">';
+    html += '<div class="fade-in"><a href="' + encodeURIComponent(r.name) + '" class="repo-card">';
     html += '<svg class="repo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 6z"/><path d="M15 6a9 9 0 0 0-9 9"/></svg>';
     html += '<div class="repo-card-info"><div class="repo-card-name">' + escapeHtml(r.name) + '</div>';
     html += '<div class="repo-card-stats">';
