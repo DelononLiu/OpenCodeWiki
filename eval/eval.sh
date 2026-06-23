@@ -25,9 +25,9 @@ echo "问题: $QUESTION"
 # ── Step 1: 调 QA pipeline ──
 echo "[1/3] 调用 QA pipeline..."
 RAW_FILE="$TMPDIR/qa-raw.txt"
-curl -s -X POST http://localhost:4747/api/qa \
+curl -s -X POST http://localhost:4747/codewiki/api/qa \
   -H "Content-Type: application/json" \
-  -d "{\"question\":\"$QUESTION\",\"repoName\":\"kcode\"}" \
+  -d "{\"question\":\"$QUESTION\",\"repo\":\"${REPO:-llama.cpp}\"}" \
   --max-time 120 > "$RAW_FILE" 2>/dev/null
 
 ANSWER_TEXT=$(python3 -c "

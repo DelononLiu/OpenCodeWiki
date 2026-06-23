@@ -321,7 +321,7 @@ export class QaResolver {
       const all = await this.multiRepoSsearch(query, repos);
       // BM25 分数转换为正值：search_graph 返回 rank（负值，越大越相关）
       // Claude 的输出显示 top 结果 ~-22（分 78），无关结果 ~-17（分 83）
-      const scored = this.rankAndDedup(all).sort((a, b) => a.score - b.score);
+      const scored = this.rankAndDedup(all);
       // 过滤：只保留名字匹配 entityName 的
       const exact = scored.filter(m =>
         m.name && m.name.toLowerCase() === intent.entityName!.toLowerCase()
@@ -1055,7 +1055,7 @@ export class QaResolver {
             startLine: r.start_line || 1,
             endLine: r.end_line || r.start_line || 1,
             kind: this.classifyCbmKind(r.label || r.kind || ''),
-            score: r.rank !== undefined ? Math.round(100 + r.rank) : 60,
+            score: r.rank !== undefined ? Math.round(100 - r.rank) : 60,
             snippet: '',
             repo: repoName,
           }));
@@ -1206,7 +1206,7 @@ export class QaResolver {
             },
             { role: 'user', content: `问题：${question}\n\n${candidates}` },
           ],
-          max_tokens: 300,
+          max_tokens: 500,
           temperature: 0.3,
           thinking: { type: 'disabled' },
         }),
@@ -1396,24 +1396,27 @@ ${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_quer
   (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
-          max_tokens: 200,
+          max_tokens: 400,
           temperature: 0,
           response_format: { type: 'json_object' },
         }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) { console.log('[qa]   ▸ classifyByLLM HTTP', res.status); return null; }
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content || '';
+      if (!text) { console.log('[qa]   ▸ classifyByLLM empty response'); return null; }
       try {
         const parsed = JSON.parse(text);
         const validIntents: Intent[] = ['what-is', 'where-is', 'how-to', 'why-error', 'what-structure', 'what-impact'];
         const intent = validIntents.find(i => parsed.intent?.includes(i));
-        if (!intent) return null;
+        if (!intent) { console.log('[qa]   ▸ classifyByLLM bad intent:', parsed.intent); return null; }
         return { intent, scope: parsed.scope || 'single', entity_name: parsed.entity_name, entity_context: parsed.entity_context, english_query: parsed.english_query };
-      } catch {
+      } catch (e) {
+        console.log('[qa]   ▸ classifyByLLM JSON parse error:', (e as any)?.message?.slice(0, 100), 'text:', text?.slice(0, 200));
         return null;
       }
-    } catch {
+    } catch (e: any) {
+      console.log('[qa]   ▸ classifyByLLM error:', e?.message?.slice(0, 100));
       return null;
     }
   }
