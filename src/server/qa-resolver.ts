@@ -315,26 +315,24 @@ export class QaResolver {
   }
 
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
-    // ── 第0步：实体精确匹配（所有意图共享） ──
+    // ── 第0步：BM25 语义搜索定位实体（参考 Claude：一次 semantic query 让排序区分相关结果） ──
     if (intent.entityName && intent.entityName.length >= 2) {
-      let exact = await this.resolveExact(intent.entityName, repos);
-      // 多个精确匹配 + 有实体上下文 → 用上下文搜索缩小范围
-      if (exact.length > 1 && intent.entityContext) {
-        console.log('[qa]   ▸ exact matches with context:', intent.entityContext);
-        for (const repo of repos) {
-          // 用上下文做关键词搜索，找出相关文件路径
-          const ctxRaw = await this.rawSearch(intent.entityContext, repo).catch(() => '');
-          const ctxMatches = this.parseResults(ctxRaw, repo.name || '');
-          if (ctxMatches.length > 0) {
-            const ctxFiles = new Set(ctxMatches.map(m => m.filePath));
-            exact = exact.filter(m => ctxFiles.has(m.filePath));
-          }
-        }
-        if (exact.length > 0) console.log('[qa]   ▸ exact matches after context filter:', exact.length);
-      }
+      const query = intent.english_query || intent.question || intent.entityName;
+      const all = await this.multiRepoSsearch(query, repos);
+      // BM25 分数转换为正值：search_graph 返回 rank（负值，越大越相关）
+      // Claude 的输出显示 top 结果 ~-22（分 78），无关结果 ~-17（分 83）
+      const scored = this.rankAndDedup(all).sort((a, b) => a.score - b.score);
+      // 过滤：只保留名字匹配 entityName 的
+      const exact = scored.filter(m =>
+        m.name && m.name.toLowerCase() === intent.entityName!.toLowerCase()
+      );
       if (exact.length > 0) {
-        intent.exactMatches = exact;
-        console.log('[qa]   ▸ exact matches:', exact.length, 'for', intent.entityName);
+        // Claude 方式：BM25 排名就是最好的排序，top 结果就是最相关的
+        intent.exactMatches = exact.slice(0, 5);
+        console.log('[qa]   ▸ BM25 entity hits:', intent.exactMatches.length,
+          'top:', exact[0].name, exact[0].filePath, 'score:', exact[0].score);
+      } else {
+        console.log('[qa]   ▸ BM25 no entity match for', intent.entityName);
       }
     }
 
