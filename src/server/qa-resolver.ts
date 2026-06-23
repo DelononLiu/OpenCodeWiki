@@ -42,6 +42,8 @@ export interface IntentResult {
   searchTerms: string[];
   /** 从问题中提取的核心代码符号名（函数/类/变量），用于精确符号匹配 */
   entityName?: string;
+  /** 修饰实体的限定词上下文，如"推理服务"的 main、"配置模块"的 init */
+  entityContext?: string;
   /** 精确匹配到的符号列表，由 search() 预处理填充 */
   exactMatches?: PipelineMatch[];
   /** 原始问题中提取的中文短语，用于 grep 直接搜文件内容（BM25 对中文无效） */
@@ -225,6 +227,7 @@ export class QaResolver {
     let reasoning = '';
     let english_query: string | undefined;
     let entity_name: string | undefined;
+    let entity_context: string | undefined;
 
     if (this.llm && repoDescs) {
       const result = await this.classifyByLLM(question, repoDescs, history);
@@ -233,6 +236,7 @@ export class QaResolver {
         intent = result.intent;
         english_query = result.english_query;
         entity_name = result.entity_name;
+        entity_context = result.entity_context;
         reasoning += ' scope:' + result.scope;
       } else {
         intent = this.classifyIntentWithScore(question).intent;
@@ -240,7 +244,7 @@ export class QaResolver {
       }
     } else if (this.llm) {
       const llmIntent = await this.classifyByLLM(question, []);
-      if (llmIntent) { intent = llmIntent.intent; english_query = llmIntent.english_query; entity_name = llmIntent.entity_name; reasoning = 'llm'; }
+      if (llmIntent) { intent = llmIntent.intent; english_query = llmIntent.english_query; entity_name = llmIntent.entity_name; entity_context = llmIntent.entity_context; reasoning = 'llm'; }
       else { intent = this.classifyIntentWithScore(question).intent; reasoning = 'llm-rule-fallback'; }
     } else {
       intent = this.classifyIntentWithScore(question).intent;
@@ -275,7 +279,7 @@ export class QaResolver {
 
     console.log('[qa]   ▸ searchTerms:', JSON.stringify(searchTerms));
     if (entity_name) console.log('[qa]   ▸ entityName:', entity_name);
-    return { intent, symbols, searchTerms, entityName: entity_name, reasoning, chineseTerms: this.extractChinesePhrases(question), question };
+    return { intent, symbols, searchTerms, entityName: entity_name, entityContext: entity_context, reasoning, chineseTerms: this.extractChinesePhrases(question), question };
   }
 
   // ═══════════════════════════════════════════════════
@@ -313,7 +317,21 @@ export class QaResolver {
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
     // ── 第0步：实体精确匹配（所有意图共享） ──
     if (intent.entityName && intent.entityName.length >= 2) {
-      const exact = await this.resolveExact(intent.entityName, repos);
+      let exact = await this.resolveExact(intent.entityName, repos);
+      // 多个精确匹配 + 有实体上下文 → 用上下文搜索缩小范围
+      if (exact.length > 1 && intent.entityContext) {
+        console.log('[qa]   ▸ exact matches with context:', intent.entityContext);
+        for (const repo of repos) {
+          // 用上下文做关键词搜索，找出相关文件路径
+          const ctxRaw = await this.rawSearch(intent.entityContext, repo).catch(() => '');
+          const ctxMatches = this.parseResults(ctxRaw, repo.name || '');
+          if (ctxMatches.length > 0) {
+            const ctxFiles = new Set(ctxMatches.map(m => m.filePath));
+            exact = exact.filter(m => ctxFiles.has(m.filePath));
+          }
+        }
+        if (exact.length > 0) console.log('[qa]   ▸ exact matches after context filter:', exact.length);
+      }
       if (exact.length > 0) {
         intent.exactMatches = exact;
         console.log('[qa]   ▸ exact matches:', exact.length, 'for', intent.entityName);
@@ -1351,7 +1369,7 @@ export class QaResolver {
   }
 
   /** LLM 分类——返回 intent + scope + english_query，异常时返回 null */
-  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string; entity_name?: string; english_query?: string } | null> {
+  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string; entity_name?: string; entity_context?: string; english_query?: string } | null> {
     if (!this.llm) return null;
     const hasChinese = /[一-鿿]/.test(question);
     const repoInfo = repoDescs.length > 0
@@ -1372,9 +1390,11 @@ export class QaResolver {
 
 实体（entity_name）：问题所指的核心代码符号名（函数名/类名/变量名），如问题涉及"ConfigService 怎么配置"则填"ConfigService"、"main函数在哪"则填"main"。没有明确的代码符号则填空字符串""。
 
+实体上下文（entity_context）：修饰实体的限定词，帮助缩小搜索范围。如"推理服务的main函数"中 entity_name="main"、entity_context="推理服务 inference server"；"配置模块的init"中 entity_name="init"、entity_context="配置模块 config module"。没有则填空字符串""。
+
 ${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_query 字段：从中提取对代码搜索有用的英文关键词，空格分隔。不要完整句子翻译，只输出能匹配代码符号名的关键词（如"小助手"→"assistant helper"，"任务流"→"task workflow flow"）。' : ''}
 
-返回格式：{"intent":"what-is","scope":"single","entity_name":"main","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
+返回格式：{"intent":"what-is","scope":"single","entity_name":"main","entity_context":"inference server","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
   (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
@@ -1391,7 +1411,7 @@ ${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_quer
         const validIntents: Intent[] = ['what-is', 'where-is', 'how-to', 'why-error', 'what-structure', 'what-impact'];
         const intent = validIntents.find(i => parsed.intent?.includes(i));
         if (!intent) return null;
-        return { intent, scope: parsed.scope || 'single', entity_name: parsed.entity_name, english_query: parsed.english_query };
+        return { intent, scope: parsed.scope || 'single', entity_name: parsed.entity_name, entity_context: parsed.entity_context, english_query: parsed.english_query };
       } catch {
         return null;
       }
