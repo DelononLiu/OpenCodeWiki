@@ -668,6 +668,10 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--color-text-primary)', text2: 'var(--color-text-secondary)', text3: 'var(--color-text-secondary)', blue: 'var(--color-blue)', border: 'var(--color-border)', surface: 'var(--bg-surface)', tagBg: 'var(--bg-secondary)' }));
     content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
+    if (BASE_PATH) {
+      content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
+    }
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Q&A page not found');
@@ -685,6 +689,10 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_CSS */', userBarStyles());
     content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
+    if (BASE_PATH) {
+      content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
+    }
     res.type('html').send(content);
   } catch {
     res.status(404).type('text').send('Home page not found');
@@ -1532,8 +1540,16 @@ app.get('/:repoName', async (req, res, next) => {
   }
 });
 
-// BASE_PATH 支持：通过 API 网关转发时设置，如 /opencodewiki
-const BASE_PATH = process.env.BASE_PATH || '';
+// BASE_PATH：通过 API 网关转发，优先环境变量，其次 config.json
+// 设置后所有 API 挂载到该前缀下，如 /opencodewiki
+// 启动时固定，不支持中途变更
+let BASE_PATH = process.env.BASE_PATH || '';
+if (!BASE_PATH) {
+  try {
+    const cfg = JSON.parse(fsSync.readFileSync(path.join(os.homedir(), '.opencodewiki', 'config.json'), 'utf-8'));
+    BASE_PATH = cfg.basePath || '';
+  } catch {}
+}
 if (BASE_PATH) {
   const wrapped = express();
   wrapped.use(BASE_PATH, app);
