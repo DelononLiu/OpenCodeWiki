@@ -1120,15 +1120,18 @@ if (savedTheme === 'dark') {
 
 mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
-const pathRepoMatch = location.pathname.match(/^\/(?!qa\b)([^/]+)\/qa/);
-let currentRepo = pathRepoMatch?.[1] || new URLSearchParams(location.search).get('repo') || undefined;
+let currentRepo = new URLSearchParams(location.search).get('repo')
+  || location.pathname.match(/(?:\/|^)([^/]+?)\/qa(?:$|\/)/)?.[1]
+  || undefined;
+if (currentRepo === (window.BASE_PATH || '').replace(/^\//, '')) currentRepo = undefined;
 const headerRepoName = document.getElementById('headerRepoName');
 const headerCrossBadge = document.getElementById('headerCrossBadge');
 if (currentRepo) { headerRepoName.textContent = currentRepo; headerRepoName.href = _base + encodeURIComponent(currentRepo); headerRepoName.style.display = ''; headerCrossBadge.style.display = 'none'; document.title = currentRepo + ' — OpenCodeWiki Q&A'; document.getElementById('qaInput').placeholder = currentRepo + ' 相关问题...'; }
 else { headerRepoName.style.display = 'none'; headerCrossBadge.style.display = 'inline'; document.title = 'OpenCodeWiki Q&A (Cross-repo)'; document.getElementById('emptyTitle').textContent = 'Ask across all repositories'; document.getElementById('emptyDesc').textContent = 'I can search across all indexed codebases to find answers.'; }
 
-const sessionMatch = location.pathname.match(/^\/qa\/([^/]+)/);
-const currentSessionIdFromUrl = sessionMatch?.[1] || new URLSearchParams(location.search).get('sessionId') || null;
+const currentSessionIdFromUrl = new URLSearchParams(location.search).get('sessionId')
+  || location.pathname.match(/\/qa\/([^/]+)/)?.[1]
+  || null;
 
 async function restoreSession(sessionId) {
   currentSessionId = sessionId;
