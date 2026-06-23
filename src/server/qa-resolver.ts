@@ -1242,12 +1242,12 @@ export class QaResolver {
 规则：
 - 只从候选列表中选
 - **优先选源代码文件**（.ts/.js/.py/.go/.rs/.cpp 等），跳过文档（.md）、日志、配置文件等
-- 优先选特征明显的核心模块文件（如含 Handler/Pipeline/Flow/Task/Assistant 等），跳过通用工具文件
+- 优先选核心实现文件（主逻辑/API/数据结构等），跳过工具/配置/测试文件
 - newTerms 必须是代码片段中出现过的函数名/类名
 ${this._agentContext ? `\n项目概览（供参考项目结构和命名约定）：\n${this._agentContext}` : ''}
 
 返回 JSON 格式：
-{"selectedFiles":[{"filePath":"src/view/SomeHandler.ts","repo":"kcode"}],"newTerms":["newSearchTerm"],"reasoning":"..."}`
+{"selectedFiles":[{"filePath":"src/core/main.cpp","repo":"my-project"}],"newTerms":["newSearchTerm"],"reasoning":"..."}`
             },
             { role: 'user', content: `问题：${question}\n\n${candidates}` },
           ],
@@ -1435,9 +1435,9 @@ ${this._agentContext ? `\n项目概览（供参考项目结构和命名约定）
 
 实体上下文（entity_context）：修饰实体的限定词，帮助缩小搜索范围。如"推理服务的main函数"中 entity_name="main"、entity_context="推理服务 inference server"；"配置模块的init"中 entity_name="init"、entity_context="配置模块 config module"。没有则填空字符串""。
 
-${this._agentContext ? `\n## 项目概览\n${this._agentContext}\n` : ''}${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_query 字段：从中提取对代码搜索有用的英文关键词，空格分隔。不要完整句子翻译，只输出能匹配代码符号名的关键词（如"小助手"→"assistant helper"，"任务流"→"task workflow flow"）。' : ''}
+${this._agentContext ? `\n## 项目概览\n${this._agentContext}\n` : ''}${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_query 字段：从中提取对代码搜索有用的英文关键词，空格分隔。不要完整句子翻译，只输出能匹配代码符号名的关键词（如"配置模块"→"config module"，"用户登录"→"auth login"）。' : ''}
 
-返回格式：{"intent":"what-is","scope":"single","entity_name":"main","entity_context":"inference server","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
+返回格式：{"intent":"what-is","scope":"single","entity_name":"main","entity_context":"inference server","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"config module auth login"（只输关键词空格分隔）' : ''}}` +
   (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
