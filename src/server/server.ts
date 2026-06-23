@@ -1532,6 +1532,16 @@ app.get('/:repoName', async (req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`OpenCodeWiki server running on http://localhost:${PORT}`);
-});
+// BASE_PATH 支持：通过 API 网关转发时设置，如 /opencodewiki
+const BASE_PATH = process.env.BASE_PATH || '';
+if (BASE_PATH) {
+  const wrapped = express();
+  wrapped.use(BASE_PATH, app);
+  wrapped.listen(PORT, () => {
+    console.log(`OpenCodeWiki server running on http://localhost:${PORT}${BASE_PATH}`);
+  });
+} else {
+  app.listen(PORT, () => {
+    console.log(`OpenCodeWiki server running on http://localhost:${PORT}`);
+  });
+}
