@@ -663,14 +663,13 @@ async function sendQaPage(_req: any, res: any) {
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
     const QA_IDS = { domainBar: 'qaDomainBar', domainInput: 'qaDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput', qaHighlight: 'qaHighlight', suggestDropdown: 'qaSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: 'api/qa/questions/suggest' }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: 'api/qa/questions/suggest' }));
     content = content.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--color-text-primary)', text2: 'var(--color-text-secondary)', text3: 'var(--color-text-secondary)', blue: 'var(--color-blue)', border: 'var(--color-border)', surface: 'var(--bg-surface)', tagBg: 'var(--bg-secondary)' }));
     content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -684,14 +683,13 @@ async function sendHomePage(_req: any, res: any) {
     const HOME_VARS = { bgSurface: 'var(--surface)', bgSecondary: 'var(--tag-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text3)', blue: 'var(--blue)' };
     const HOME_IDS = { domainBar: 'homeDomainBar', domainInput: 'homeDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput', qaHighlight: 'homeHighlight', suggestDropdown: 'homeSuggestDropdown' };
     content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: '/api/qa/questions/suggest' }));
+    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: 'api/qa/questions/suggest' }));
+    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: 'api/qa/questions/suggest' }));
     content = content.replace('/* USER_BAR_CSS */', userBarStyles());
     content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
     }
     res.type('html').send(content);
   } catch {
@@ -1401,7 +1399,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     var el = document.getElementById('content');
     el.innerHTML = '<div class="empty-state"><h2>Loading...</h2></div>';
 
-    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
+    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/' + encodeURIComponent(slug);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.content) {
@@ -1431,7 +1429,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     if (pageType === 'qa-curated') {
       params += '&calibrated=1';
     }
-    var url = '/api/qa/entries?' + params;
+    var url = 'api/qa/entries?' + params;
 
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
@@ -1478,7 +1476,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   function archiveQa(qid, btn) {
     btn.disabled = true;
     btn.textContent = '归档中...';
-    fetch('/api/wiki/archive', {
+    fetch('api/wiki/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ qid: qid }),
@@ -1499,7 +1497,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   }
 
   function loadArchivedEntries() {
-    var url = '/api/wiki/' + encodeURIComponent(REPO) + '/archived';
+    var url = 'api/wiki/' + encodeURIComponent(REPO) + '/archived';
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (!data.entries || data.entries.length === 0) {
         document.getElementById('archiveNav').innerHTML = '<div class="nav-item" style="color:var(--text-muted);font-size:12px">暂无归档</div>';
@@ -1523,8 +1521,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   const WIKI_VARS = { bgSurface: 'var(--bg)', bgSecondary: 'var(--sidebar-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text-muted)', blue: 'var(--primary)' };
   const WIKI_IDS = { domainBar: 'wikiDomainBar', domainInput: 'wikiDomainInput', attachBtn: 'wikiAttachBtn', fileInput: 'wikiFileInput', sendBtn: 'wikiSendBtn', qaInput: 'wikiQaInput', qaHighlight: 'wikiHighlight', typeInput: 'wikiQaType', suggestDropdown: 'wikiSuggestDropdown' };
   html = html.replace('/* QA_INPUT_CSS */', qaInputStyles(WIKI_VARS));
-  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
-  html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS, suggestApi: '/api/qa/questions/suggest' }));
+  html = html.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: WIKI_VARS, textarea: false, placeholder: 'Ask anything about this codebase...', repoName, idMap: WIKI_IDS, suggestApi: 'api/qa/questions/suggest' }));
+  html = html.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: WIKI_VARS, textarea: false, idMap: WIKI_IDS, suggestApi: 'api/qa/questions/suggest' }));
   html = html.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--text)', text2: 'var(--text-muted)', text3: 'var(--text-muted)', blue: 'var(--primary)', border: 'var(--border)', surface: 'var(--bg)', tagBg: 'var(--sidebar-bg)' }));
   html = html.replace('<!-- USER_BAR_HTML -->', userBarHtml());
   html = html.replace('/* USER_BAR_JS */', userBarInitScript());

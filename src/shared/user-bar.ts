@@ -44,7 +44,7 @@ export function userBarInitScript(): string {
 (function(){
   var bar = document.getElementById('userBar');
   if (!bar) return;
-  fetch('/api/me', { credentials: 'same-origin' })
+  fetch('api/me', { credentials: 'same-origin' })
     .then(function(r){ return r.json(); })
     .then(function(user){
       if (!user || !user.id) { bar.innerHTML = ''; return; }
@@ -54,7 +54,7 @@ export function userBarInitScript(): string {
         '<div class="user-bar-avatar">' + initial + '</div>' +
         '<span class="user-bar-name">' + esc(user.name || user.email) + '</span>' +
         roleBadge +
-        '<a class="user-bar-logout" href="/logout">退出</a>';
+        '<a class="user-bar-logout" href="logout">退出</a>';
     })
     .catch(function(){ bar.innerHTML = ''; });
   function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
