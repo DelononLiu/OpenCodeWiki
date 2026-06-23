@@ -1,0 +1,7 @@
+{
+  "id": "005",
+  "question": "我想编译库，开调试打印要配啥",
+  "reference": "编译 llama.cpp 库时开启调试打印，主要有三种方式：\n\n1️⃣ 编译时宏开关：-DGGML_DEBUG=1\n核心开关是 GGML_DEBUG（默认 0），控制 GGML_PRINT_DEBUG、GGML_PRINT_DEBUG_5、GGML_PRINT_DEBUG_10 宏。\n\n  cmake -B build -DCMAKE_BUILD_TYPE=Debug \\\n    -DCMAKE_C_FLAGS=\"-DGGML_DEBUG=1\" \\\n    -DCMAKE_CXX_FLAGS=\"-DGGML_DEBUG=1\"\n  cmake --build build -j\n\n-DCMAKE_BUILD_TYPE=Debug 本身不开启额外打印，但会关优化、加调试符号和 _GLIBCXX_ASSERTIONS。\n\n2️⃣ 运行时日志级别：--log-verbosity 5 / -lv 5\ncommon/log.h 的 LOG_DBG/LOG_TRC/LOG_INF 等宏是运行时控制的：\n  ./build/bin/llama-cli -lv 5\n  ./build/bin/llama-cli --verbose\n  LLAMA_ARG_LOG_VERBOSITY=5 ./build/bin/llama-cli\n\n3️⃣ 后端专用调试开关\n-DGGML_VULKAN_DEBUG=ON  — Vulkan 调试输出\n-DGGML_VULKAN_MEMORY_DEBUG=ON — Vulkan 内存调试\n-DGGML_VULKAN_CHECK_RESULTS=ON — Vulkan 运算结果校验\n-DGGML_WEBGPU_DEBUG=ON  — WebGPU 调试输出\n\n最全面的调试方案：\n  cmake -B build -DCMAKE_BUILD_TYPE=Debug \\\n    -DCMAKE_C_FLAGS=\"-DGGML_DEBUG=1\" \\\n    -DCMAKE_CXX_FLAGS=\"-DGGML_DEBUG=1\"\n  cmake --build build -j\n\n运行时看最大输出：./build/bin/llama-cli -lv 5\n\n如果只是看库运行时的日志（加载进度、推理参数等），直接 -lv 5 即可，无需特殊编译。",
+  "answers": [],
+  "scores": []
+}
