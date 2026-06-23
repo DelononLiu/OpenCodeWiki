@@ -327,10 +327,32 @@ export class QaResolver {
         m.name && m.name.toLowerCase() === intent.entityName!.toLowerCase()
       );
       if (exact.length > 0) {
-        // Claude 方式：BM25 排名就是最好的排序，top 结果就是最相关的
-        intent.exactMatches = exact.slice(0, 5);
-        console.log('[qa]   ▸ BM25 entity hits:', intent.exactMatches.length,
-          'top:', exact[0].name, exact[0].filePath, 'score:', exact[0].score);
+        // 分数断层检测：top 比 #2 高 ≥5 分 → 唯一命中
+        if (exact.length > 1 && exact[0].score - exact[1].score >= 5) {
+          intent.exactMatches = [exact[0]];
+          console.log('[qa]   ▸ BM25 unique hit:', exact[0].name, exact[0].filePath,
+            'score:', exact[0].score, 'gap:', exact[0].score - exact[1].score);
+        } else if (exact.length > 1 && intent.english_query) {
+          // 分数接近但 english_query 有关键词匹配路径 → 唯一命中
+          const qWords = intent.english_query.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+          const topPath = exact[0].filePath.toLowerCase();
+          const restPaths = exact.slice(1).map(m => m.filePath.toLowerCase());
+          const matchedWord = qWords.find(w => topPath.includes(w));
+          const restMatch = restPaths.some(p => qWords.some(w => p.includes(w)));
+          if (matchedWord && !restMatch) {
+            intent.exactMatches = [exact[0]];
+            console.log('[qa]   ▸ BM25 path-matched hit:', exact[0].name, exact[0].filePath,
+              'keyword:', matchedWord);
+          } else {
+            intent.exactMatches = exact.slice(0, 5);
+            console.log('[qa]   ▸ BM25 entity hits:', intent.exactMatches.length,
+              'top:', exact[0].name, exact[0].filePath, 'score:', exact[0].score);
+          }
+        } else {
+          intent.exactMatches = exact.slice(0, 5);
+          console.log('[qa]   ▸ BM25 entity hits:', intent.exactMatches.length,
+            'top:', exact[0].name, exact[0].filePath, 'score:', exact[0].score);
+        }
       } else {
         console.log('[qa]   ▸ BM25 no entity match for', intent.entityName);
       }
