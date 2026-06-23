@@ -670,6 +670,7 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      content = content.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
     }
     res.type('html').send(content);
   } catch {
@@ -690,6 +691,9 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+      // 修正 vendor 路径
+      content = content.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
+      content = content.replace(/href="\/vendor\//g, `href="${BASE_PATH}/vendor/`);
     }
     res.type('html').send(content);
   } catch {
@@ -1526,6 +1530,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   html = html.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--text)', text2: 'var(--text-muted)', text3: 'var(--text-muted)', blue: 'var(--primary)', border: 'var(--border)', surface: 'var(--bg)', tagBg: 'var(--sidebar-bg)' }));
   html = html.replace('<!-- USER_BAR_HTML -->', userBarHtml());
   html = html.replace('/* USER_BAR_JS */', userBarInitScript());
+  if (BASE_PATH) {
+    html = html.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
+    html = html.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
+  }
   res.type('html').send(html);
 }
 
