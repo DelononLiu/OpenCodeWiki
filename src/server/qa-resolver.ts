@@ -40,6 +40,10 @@ export interface IntentResult {
   intent: Intent;
   symbols: string[];
   searchTerms: string[];
+  /** 从问题中提取的核心代码符号名（函数/类/变量），用于精确符号匹配 */
+  entityName?: string;
+  /** 精确匹配到的符号列表，由 search() 预处理填充 */
+  exactMatches?: PipelineMatch[];
   /** 原始问题中提取的中文短语，用于 grep 直接搜文件内容（BM25 对中文无效） */
   chineseTerms?: string[];
   /** 原始问题，用于两阶段搜索中的 LLM 筛选 */
@@ -220,6 +224,7 @@ export class QaResolver {
     let intent: Intent;
     let reasoning = '';
     let english_query: string | undefined;
+    let entity_name: string | undefined;
 
     if (this.llm && repoDescs) {
       const result = await this.classifyByLLM(question, repoDescs, history);
@@ -227,6 +232,7 @@ export class QaResolver {
       if (result) {
         intent = result.intent;
         english_query = result.english_query;
+        entity_name = result.entity_name;
         reasoning += ' scope:' + result.scope;
       } else {
         intent = this.classifyIntentWithScore(question).intent;
@@ -234,7 +240,7 @@ export class QaResolver {
       }
     } else if (this.llm) {
       const llmIntent = await this.classifyByLLM(question, []);
-      if (llmIntent) { intent = llmIntent.intent; english_query = llmIntent.english_query; reasoning = 'llm'; }
+      if (llmIntent) { intent = llmIntent.intent; english_query = llmIntent.english_query; entity_name = llmIntent.entity_name; reasoning = 'llm'; }
       else { intent = this.classifyIntentWithScore(question).intent; reasoning = 'llm-rule-fallback'; }
     } else {
       intent = this.classifyIntentWithScore(question).intent;
@@ -242,6 +248,12 @@ export class QaResolver {
     }
 
     const symbols = this.extractSymbols(question);
+    // LLM 没返回 entity_name 时，用 extractSymbols 第一个非关键字符号兜底
+    if (!entity_name) {
+      for (const s of symbols) {
+        if (s.length >= 2) { entity_name = s; break; }
+      }
+    }
     let searchTerms = this.buildSearchTerms(intent, symbols, question);
 
     // 用 LLM 翻译的英文关键词替换中文词。
@@ -262,7 +274,8 @@ export class QaResolver {
     }
 
     console.log('[qa]   ▸ searchTerms:', JSON.stringify(searchTerms));
-    return { intent, symbols, searchTerms, reasoning, chineseTerms: this.extractChinesePhrases(question), question };
+    if (entity_name) console.log('[qa]   ▸ entityName:', entity_name);
+    return { intent, symbols, searchTerms, entityName: entity_name, reasoning, chineseTerms: this.extractChinesePhrases(question), question };
   }
 
   // ═══════════════════════════════════════════════════
@@ -281,7 +294,32 @@ export class QaResolver {
    *   筛选  — LLM 看候选列表，选最相关文件 + 建议新搜索词
    *   第2轮 — 搜新词（精准 BM25）+ 并行深读选中文件
    */
+  /** 实体名精确匹配：^name$ 精确搜，去重排序 */
+  private async resolveExact(name: string, repos: RepoInfo[]): Promise<PipelineMatch[]> {
+    const all: PipelineMatch[] = [];
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const repo of repos) {
+      const raw = await this.rawSearchByName(`^${escaped}$`, repo).catch(() => '');
+      const parsed = this.parseResults(raw, repo.name || '');
+      for (const m of parsed) {
+        if (m.name && m.name.toLowerCase() === name.toLowerCase()) {
+          all.push(m);
+        }
+      }
+    }
+    return this.rankAndDedup(all);
+  }
+
   async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // ── 第0步：实体精确匹配（所有意图共享） ──
+    if (intent.entityName && intent.entityName.length >= 2) {
+      const exact = await this.resolveExact(intent.entityName, repos);
+      if (exact.length > 0) {
+        intent.exactMatches = exact;
+        console.log('[qa]   ▸ exact matches:', exact.length, 'for', intent.entityName);
+      }
+    }
+
     // ── 第1轮：BM25 + grep ──
     let matches: PipelineMatch[];
     switch (intent.intent) {
@@ -432,6 +470,15 @@ export class QaResolver {
       lines.push('以对比表结尾。');
     }
 
+    // 歧义引导：精确匹配到多个同名定义时，让 LLM 列出选项反问
+    if (intent.exactMatches && intent.exactMatches.length > 1 && intent.entityName) {
+      lines.push('');
+      lines.push('### 歧义说明 — 请让用户选择');
+      lines.push(`在代码库中找到多个名为「${intent.entityName}」的定义，分布在不同的文件/模块中。`);
+      lines.push('请列出每个定义的位置（文件:行号）、所属模块和功能概要，然后询问用户具体指的是哪一个。');
+      lines.push('**不要自行猜测用户指的是哪一个**，务必让用户选择。');
+    }
+
     return lines.join('\n');
   }
 
@@ -463,39 +510,60 @@ export class QaResolver {
   //  Intent-specific search strategies
   // ═══════════════════════════════════════════════════
 
-  /** what-is: 搜索符号 → 展开定义 → 解释功能 */
+  /** what-is: 精确匹配 → 展开定义 → BM25 兜底 */
   private async searchWhatIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // 精确匹配优先
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      if (mode === 'llm' && intent.exactMatches.length === 1) {
+        const m = intent.exactMatches[0];
+        if (m.name) {
+          const repo = repos.find(r => r.name === m.repo);
+          const ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) return [{ ...m, snippet: ctx }];
+        }
+      }
+      return intent.exactMatches;
+    }
+
+    // 无精确匹配：BM25 兜底
     const terms = intent.searchTerms.slice(0, 3);
     const allMatches: PipelineMatch[] = [];
-
     for (const term of terms) {
       const repoMatches = await this.multiRepoSsearch(term, repos);
       allMatches.push(...repoMatches);
     }
-
     let ranked = this.rankAndDedup(allMatches);
-
-    // LLM mode: expand top results with full definition, keep tail matches
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
     }
-
     return ranked;
   }
 
   /** where-is: 精确定位符号定义的位置 */
   private async searchWhereIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // 精确匹配优先
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      if (mode === 'llm' && intent.exactMatches.length === 1) {
+        const m = intent.exactMatches[0];
+        if (m.name) {
+          const repo = repos.find(r => r.name === m.repo);
+          const ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) return [{ ...m, snippet: ctx.slice(0, 500) }];
+        }
+      }
+      return intent.exactMatches;
+    }
+
+    // 无精确匹配：BM25 兜底
     const allMatches: PipelineMatch[] = [];
     for (const repo of repos) {
-      // 1) name_pattern 精确搜符号名（batch→匹配 llama_batch_allocr 等）
       for (const t of intent.searchTerms) {
         if (t.length < 2) continue;
         const raw = await this.rawSearchByName(`.*${t}.*`, repo).catch(() => '');
         const parsed = this.parseResults(raw, repo.name || '');
         for (const m of parsed) {
-          // 用 get_code_snippet 补上行号
           if (m.name) {
             const ctx = await this.rawContext(m.name, repo).catch(() => '');
             if (ctx) m.snippet = ctx.slice(0, 500);
@@ -503,7 +571,6 @@ export class QaResolver {
         }
         allMatches.push(...parsed);
       }
-      // 2) BM25 补充
       for (const term of intent.searchTerms) {
         const raw = await this.rawSearch(term, repo);
         const parsed = this.parseResults(raw, repo.name || '');
@@ -519,27 +586,40 @@ export class QaResolver {
     return ranked;
   }
 
-  /** how-to: 搜索用法 → 追踪调用链 → 展示上下文 */
+  /** how-to: 精确匹配 → 追踪调用链 → BM25 兜底 */
   private async searchHowTo(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // 精确匹配优先
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      if (mode === 'llm' && intent.exactMatches.length === 1) {
+        const m = intent.exactMatches[0];
+        if (m.name) {
+          const repo = repos.find(r => r.name === m.repo);
+          const [callers, callees] = await Promise.all([
+            this.rawCallers(m.name, repo).catch(() => ''),
+            this.rawCallees(m.name, repo).catch(() => ''),
+          ]);
+          const parts = [callers, callees].filter(Boolean);
+          if (parts.length > 0) return [{ ...m, snippet: parts.join('\n\n') }];
+        }
+      }
+      return intent.exactMatches;
+    }
+
+    // 无精确匹配：BM25 兜底
     const terms = intent.searchTerms.slice(0, 3);
     const allMatches: PipelineMatch[] = [];
-
     for (const term of terms) {
       const repoMatches = await this.multiRepoSsearch(term, repos);
       allMatches.push(...repoMatches);
     }
-
     let ranked = this.rankAndDedup(allMatches);
-
-    // LLM mode: expand with callers/callees to show usage context
     if (mode === 'llm') {
       ranked = await this.expandWithCallersCallees(ranked.slice(0, 3), repos);
     }
-
     return ranked;
   }
 
-  /** why-error: grep 错误码 → codegraph 定位附近符号 → 展开上下文 */
+  /** why-error: 精确匹配 → grep 错误码 → BM25 兜底 */
   private async searchWhyError(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
     const allMatches: PipelineMatch[] = [];
 
@@ -555,18 +635,30 @@ export class QaResolver {
       }
     }
 
+    // 精确匹配优先（核心实体）
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      allMatches.push(...intent.exactMatches);
+      // 已精确匹配到的符号不再进入 symbolNames BM25 搜索
+      const exactLower = new Set(intent.exactMatches.map(m => m.name?.toLowerCase()).filter(Boolean));
+      const remaining = symbolNames.filter(s => !exactLower.has(s.toLowerCase()));
+      for (const sym of remaining.slice(0, 5)) {
+        const repoMatches = await this.multiRepoSsearch(sym, repos);
+        allMatches.push(...repoMatches);
+      }
+    } else {
+      // Phase 2: codegraph search for nearby symbols
+      for (const sym of symbolNames.slice(0, 5)) {
+        const repoMatches = await this.multiRepoSsearch(sym, repos);
+        allMatches.push(...repoMatches);
+      }
+    }
+
     // Phase 1: grep for error text patterns
     for (const pattern of errorPatterns.slice(0, 3)) {
       for (const repo of repos) {
         const grepMatches = await this.rawGrep(pattern, repo);
         allMatches.push(...grepMatches);
       }
-    }
-
-    // Phase 2: codegraph search for nearby symbols
-    for (const sym of symbolNames.slice(0, 5)) {
-      const repoMatches = await this.multiRepoSsearch(sym, repos);
-      allMatches.push(...repoMatches);
     }
 
     let ranked = this.rankAndDedup(allMatches);
@@ -581,43 +673,65 @@ export class QaResolver {
     return ranked;
   }
 
-  /** what-structure: 搜索 → 展开定义 → 找到类型/接口/结构定义 */
+  /** what-structure: 精确匹配 → 展开定义 → BM25 兜底 */
   private async searchWhatStructure(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // 精确匹配优先
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      if (mode === 'llm' && intent.exactMatches.length === 1) {
+        const m = intent.exactMatches[0];
+        if (m.name) {
+          const repo = repos.find(r => r.name === m.repo);
+          const ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) return [{ ...m, snippet: ctx }];
+        }
+      }
+      return intent.exactMatches;
+    }
+
+    // 无精确匹配：BM25 兜底
     const terms = intent.searchTerms.slice(0, 4);
     const allMatches: PipelineMatch[] = [];
-
     for (const term of terms) {
       const repoMatches = await this.multiRepoSsearch(term, repos);
       allMatches.push(...repoMatches);
     }
-
     let ranked = this.rankAndDedup(allMatches);
-
-    // LLM mode: expand top matches with actual definition content
     if (mode === 'llm' && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
     }
-
     return ranked;
   }
 
-  /** what-impact: 追踪调用链 + impact 分析 → 展示影响范围 */
+  /** what-impact: 精确匹配 → 追踪调用链 → BM25 兜底 */
   private async searchWhatImpact(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+    // 精确匹配优先
+    if (intent.exactMatches && intent.exactMatches.length > 0) {
+      if (mode === 'llm' && intent.exactMatches.length === 1) {
+        const m = intent.exactMatches[0];
+        if (m.name) {
+          const repo = repos.find(r => r.name === m.repo);
+          const [callers, impact] = await Promise.all([
+            this.rawCallers(m.name, repo).catch(() => ''),
+            this.rawImpact(m.name, repo).catch(() => ''),
+          ]);
+          const parts = [callers, impact].filter(Boolean);
+          if (parts.length > 0) return [{ ...m, snippet: parts.join('\n\n') }];
+        }
+      }
+      return intent.exactMatches;
+    }
+
+    // 无精确匹配：BM25 兜底
     const terms = intent.searchTerms.slice(0, 3);
     const allMatches: PipelineMatch[] = [];
-
     for (const term of terms) {
       const repoMatches = await this.multiRepoSsearch(term, repos);
       allMatches.push(...repoMatches);
     }
-
     let ranked = this.rankAndDedup(allMatches);
-
-    // LLM mode: expand with callers + impact for full picture
     if (mode === 'llm' && ranked.length > 0) {
-      // First try callers/callees for top result
       const top = ranked[0];
       if (top.name) {
         const repo = repos.find(r => r.name === top.repo);
@@ -625,16 +739,10 @@ export class QaResolver {
           this.rawCallers(top.name, repo),
           this.rawImpact(top.name, repo),
         ]);
-        const parts = [
-          callers ? `Callers:\n${callers}` : '',
-          impact ? `Impact:\n${impact}` : '',
-        ].filter(Boolean);
-        if (parts.length > 0) {
-          ranked[0] = { ...top, snippet: parts.join('\n\n') };
-        }
+        const parts = [callers, impact].filter(Boolean);
+        if (parts.length > 0) ranked[0] = { ...top, snippet: parts.join('\n\n') };
       }
     }
-
     return ranked;
   }
 
@@ -1243,7 +1351,7 @@ export class QaResolver {
   }
 
   /** LLM 分类——返回 intent + scope + english_query，异常时返回 null */
-  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string; english_query?: string } | null> {
+  private async classifyByLLM(question: string, repoDescs: string[], history?: string): Promise<{ intent: Intent; scope: string; entity_name?: string; english_query?: string } | null> {
     if (!this.llm) return null;
     const hasChinese = /[一-鿿]/.test(question);
     const repoInfo = repoDescs.length > 0
@@ -1262,9 +1370,11 @@ export class QaResolver {
 
 范围（scope）：single（只搜提问中提到的仓库）| cross-compare（跨库对比）| cross-call（跨库调用链）| global-search（全库搜索）
 
+实体（entity_name）：问题所指的核心代码符号名（函数名/类名/变量名），如问题涉及"ConfigService 怎么配置"则填"ConfigService"、"main函数在哪"则填"main"。没有明确的代码符号则填空字符串""。
+
 ${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_query 字段：从中提取对代码搜索有用的英文关键词，空格分隔。不要完整句子翻译，只输出能匹配代码符号名的关键词（如"小助手"→"assistant helper"，"任务流"→"task workflow flow"）。' : ''}
 
-返回格式：{"intent":"what-is","scope":"single","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
+返回格式：{"intent":"what-is","scope":"single","entity_name":"main","reasoning":"问题提到 flask，锁定单库"${hasChinese ? ',"english_query":"kcode assistant task workflow"（只输关键词空格分隔）' : ''}}` +
   (history ? `\n\n历史对话：\n${history}` : '') },
             { role: 'user', content: question },
           ],
@@ -1281,7 +1391,7 @@ ${repoInfo}${hasChinese ? '\n\n问题包含中文，请额外提供 english_quer
         const validIntents: Intent[] = ['what-is', 'where-is', 'how-to', 'why-error', 'what-structure', 'what-impact'];
         const intent = validIntents.find(i => parsed.intent?.includes(i));
         if (!intent) return null;
-        return { intent, scope: parsed.scope || 'single', english_query: parsed.english_query };
+        return { intent, scope: parsed.scope || 'single', entity_name: parsed.entity_name, english_query: parsed.english_query };
       } catch {
         return null;
       }

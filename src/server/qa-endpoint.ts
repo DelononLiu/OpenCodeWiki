@@ -1329,6 +1329,7 @@ export function createQaEndpoint(
       '- If unsure, say so.\n' +
       '- 禁止写文件，所有内容直接输出。\n' +
       '- 禁止使用 Explore Task。\n' +
+      '- 如果 PIPELINE ANALYSIS 中包含「歧义说明」段落，表示搜索到多个同名定义，请列出每个的位置和功能概要并询问用户具体指哪一个，**不要自行猜测**。\n' +
       '- **回答输出格式必须严格遵循下方 ## 回答模板 中的一种模板（A/B/C/D/E），不允许自由发挥。**\n' +
       '- **问题相关信息搜索链路：search_graph（语义搜索符号）→ get_code_snippet（源码片段分析）→ trace_path（调用链追溯）→ grep（纯文本 fallback/提取）**\n' +
       '- 每个回答最多包含 6 个引用。如果没有搜到相关内容，请如实说「未搜到相关代码」，不要编造文件路径。\n' +
