@@ -298,6 +298,23 @@ export class QaResolver {
    *   筛选  — LLM 看候选列表，选最相关文件 + 建议新搜索词
    *   第2轮 — 搜新词（精准 BM25）+ 并行深读选中文件
    */
+  /**
+   * 检测跳板函数：rawContext 返回的函数体很短（<5行）且有 return funcName( 模式
+   * 则自动跟踪调用链找到真实实现，追加到上下文末尾。
+   */
+  private async followTrampoline(ctx: string, symbol: string, repo?: RepoInfo): Promise<string> {
+    const lines = ctx.split('\n').filter(l => l.trim());
+    if (lines.length >= 5) return ctx;
+    // 匹配 return funcName(...) 模式
+    const m = ctx.match(/return\s+(\w+)\s*\(/);
+    if (!m) return ctx;
+    const called = m[1];
+    if (called.toLowerCase() === symbol.toLowerCase()) return ctx;
+    const def = await this.rawContext(called, repo).catch(() => '');
+    if (!def || def.split('\n').filter(l => l.trim()).length < 3) return ctx;
+    return `${ctx}\n\n// ${called} 实现:\n${def}`;
+  }
+
   /** 实体名精确匹配：^name$ 精确搜，去重排序 */
   private async resolveExact(name: string, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     const all: PipelineMatch[] = [];
@@ -556,8 +573,8 @@ export class QaResolver {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
-          const ctx = await this.rawContext(m.name, repo).catch(() => '');
-          if (ctx) return [{ ...m, snippet: ctx }];
+          let ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) { ctx = await this.followTrampoline(ctx, m.name, repo); return [{ ...m, snippet: ctx }]; }
         }
       }
       return intent.exactMatches;
@@ -587,8 +604,8 @@ export class QaResolver {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
-          const ctx = await this.rawContext(m.name, repo).catch(() => '');
-          if (ctx) return [{ ...m, snippet: ctx.slice(0, 500) }];
+          let ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) { ctx = await this.followTrampoline(ctx, m.name, repo); return [{ ...m, snippet: ctx.slice(0, 3000) }]; }
         }
       }
       return intent.exactMatches;
@@ -719,8 +736,8 @@ export class QaResolver {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
-          const ctx = await this.rawContext(m.name, repo).catch(() => '');
-          if (ctx) return [{ ...m, snippet: ctx }];
+          let ctx = await this.rawContext(m.name, repo).catch(() => '');
+          if (ctx) { ctx = await this.followTrampoline(ctx, m.name, repo); return [{ ...m, snippet: ctx }]; }
         }
       }
       return intent.exactMatches;
