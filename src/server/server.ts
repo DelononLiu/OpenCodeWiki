@@ -671,9 +671,9 @@ async function sendQaPage(_req: any, res: any) {
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
       // 前缀替换：API 路径 + 导航链接
-      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
-      content = content.replace(/(location\.href\s*=\s*['"\`])\/g, `$1${BASE_PATH}/`);
-      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
+      content = content.replace(/("|')(\/api\/)/g, '$1' + BASE_PATH + '$2');
+      content = content.replace(/(location\.href\s*=\s*['"])\//g, '$1' + BASE_PATH + '/');
+      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, '$1' + BASE_PATH + '$2');
     }
     res.type('html').send(content);
   } catch {
@@ -695,9 +695,9 @@ async function sendHomePage(_req: any, res: any) {
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
       // 前缀替换：API 路径 + 导航链接
-      content = content.replace(/("|')(\/api\/)/g, `$1${BASE_PATH}$2`);
-      content = content.replace(/(location\.href\s*=\s*['"\`])\/g, `$1${BASE_PATH}/`);
-      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, `$1${BASE_PATH}$2`);
+      content = content.replace(/("|')(\/api\/)/g, '$1' + BASE_PATH + '$2');
+      content = content.replace(/(location\.href\s*=\s*['"])\//g, '$1' + BASE_PATH + '/');
+      content = content.replace(/(["'])(\/(?:qa[?/]|logout|$|[^"']*\/qa))/g, '$1' + BASE_PATH + '$2');
     }
     res.type('html').send(content);
   } catch {
