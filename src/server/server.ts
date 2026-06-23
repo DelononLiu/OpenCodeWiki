@@ -646,7 +646,7 @@ app.delete('/api/upload/:sessionId/:name', async (req: any, res: any) => {
 
 const PORT = parseInt(process.env.PORT || '4747', 10);
 
-app.use('/vendor', async (req, res, next) => {
+const _vendorMiddleware = async (req, res, next) => {
   const filePath = path.join(vendorDir, req.path.replace(/^\//, ''));
   if (!filePath.startsWith(vendorDir)) return res.status(403).end();
   try {
@@ -655,7 +655,7 @@ app.use('/vendor', async (req, res, next) => {
     const ct = ext === '.js' ? 'application/javascript' : ext === '.css' ? 'text/css' : 'application/octet-stream';
     res.type(ct).send(content);
   } catch { next(); }
-});
+};
 
 async function sendQaPage(_req: any, res: any) {
   try {
@@ -670,7 +670,6 @@ async function sendQaPage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      content = content.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
     }
     res.type('html').send(content);
   } catch {
@@ -691,9 +690,6 @@ async function sendHomePage(_req: any, res: any) {
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-      // 修正 vendor 路径
-      content = content.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
-      content = content.replace(/href="\/vendor\//g, `href="${BASE_PATH}/vendor/`);
     }
     res.type('html').send(content);
   } catch {
@@ -1531,7 +1527,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
   html = html.replace('<!-- USER_BAR_HTML -->', userBarHtml());
   html = html.replace('/* USER_BAR_JS */', userBarInitScript());
   if (BASE_PATH) {
-    html = html.replace(/src="\/vendor\//g, `src="${BASE_PATH}/vendor/`);
     html = html.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
   }
   res.type('html').send(html);
@@ -1558,11 +1553,13 @@ if (!BASE_PATH) {
 }
 if (BASE_PATH) {
   const wrapped = express();
+  wrapped.use('/vendor', _vendorMiddleware);
   wrapped.use(BASE_PATH, app);
   wrapped.listen(PORT, () => {
     console.log(`OpenCodeWiki server running on http://localhost:${PORT}${BASE_PATH}`);
   });
 } else {
+  app.use('/vendor', _vendorMiddleware);
   app.listen(PORT, () => {
     console.log(`OpenCodeWiki server running on http://localhost:${PORT}`);
   });
