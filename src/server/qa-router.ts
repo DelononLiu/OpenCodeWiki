@@ -189,6 +189,26 @@ export function createLightweightSearchHandler(
   };
 }
 
+// ── 待审区 ─────────────────────────────────────────────────────
+
+/** 列出待审条目（status=pending） */
+router.get('/pending', (req, res) => {
+  const repo = req.query.repo as string | undefined;
+  const entries = store.listPendingEntries(repo || undefined);
+  res.json({ entries, total: entries.length });
+});
+
+/** 通过待审区（将 pending 标为 active） */
+router.post('/entry/:qid/approve', (req, res) => {
+  const qid = parseInt(req.params.qid, 10);
+  if (isNaN(qid)) {
+    res.status(400).json({ error: 'Invalid #Q ID' });
+    return;
+  }
+  const ok = store.approveEntry(qid);
+  res.json({ success: ok, qid });
+});
+
 // ── 标准答案 ──────────────────────────────────────────────────
 
 /** 创建或更新校准答案 */

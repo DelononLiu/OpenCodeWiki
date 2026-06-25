@@ -481,7 +481,7 @@ async function callLLMJson(prompt, llmConfig, systemPrompt) {
 
 /** Build module_tree.json from architecture modules (identified by overview) + codegraph file mapping.
  *  Uses codebase-memory-mcp edges to determine dependencies between modules. */
-async function buildModuleTree(repoPath, outputDir, moduleNames) {
+async function buildModuleTree(repoPath, outputDir, moduleNames, wikiMeta) {
   if (!moduleNames || moduleNames.length === 0) {
     console.log('  ⚠ No modules identified, skipping module tree');
     return [];
@@ -493,25 +493,43 @@ async function buildModuleTree(repoPath, outputDir, moduleNames) {
   if (fs.existsSync(dbPath)) {
     const db = new DatabaseSync(dbPath);
     const allFiles = db.prepare("SELECT DISTINCT file_path AS path FROM nodes WHERE file_path IS NOT NULL AND file_path != '' AND file_path NOT LIKE 'node_modules/%' AND file_path NOT LIKE '.%'").all();
-    // Assign files to modules: try name matching first, fall back to directory grouping
     const modFiles = {};
-    for (const name of moduleNames) {
-      modFiles[name] = [];
-      const nameLower = name.toLowerCase();
-      // Extract potential keyword from Chinese module name (e.g. "代码提取引擎" → "extraction")
-      // For English module names, use direct matches
-      for (const f of allFiles) {
-        const fileLower = f.path.toLowerCase();
-        if (fileLower.includes(nameLower)) {
-          modFiles[name].push(f.path);
+    for (const name of moduleNames) { modFiles[name] = []; }
+
+    // If wiki_meta.json is available, use its explicit path mappings
+    if (wikiMeta && wikiMeta.modules) {
+      const allFilePaths = allFiles.map(f => f.path);
+      for (const mod of wikiMeta.modules) {
+        modFiles[mod.name] = [];
+        for (const p of mod.paths) {
+          const normalized = p.endsWith('/') ? p : p + '/';
+          for (const fp of allFilePaths) {
+            if (fp.startsWith(normalized) || fp.startsWith(p)) {
+              if (!modFiles[mod.name].includes(fp)) {
+                modFiles[mod.name].push(fp);
+              }
+            }
+          }
         }
       }
     }
 
-    // Fallback: any unmapped modules use directory grouping
+    // Try name matching first, fall back to directory grouping
     const mappedFiles = new Set(Object.values(modFiles).flat());
     const unmapped = allFiles.filter(f => !mappedFiles.has(f.path));
-    const idx = 0; // assign round-robin to modules that still have room
+    for (const name of moduleNames) {
+      if (modFiles[name].length === 0) {
+        const nameLower = name.toLowerCase();
+        for (const f of unmapped) {
+          const fileLower = f.path.toLowerCase();
+          if (fileLower.includes(nameLower)) {
+            modFiles[name].push(f.path);
+          }
+        }
+      }
+    }
+
+
     for (const name of moduleNames) {
       if (modFiles[name].length === 0) {
         // Assign files whose top-level directory matches a module name keyword
@@ -758,7 +776,10 @@ ${topFiles}
 
   let md = '';
 
-  if (llmConfig && llmConfig.apiKey) {
+  if (skipModuleDetection) {
+    // wiki_meta.json mode: skip LLM module detection, use human-defined modules
+    md = readme ? readme + '\n\n---\n\n> Wiki structure defined by wiki_meta.json (' + identifiedModNames.length + ' human-defined modules)' : '';
+  } else if (llmConfig && llmConfig.apiKey) {
     const content = await callLLM(prompt, llmConfig, 8192);
     if (content) {
       md = content;
@@ -980,9 +1001,20 @@ const force = process.argv.includes('--force');
 const withModules = process.argv.includes('--modules');
 const langIdx = process.argv.indexOf('--lang');
 const targetLang = langIdx >= 0 && process.argv[langIdx + 1] ? process.argv[langIdx + 1] : 'en';
+const metaIdx = process.argv.indexOf('--meta');
+const metaPath = metaIdx >= 0 ? process.argv[metaIdx + 1] : (fs.existsSync(path.join(resolvedPath, 'wiki_meta.json')) ? path.join(resolvedPath, 'wiki_meta.json') : null);
+var wikiMeta = null;
+if (metaPath && fs.existsSync(metaPath)) {
+  try {
+    wikiMeta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+    console.log('  ✓ Loaded wiki_meta.json with ' + wikiMeta.modules.length + ' human-defined modules');
+  } catch (e) {
+    console.log('  ⚠ Failed to parse wiki_meta.json, falling back to auto-detection');
+  }
+}
 
 if (!repoPath) {
-  console.error('Usage: npm run wiki <repo-path> [--force] [--lang zh|en] [--modules]');
+  console.error('Usage: npm run wiki <repo-path> [--force] [--lang zh|en] [--modules] [--meta <path>]');
   console.error('  --modules: 同时生成每个模块的 markdown 页面（需要 LLM 配置）');
   process.exit(1);
 }

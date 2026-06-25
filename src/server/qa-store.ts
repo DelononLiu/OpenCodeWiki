@@ -35,7 +35,7 @@ export interface QaEntry {
   question: string;
   answer: string | null;
   mode: 'lightweight' | 'deep';
-  status: 'active' | 'archived';
+  status: 'active' | 'pending' | 'archived';
   parentQid: number | null;
   relatedQids: number[];
   tags: string[];
@@ -63,7 +63,7 @@ export interface QaEntrySummary {
   sessionId: string;
   question: string;
   mode: 'lightweight' | 'deep';
-  status: 'active' | 'archived';
+  status: 'active' | 'pending' | 'archived';
   repo: string;
   module: string | null;
   parentQid: number | null;
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS qa_entries (
     answer        TEXT,
     mode          TEXT NOT NULL DEFAULT 'deep' CHECK(mode IN ('lightweight','deep')),
     domain        TEXT NOT NULL DEFAULT 'general',
-    status        TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
+    status        TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','pending','archived')),
     parent_qid    INTEGER,
     related_qids  TEXT,
     tags          TEXT,
@@ -284,7 +284,7 @@ export function createEntry(data: {
     id, qid, sessionId: data.sessionId,
     repo: data.repo, module: data.module ?? null,
     question: data.question, answer: data.answer ?? null,
-    mode: data.mode, domain: domain as Domain, status: 'active',
+    mode: data.mode, domain: domain as Domain, status: 'pending',
     parentQid: data.parentQid ?? null,
     relatedQids: data.relatedQids ?? [],
     tags: data.tags ?? [],
@@ -352,6 +352,10 @@ export function listEntries(query: QaListQuery): { entries: QaEntrySummary[]; to
   const conditions: string[] = [];
   const params: any[] = [];
 
+  // 默认只查询 active 条目（已通过待审区），除非显式指定 status
+  if (!query.status) {
+    conditions.push("e.status = 'active'");
+  }
   if (query.repo) {
     conditions.push('e.repo = ?');
     params.push(query.repo);
@@ -517,6 +521,35 @@ export function linkEntries(sourceQid: number, targetQid: number): boolean {
   return true;
 }
 
+// ── 待审区操作 ─────────────────────────────────────────────────────
+
+/**
+ * 手动通过待审区：将 pending 条目标为 active。
+ * 通常在校准操作中自动完成，此处提供批量/单独手动审批接口。
+ */
+export function approveEntry(qid: number): boolean {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const result = db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE qid = ? AND status = 'pending'").run(now, qid);
+  return (result as any).changes > 0;
+}
+
+/**
+ * 列出待审条目（用于审核界面展示）。
+ */
+export function listPendingEntries(repo?: string): QaEntrySummary[] {
+  const db = getDb();
+  let sql = "SELECT e.*, (SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = e.id) AS calibrated_count FROM qa_entries e WHERE e.status = 'pending'";
+  const params: any[] = [];
+  if (repo) {
+    sql += ' AND e.repo = ?';
+    params.push(repo);
+  }
+  sql += ' ORDER BY e.created_at DESC LIMIT 50';
+  const rows = db.prepare(sql).all(...params);
+  return (rows as any[]).map(rowToSummary);
+}
+
 // ── Calibrated Answers ─────────────────────────────────────────
 
 export function upsertCalibratedAnswer(data: {
@@ -535,6 +568,8 @@ export function upsertCalibratedAnswer(data: {
       UPDATE calibrated_answers SET answer = ?, reason = ?, version = version + 1, updated_at = ?
       WHERE qa_entry_id = ?
     `).run(data.answer, data.reason ?? null, now, data.qaEntryId);
+    // 校准后自动设为 active（通过待审区）
+    db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE id = ?").run(now, data.qaEntryId);
     return {
       id: existing.id,
       qaEntryId: data.qaEntryId,
@@ -552,6 +587,8 @@ export function upsertCalibratedAnswer(data: {
     INSERT INTO calibrated_answers (id, qa_entry_id, answer, calibrator, reason, version, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?)
   `).run(id, data.qaEntryId, data.answer, data.calibrator ?? '', data.reason ?? null, now, now);
+  // 首次校准后自动通过待审区
+  db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE id = ?").run(now, data.qaEntryId);
 
   return {
     id,
