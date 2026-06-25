@@ -1059,7 +1059,7 @@ app.get('/api/wiki/:repoName', async (req, res) => {
 
   const wikiDir = wikiOutputDir(entry.path);
   const tree = await loadModuleTree(wikiDir);
-  const bizMeta = loadWikiMeta(repoPath);
+  const bizMeta = loadWikiMeta(entry.path);
   const bizModules = bizMeta ? bizMeta.modules : [];
 
   res.json({ repoName: entry.name, tree });
@@ -1202,7 +1202,7 @@ async function sendWikiViewer(repoName: string, _req: any, res: any) {
   const repoPath = entry.path;
   const wikiDir = wikiOutputDir(repoPath);
   const tree = await loadModuleTree(wikiDir);
-  const bizMeta = loadWikiMeta(repoPath);
+  const bizMeta = loadWikiMeta(entry.path);
   const bizModules = bizMeta ? bizMeta.modules : [];
 
   let html = `<!DOCTYPE html>

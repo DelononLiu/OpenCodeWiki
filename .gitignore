@@ -27,6 +27,7 @@ npm-debug.log*
 
 # Codegraph index data
 .codegraph/
+!.codegraph/wiki/
 
 # Sessions data
 .gitnexus/

@@ -1,0 +1,28 @@
+{
+  "modules": [
+    {
+      "name": "问答系统",
+      "slug": "qa-system",
+      "order": 1,
+      "paths": ["src/server/qa-", "src/qa/", "src/shared/"]
+    },
+    {
+      "name": "Wiki知识库",
+      "slug": "wiki-knowledge-base",
+      "order": 2,
+      "paths": ["src/server/wiki-", "src/home/"]
+    },
+    {
+      "name": "后端服务",
+      "slug": "backend-service",
+      "order": 3,
+      "paths": ["src/server/server.ts", "src/server/cbm-", "src/server/vector-", "src/server/reranker.mjs", "src/server/chunker.mjs", "src/server/log-analyzer.ts", "src/server/acp/"]
+    },
+    {
+      "name": "用户认证",
+      "slug": "user-auth",
+      "order": 4,
+      "paths": ["src/server/auth/"]
+    }
+  ]
+}

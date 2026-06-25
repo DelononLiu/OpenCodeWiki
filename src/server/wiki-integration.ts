@@ -23,7 +23,7 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { DatabaseSync } from 'node:sqlite';
-import { loadWikiMeta, buildModuleTreeFromMeta, fallbackModuleTree } from './wiki-meta';
+import { loadWikiMeta, buildModuleTreeFromMeta, fallbackModuleTree } from './wiki-meta.js';
 
 /** Module tree node from GitNexus wiki. */
 export interface ModuleTreeNode {
