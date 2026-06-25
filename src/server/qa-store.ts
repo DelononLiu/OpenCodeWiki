@@ -582,7 +582,11 @@ export function upsertCalibratedAnswer(data: {
       WHERE qa_entry_id = ?
     `).run(data.answer, data.reason ?? null, now, data.qaEntryId);
     // 校准后自动设为 active（通过待审区）
+    try {
     db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE id = ?").run(now, data.qaEntryId);
+  } catch {
+    // status already active or migration state, non-fatal
+  }
     return {
       id: existing.id,
       qaEntryId: data.qaEntryId,
@@ -601,7 +605,11 @@ export function upsertCalibratedAnswer(data: {
     VALUES (?, ?, ?, ?, ?, 1, ?, ?)
   `).run(id, data.qaEntryId, data.answer, data.calibrator ?? '', data.reason ?? null, now, now);
   // 首次校准后自动通过待审区
-  db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE id = ?").run(now, data.qaEntryId);
+  try {
+    db.prepare("UPDATE qa_entries SET status = 'active', updated_at = ? WHERE id = ?").run(now, data.qaEntryId);
+  } catch {
+    // status already active or migration state, non-fatal
+  }
 
   return {
     id,

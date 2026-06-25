@@ -753,7 +753,7 @@ h1{font-size:24px;margin-bottom:24px}
     html += '<div class="empty">✅ 暂无待审核条目</div>';
   }
 
-  const basePath = JSON.stringify(BASE_PATH || '');
+  const basePath = JSON.stringify((BASE_PATH || '') + '/');
   html += '<script>function toggleForm(qid){var f=document.getElementById("form-"+qid);f.style.display=f.style.display==="none"||f.style.display===""?"block":"none"}';
   html += 'async function submitCalibration(qid){var btn=event.target;btn.disabled=true;btn.textContent="提交中...";';
   html += 'var answer=document.getElementById("answer-"+qid).value;if(!answer){alert("请填写校准答案");btn.disabled=false;btn.textContent="提交校准";return}';
