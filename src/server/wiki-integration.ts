@@ -5,6 +5,10 @@
  * `.codegraph/wiki/` directory. The wiki is generated via the
  * `scripts/wiki.mjs` CLI or the `/api/wiki/generate` endpoint.
  *
+ * Supports wiki_meta.json for human-defined business module structure.
+ * When wiki_meta.json exists, modules are defined by the user; otherwise
+ * falls back to auto-generation from top-level code directories.
+ *
  * Wiki output from codegraph:
  *   {repoRoot}/.codegraph/wiki/
  *   ├── overview.md          — project overview page
@@ -19,6 +23,7 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { DatabaseSync } from 'node:sqlite';
+import { loadWikiMeta, buildModuleTreeFromMeta, fallbackModuleTree } from './wiki-meta';
 
 /** Module tree node from GitNexus wiki. */
 export interface ModuleTreeNode {
@@ -82,47 +87,32 @@ export async function generateWiki(repoPath: string): Promise<WikiGenerateResult
     `).all() as any[];
     db.close();
 
-    // ── Group files by top-level directory ──
-    const dirMap: Record<string, string[]> = {};
-    const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor']);
-    for (const f of files) {
-      const parts = (f as any).file_path.split('/');
-      const topDir = parts.length >= 2 && !SKIP_DIRS.has(parts[0]) ? parts[0] : null;
-      if (topDir) {
-        if (!dirMap[topDir]) dirMap[topDir] = [];
-        dirMap[topDir].push((f as any).file_path);
+    // ── Build module tree ──
+    // Try wiki_meta.json first; fall back to directory-based auto-gen
+    const wikiMeta = loadWikiMeta(repoPath);
+    let tree: any[];
+    let moduleSources: Record<string, string[]> = {};
+
+    if (wikiMeta) {
+      // Use human-defined business modules from wiki_meta.json
+      const allFiles = files.map((f: any) => f.file_path);
+      tree = buildModuleTreeFromMeta(wikiMeta, allFiles, edges as any[]);
+      for (const mod of wikiMeta.modules) {
+        moduleSources[mod.slug] = mod.paths;
       }
-    }
-
-    // ── Build module tree with dependency info ──
-    const tree: any[] = [];
-    for (const name of Object.keys(dirMap).sort()) {
-      const modFiles = dirMap[name];
-      const fileSet = new Set(modFiles);
-      const depSet = new Set<string>();
-      const depBySet = new Set<string>();
-
-      for (const e of edges) {
-        if (fileSet.has((e as any).caller)) {
-          for (const [mName, mFiles] of Object.entries(dirMap)) {
-            if (mName !== name && mFiles.includes((e as any).callee)) { depSet.add(mName); break; }
-          }
-        }
-        if (fileSet.has((e as any).callee)) {
-          for (const [mName, mFiles] of Object.entries(dirMap)) {
-            if (mName !== name && mFiles.includes((e as any).caller)) { depBySet.add(mName); break; }
-          }
+    } else {
+      // Fallback: group by top-level directory (original behavior)
+      const dirMap: Record<string, string[]> = {};
+      const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '__pycache__', 'vendor']);
+      for (const f of files) {
+        const parts = (f as any).file_path.split('/');
+        const topDir = parts.length >= 2 && !SKIP_DIRS.has(parts[0]) ? parts[0] : null;
+        if (topDir) {
+          if (!dirMap[topDir]) dirMap[topDir] = [];
+          dirMap[topDir].push((f as any).file_path);
         }
       }
-
-      tree.push({
-        name,
-        slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        files: modFiles,
-        dependencies: [...depSet].sort(),
-        dependents: [...depBySet].sort(),
-        children: [],
-      });
+      tree = fallbackModuleTree(dirMap, edges as any[]);
     }
 
     await fs.writeFile(path.join(outputDir, 'module_tree.json'), JSON.stringify(tree, null, 2), 'utf-8');

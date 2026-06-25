@@ -12,6 +12,7 @@ import { userBarStyles, userBarHtml, userBarInitScript } from '../shared/user-ba
 import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
+import { loadWikiMeta } from './wiki-meta.js';
 import { setupAuth } from './auth/index.js';
 import { CbmBridge, getBridge } from './cbm-bridge.js';
 
@@ -1058,6 +1059,8 @@ app.get('/api/wiki/:repoName', async (req, res) => {
 
   const wikiDir = wikiOutputDir(entry.path);
   const tree = await loadModuleTree(wikiDir);
+  const bizMeta = loadWikiMeta(repoPath);
+  const bizModules = bizMeta ? bizMeta.modules : [];
 
   res.json({ repoName: entry.name, tree });
 });
@@ -1199,6 +1202,8 @@ async function sendWikiViewer(repoName: string, _req: any, res: any) {
   const repoPath = entry.path;
   const wikiDir = wikiOutputDir(repoPath);
   const tree = await loadModuleTree(wikiDir);
+  const bizMeta = loadWikiMeta(repoPath);
+  const bizModules = bizMeta ? bizMeta.modules : [];
 
   let html = `<!DOCTYPE html>
 <html lang="en">
@@ -1291,6 +1296,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 (function() {
   var REPO = ${JSON.stringify(repoName)};
   var TREE = ${JSON.stringify(tree)};
+  var BIZ_MODULES = ${JSON.stringify(bizModules)};
   var activePage = 'overview';
   var _base = (window.BASE_PATH || '') + '/';
 
@@ -1364,9 +1370,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
     html += '<div class="nav-item" style="color:var(--text-muted);font-size:12px">加载中...</div>';
     html += '</div>';
     html += '</div>';
+    // ── 业务模块 (human-defined from wiki_meta.json) ──
+    if (typeof BIZ_MODULES !== 'undefined' && BIZ_MODULES.length > 0) {
+      html += '<div class="nav-divider"></div>';
+      html += '<div class="nav-group-label">📋 业务模块</div>';
+      html += '<div class="nav-section">';
+      for (var i = 0; i < BIZ_MODULES.length; i++) {
+        var m = BIZ_MODULES[i];
+        var node = null;
+        for (var j = 0; j < TREE.length; j++) {
+          if (TREE[j].slug === m.slug) { node = TREE[j]; break; }
+        }
+        var slug = node ? node.slug : m.slug;
+        html += '<a class="nav-item" data-page="' + slug + '" href="#' + slug + '">' + m.name + '</a>';
+      }
+      html += '</div>';
+    }
     if (TREE.length > 0) {
       html += '<div class="nav-divider"></div>';
-      html += '<div class="nav-group-label">📦 模块树</div>';
+      html += '<div class="nav-group-label">📦 代码模块</div>';
       html += '<div class="nav-section">';
       for (var i = 0; i < TREE.length; i++) {
         html += '<a class="nav-item" data-page="' + TREE[i].slug + '" href="#' + TREE[i].slug + '">' + TREE[i].name + '</a>';
