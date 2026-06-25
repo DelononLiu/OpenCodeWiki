@@ -7,6 +7,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint, getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa-endpoint.js';
 import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
+import * as qaStore from './qa-store.js';
 import { qaInputStyles, qaInputHtml, qaInputInitScript } from '../shared/qa-input.js';
 import { userBarStyles, userBarHtml, userBarInitScript } from '../shared/user-bar.js';
 import {
@@ -698,10 +699,78 @@ async function sendHomePage(_req: any, res: any) {
   }
 }
 
+async function sendAdminPage(_req: any, res: any) {
+  const repos = await loadRegistry();
+  let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>管理 &mdash; 待审区</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.65;color:#1e293b;background:#fff;padding:32px;max-width:960px;margin:0 auto}
+h1{font-size:24px;margin-bottom:24px}
+.repo-group{margin-bottom:32px}
+.repo-group h2{font-size:18px;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.entry{background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px}
+.entry .qid{font-size:12px;font-weight:600;color:#2563eb}
+.entry .question{font-size:15px;font-weight:500;margin:4px 0}
+.entry .meta{font-size:12px;color:#64748b;margin-bottom:8px}
+.entry button{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}
+.entry button:hover{background:#1d4ed8}
+.cal-form{display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb}
+.cal-form textarea{width:100%;min-height:80px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;font-size:13px;font-family:inherit;margin-bottom:8px;resize:vertical}
+.cal-form input[type=text]{width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:8px;font-size:13px;margin-bottom:8px}
+.cal-form button{padding:6px 14px;font-size:13px;cursor:pointer}
+.cal-form .submit-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;margin-right:6px}
+.cal-form .cancel-btn{background:#e5e7eb;color:#1e293b;border:none;border-radius:6px}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;margin-left:6px}
+.success-msg{color:#16a34a;font-size:13px;margin-top:8px}
+.empty{color:#64748b;text-align:center;padding:40px;font-size:14px}
+</style></head><body>
+<h1>⏳ 待审区</h1>`;
+  
+  let hasAny = false;
+  for (const repo of repos) {
+    const entries = qaStore.listPendingEntries(repo.name);
+    if (entries.length === 0) continue;
+    hasAny = true;
+    html += '<div class="repo-group"><h2>' + repo.name + ' <span class="badge">' + entries.length + '</span></h2>';
+    for (const e of entries) {
+      html += '<div class="entry">';
+      html += '<div class="qid">#Q' + e.qid + '</div>';
+      html += '<div class="question">' + e.question.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+      html += '<div class="meta">' + (e.createdAt || '').slice(0, 10) + ' &middot; ' + e.mode + '</div>';
+      html += '<button onclick="toggleForm(' + e.qid + ')">校准</button>';
+      html += '<div class="cal-form" id="form-' + e.qid + '">';
+      html += '<input type="text" id="calibrator-' + e.qid + '" placeholder="校准人" value="admin">';
+      html += '<textarea id="answer-' + e.qid + '" placeholder="校准后的标准答案..."></textarea>';
+      html += '<input type="text" id="reason-' + e.qid + '" placeholder="校准理由（可选）">';
+      html += '<button class="submit-btn" onclick="submitCalibration(' + e.qid + ')">提交校准</button>';
+      html += '<button class="cancel-btn" onclick="toggleForm(' + e.qid + ')">取消</button>';
+      html += '<div id="msg-' + e.qid + '"></div>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+  }
+  if (!hasAny) {
+    html += '<div class="empty">✅ 暂无待审核条目</div>';
+  }
+
+  const basePath = JSON.stringify(BASE_PATH || '');
+  html += '<script>function toggleForm(qid){var f=document.getElementById("form-"+qid);f.style.display=f.style.display==="none"||f.style.display===""?"block":"none"}';
+  html += 'async function submitCalibration(qid){var btn=event.target;btn.disabled=true;btn.textContent="提交中...";';
+  html += 'var answer=document.getElementById("answer-"+qid).value;if(!answer){alert("请填写校准答案");btn.disabled=false;btn.textContent="提交校准";return}';
+  html += 'var body={answer,calibrator:document.getElementById("calibrator-"+qid).value||"admin",reason:document.getElementById("reason-"+qid).value||null};';
+  html += 'try{var r=await fetch(' + basePath + '+"api/qa/entry/"+qid+"/calibrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});';
+  html += 'var d=await r.json();if(d.version){document.getElementById("msg-"+qid).innerHTML="<span class=\"success-msg\">✅ 已校准，版本 v"+d.version+"</span>";';
+  html += 'setTimeout(function(){document.getElementById("form-"+qid).closest(".entry").style.opacity="0.4"},1000)}else{alert("校准失败: "+(d.error||"未知错误"))}}catch(e){alert("请求失败: "+e.message)}';
+  html += 'btn.disabled=false;btn.textContent="校准"}';
+  html += '</script></body></html>';
+  res.type('html').send(html);
+}
+
 app.get('/qa', sendQaPage);
 app.get('/qa/', sendQaPage);
 app.get('/qa/*', sendQaPage);
 app.get('/', sendHomePage);
+app.get('/admin', sendAdminPage);
 app.get('/:repoName/qa', sendQaPage);
 
 // ── 增量索引 + 多库路由 API ──
