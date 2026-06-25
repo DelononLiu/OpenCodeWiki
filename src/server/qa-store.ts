@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS qa_entries (
     answer        TEXT,
     mode          TEXT NOT NULL DEFAULT 'deep' CHECK(mode IN ('lightweight','deep')),
     domain        TEXT NOT NULL DEFAULT 'general',
-    status        TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','pending','archived')),
+    status        TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('active','pending','archived')),
     parent_qid    INTEGER,
     related_qids  TEXT,
     tags          TEXT,
@@ -161,6 +161,19 @@ function getDb(): DatabaseSync {
     _db.exec("ALTER TABLE qa_entries ADD COLUMN domain TEXT NOT NULL DEFAULT 'general'");
     // Re-create domain index now that the column exists
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_qa_domain ON qa_entries(domain)'); } catch {}
+  }
+  // Migrate: update CHECK constraint to allow 'pending' status (for待审区)
+  try {
+    // Test if 'pending' can be inserted (fails if old constraint active)
+    _db.prepare("INSERT INTO qa_entries (id, qid, session_id, repo, question, mode, status) VALUES ('__migrate_test__', -1, '__test__', '__test__', '__test__', 'lightweight', 'pending')").run();
+    _db.prepare("DELETE FROM qa_entries WHERE id = '__migrate_test__'").run();
+  } catch {
+    // Old constraint doesn't allow 'pending' — recreate table
+    _db.exec("ALTER TABLE qa_entries RENAME TO qa_entries_old");
+    _db.exec(SQL_CREATE_TABLES);
+    _db.exec("INSERT INTO qa_entries (id, qid, session_id, repo, module, question, answer, mode, domain, status, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at, visit_count) SELECT id, qid, session_id, repo, module, question, answer, mode, COALESCE(domain, 'general'), status, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at, visit_count FROM qa_entries_old");
+    _db.exec("DROP TABLE qa_entries_old");
+    console.log('[qa-store] migrated status constraint to allow pending');
   }
   return _db;
 }
@@ -266,12 +279,12 @@ export function createEntry(data: {
   const domain = data.domain || 'general';
 
   db.prepare(`
-    INSERT INTO qa_entries (id, qid, session_id, repo, module, question, answer, mode, domain, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO qa_entries (id, qid, session_id, repo, module, question, answer, mode, domain, status, parent_qid, related_qids, tags, sources, created_at, updated_at, answered_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, qid, data.sessionId, data.repo,
     data.module ?? null, data.question,
-    data.answer ?? null, data.mode, domain,
+    data.answer ?? null, data.mode, domain, 'pending',
     data.parentQid ?? null,
     toJsonArray(data.relatedQids),
     toJsonArray(data.tags),
