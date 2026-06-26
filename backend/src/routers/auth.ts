@@ -22,7 +22,7 @@ router.post('/register', async (req: Request, res: Response) => {
     })
 
     const token = jwt.sign({ sub: user.id, email: user.email }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn,
+      expiresIn: config.jwtExpiresIn as any,
     })
 
     res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } })
@@ -43,7 +43,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!valid) return res.status(401).json({ error: 'invalid credentials' })
 
     const token = jwt.sign({ sub: user.id, email: user.email }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn,
+      expiresIn: config.jwtExpiresIn as any,
     })
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } })

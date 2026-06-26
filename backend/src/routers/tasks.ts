@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
-import { getModule } from '../modules/registry.js'
+import { getModule } from '../tasks/registry.js'
 import { executeTask, cancelTask } from '../lib/task-engine.js'
 
 const router = Router()

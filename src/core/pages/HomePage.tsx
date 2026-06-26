@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { MODULES } from '@/modules/registry'
-import '@/modules/model_diff' // trigger registration
+import { MODULES } from '@/tasks/registry'
+import '@/tasks/model_diff' // trigger registration
 
 export default function HomePage() {
   const navigate = useNavigate()

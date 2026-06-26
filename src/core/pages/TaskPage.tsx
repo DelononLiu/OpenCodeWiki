@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { getModule } from '@/modules/registry'
-import '@/modules/model_diff' // ensure registered
-import { MODULES } from '@/modules/registry'
+import { getModule } from '@/tasks/registry'
+import '@/tasks/model_diff' // ensure registered
+import { MODULES } from '@/tasks/registry'
 
 export default function TaskPage() {
   const { id } = useParams<{ id: string }>()

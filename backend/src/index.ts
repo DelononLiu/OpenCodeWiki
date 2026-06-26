@@ -12,9 +12,9 @@ import filesRouter from './routers/files.js'
 import tasksRouter from './routers/tasks.js'
 
 // 导入模型触发注册
-import './modules/model_diff/runner.js'
-import { MODULES, getModule } from './modules/registry.js'
-import modelDiffRouter from './modules/model_diff/router.js'
+import './tasks/model_diff/runner.js'
+import { MODULES, getModule } from './tasks/registry.js'
+import modelDiffRouter from './tasks/model_diff/router.js'
 
 const app = express()
 

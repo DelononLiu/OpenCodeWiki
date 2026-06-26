@@ -39,7 +39,7 @@ export function TaskHistoryDrawer({ open, onOpenChange, onSelect }: Props) {
     setLoading(true)
     const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
     if (useMock) {
-      import('@/modules/model_diff/mockData').then(({ MOCK_TASKS }) => {
+      import('@/tasks/model_diff/mockData').then(({ MOCK_TASKS }) => {
         setTasks(MOCK_TASKS as any)
         setLoading(false)
       })

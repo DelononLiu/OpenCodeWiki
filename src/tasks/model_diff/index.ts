@@ -1,4 +1,4 @@
-import { MODULES } from '@/modules/registry'
+import { MODULES } from '@/tasks/registry'
 import { ModelDiffForm } from './TaskForm'
 import { ModelDiffResult } from './ResultViewer'
 

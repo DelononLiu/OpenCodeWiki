@@ -1,6 +1,6 @@
 import { spawn } from 'child_process'
 import { prisma } from './prisma.js'
-import { getModule } from '../modules/registry.js'
+import { getModule } from '../tasks/registry.js'
 
 // 管理运行中的子进程，用于取消
 const runningProcesses = new Map<string, ReturnType<typeof spawn>>()
@@ -41,7 +41,6 @@ export async function executeTask(taskId: string): Promise<void> {
 
     const child = spawn('bash', ['-c', cmd], {
       timeout: 3600_000,
-      maxBuffer: 100 * 1024 * 1024,
     })
     runningProcesses.set(taskId, child)
 
