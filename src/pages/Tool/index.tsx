@@ -200,7 +200,7 @@ export default function ToolPage() {
                 }}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  'border-2 border-dashed rounded-xl p-16 text-center cursor-pointer transition-all',
+                  'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
                   dragOver
                     ? 'border-primary bg-primary/5'
                     : 'border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-accent/30'
@@ -213,8 +213,8 @@ export default function ToolPage() {
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
                 />
-                <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mx-auto mb-4">
-                  <Upload className="h-5 w-5 text-primary" />
+                <div className="rounded-full bg-primary/10 w-10 h-10 flex items-center justify-center mx-auto mb-3">
+                  <Upload className="h-4 w-4 text-primary" />
                 </div>
                 <p className="text-sm text-muted-foreground font-medium">点击或拖拽选择 .onnx 文件</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">放置文件在此处。最大支持 2 GB</p>
