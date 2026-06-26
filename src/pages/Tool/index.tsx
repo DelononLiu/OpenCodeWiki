@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { uploadModel } from '@/api/model'
-import { createTask, getTask, getTaskLayers } from '@/api/task'
+import { createTask, getTask, getTaskLayers, getTaskHistory } from '@/api/task'
 import { OverviewChart } from '@/pages/TaskDetail/OverviewChart'
 import { LayerTable } from '@/pages/TaskDetail/LayerTable'
 import { useUIStore } from '@/stores/uiStore'
@@ -140,6 +140,23 @@ export default function ToolPage() {
 
   // Drawer state
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyTasks, setHistoryTasks] = useState<typeof MOCK_TASKS>([])
+
+  // 打开历史抽屉时加载数据
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true)
+    const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
+    if (useMock) {
+      setHistoryTasks(MOCK_TASKS)
+    } else {
+      try {
+        const tasks = await getTaskHistory()
+        setHistoryTasks(tasks as any)
+      } catch {
+        setHistoryTasks([])
+      }
+    }
+  }, [])
 
   // Analysis state (State 2)
   const [layers, setLayers] = useState<LayerDiff[]>([])
@@ -218,21 +235,37 @@ export default function ToolPage() {
     setLogs([])
   }
 
-  const handleViewRecent = (id: string) => {
+  const handleViewRecent = async (id: string) => {
     setPageState('analysis')
     setSelectedFramework('tensorrt')
-    if (id === 'task-001') {
-      setTask(buildMockTask('resnet50_v1', 'completed', 3, 3))
-      setLayers(MOCK_LAYERS_ALL_PASS)
-      setSelectedLayer(null)       // 一致 → 默认折叠 layer 详情
-    } else if (id === 'task-002') {
-      setTask(buildMockTask('yolov8_test', 'completed', 2, 3))
-      setLayers(MOCK_LAYERS_HAS_FAIL)
-      setSelectedLayer('conv_23')  // 不一致 → 自动展开失败层
-    } else {
-      setTask(buildMockTask('bert_base_eval', 'failed', 0, 0))
-      setLayers([])
-      setSelectedLayer(null)
+    const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
+
+    if (useMock) {
+      if (id === 'task-001') {
+        setTask(buildMockTask('resnet50_v1', 'completed', 3, 3))
+        setLayers(MOCK_LAYERS_ALL_PASS)
+        setSelectedLayer(null)
+      } else if (id === 'task-002') {
+        setTask(buildMockTask('yolov8_test', 'completed', 2, 3))
+        setLayers(MOCK_LAYERS_HAS_FAIL)
+        setSelectedLayer('conv_23')
+      } else {
+        setTask(buildMockTask('bert_base_eval', 'failed', 0, 0))
+        setLayers([])
+        setSelectedLayer(null)
+      }
+      return
+    }
+
+    try {
+      const task = await getTask(id)
+      const rawLayers = await getTaskLayers(id)
+      setTask(task)
+      setLayers(rawLayers)
+      const failed = rawLayers.find((l: any) => l.metrics?.some((m: any) => !m.passed))
+      setSelectedLayer(failed?.layerName ?? null)
+    } catch (e) {
+      console.error('load task failed', e)
     }
   }
 
@@ -455,7 +488,7 @@ export default function ToolPage() {
           <div className="w-full max-w-[640px] mt-8">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">最近分析任务</span>
-              <button onClick={() => setHistoryOpen(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={openHistory} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                 查看全部 ➔
               </button>
             </div>
@@ -533,7 +566,7 @@ export default function ToolPage() {
             建立新分析任务
           </Button>
 
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5" onClick={() => setHistoryOpen(true)}>
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5" onClick={openHistory}>
             <Clock className="h-3.5 w-3.5" />
             历史任务
           </Button>
@@ -728,7 +761,8 @@ export default function ToolPage() {
             <input className="w-full h-8 rounded-md border border-input bg-background pl-8 pr-3 text-xs outline-none focus:border-ring" placeholder="搜索任务..." />
           </div>
           <div className="space-y-1">
-            {MOCK_TASKS.map((t) => (
+            {historyTasks.length === 0 && <p className="text-[11px] text-muted-foreground/60 text-center py-4">暂无历史任务</p>}
+            {historyTasks.map((t) => (
               <button
                 key={t.id}
                 onClick={() => { setHistoryOpen(false); handleViewRecent(t.id) }}

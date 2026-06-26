@@ -25,13 +25,13 @@ app.use(express.json())
 app.use('/auth', authRouter)
 
 // ── 需要认证的路由 ──
-import { requireAuth } from './middleware/auth.js'
-app.use('/api/files', requireAuth, filesRouter)
-app.use('/api/tasks', requireAuth, tasksRouter)
-app.use('/api', requireAuth, modelDiffRouter)
+import { optionalAuth } from './middleware/auth.js'
+app.use('/api/files', optionalAuth, filesRouter)
+app.use('/api/tasks', optionalAuth, tasksRouter)
+app.use('/api', optionalAuth, modelDiffRouter)
 
 // ── 模块列表 ──
-app.get('/api/modules', (_req, res) => {
+app.get('/api/modules', optionalAuth, (_req, res) => {
   res.json(
     Object.entries(MODULES).map(([key, mod]) => ({ key, name: mod.name }))
   )

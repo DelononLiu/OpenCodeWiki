@@ -23,9 +23,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  get: <T>(path: string, options?: RequestInit) => request<T>(path, { method: 'GET', ...options }),
+  post: <T>(path: string, body?: unknown, options?: RequestInit) =>
+    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined, ...options }),
   upload: <T>(path: string, file: File, onProgress?: (pct: number) => void) => {
     return new Promise<T>((resolve, reject) => {
       const xhr = new XMLHttpRequest()
