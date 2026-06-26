@@ -175,11 +175,12 @@ export default function ToolPage() {
   ]
 
   // ════════════════════════════════════════════════════
-  // RENDER: STATE 1 - Entry Workspace
+  // RENDER
   // ════════════════════════════════════════════════════
-  if (pageState === 'entry') {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
+  return (
+    <>
+      {pageState === 'entry' ? (
+        <div className="min-h-screen bg-background flex flex-col">
         {/* ── Top nav ── */}
         <div className="flex items-center justify-between h-12 px-6 border-b border-muted">
           <div className="flex items-center gap-2">
@@ -414,14 +415,8 @@ export default function ToolPage() {
           </div>
         </div>
       </div>
-    )
-  }
-
-  // ════════════════════════════════════════════════════
-  // RENDER: STATE 2 - Immersive Analysis
-  // ════════════════════════════════════════════════════
-  return (
-    <div className="h-screen bg-background flex flex-col">
+      ) : (
+      <div className="h-screen bg-background flex flex-col">
       {/* ── Analysis top bar ── */}
       <div className="flex items-center justify-between h-12 px-6 border-b border-muted shrink-0">
         <div className="flex items-center gap-3">
@@ -572,7 +567,8 @@ export default function ToolPage() {
         )}
       </div>
     </div>
-  )
+      )}
+
       {/* ── History Drawer ── */}
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent className="w-[480px] sm:max-w-[480px]">
@@ -612,4 +608,6 @@ export default function ToolPage() {
           </div>
         </SheetContent>
       </Sheet>
+    </>
+  )
 }
