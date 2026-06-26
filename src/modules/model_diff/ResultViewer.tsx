@@ -76,7 +76,7 @@ export function ModelDiffResult({ taskId, onNewTask }: Props) {
   if (!task) return null
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="h-screen flex flex-col">
       <TopNav
         title={`task_${task.model?.name ?? taskId.slice(0, 8)}`}
         subtitle={task.model?.name}
@@ -85,7 +85,7 @@ export function ModelDiffResult({ taskId, onNewTask }: Props) {
         onOpenHistory={() => setHistoryOpen(true)}
       />
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 bg-muted/20">
         <div className={cn(
           'flex-1 min-w-0 overflow-y-auto p-5 space-y-4',
           selectedLayerData && 'pr-0'
