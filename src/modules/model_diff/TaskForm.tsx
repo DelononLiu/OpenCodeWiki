@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, FileIcon, Loader2, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,17 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [recentTasks, setRecentTasks] = useState<typeof MOCK_RECENT>([])
+
+  // 加载真实最近任务
+  useEffect(() => {
+    const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
+    if (useMock) {
+      setRecentTasks(MOCK_RECENT)
+    } else {
+      getTaskHistory(1, 3).then((tasks) => setRecentTasks(tasks as any)).catch(() => {})
+    }
+  }, [])
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.name.endsWith('.onnx')) return
@@ -270,7 +281,7 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
             </button>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {MOCK_RECENT.map((r) => (
+            {recentTasks.map((r) => (
               <button key={r.id} onClick={() => handleViewRecent(r.id)}
                 className="text-left border border-border rounded-lg p-3 hover:bg-accent/50 transition-colors space-y-2">
                 <div className="flex items-center gap-2">

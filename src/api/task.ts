@@ -83,11 +83,11 @@ export async function getTaskHistory(page = 1, limit = 20): Promise<any[]> {
 
   return (resp.tasks || []).map((t: any) => ({
     id: t.id,
-    name: t.id.slice(0, 8),
-    model: '',
+    name: `任务 ${t.id.slice(0, 8)}`,
+    model: t.module || '',
     date: t.createdAt?.slice(0, 16).replace('T', ' ') || '',
     status: t.status,
-    accuracy: t.status === 'completed' ? '✓ 已完成' : t.status === 'failed' ? '✗ 失败' : undefined,
+    accuracy: t.status === 'completed' ? '✓ 完成' : t.status === 'failed' ? '✗ 失败' : undefined,
     progress: t.progress,
   }))
 }
