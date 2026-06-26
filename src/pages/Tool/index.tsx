@@ -454,6 +454,10 @@ export default function ToolPage() {
             </SelectContent>
           </Select>
 
+          <button onClick={() => setHistoryOpen(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            历史任务 ➔
+          </button>
+
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={handleNewTask}>
             <Plus className="h-3.5 w-3.5" />
             建立新分析任务
