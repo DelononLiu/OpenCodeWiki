@@ -1,130 +1,173 @@
-# opencodewiki
+# Taskit
 
-基于 Tree‑sitter 的开源代码问答系统。
-
-引擎 [codegraph](https://github.com/colbymchenry/codegraph) 作为 git submodule 管理（`engine/codegraph/`），方便本地修改和版本固定。
-
-## 目录
+通用任务平台。核心模式：
 
 ```
-├── engine/codegraph/       codegraph 引擎源码（git submodule，固定 commit）
-├── src/
-│   ├── server/
-│   │   ├── codegraph-bridge.ts   HTTP API
-│   │   └── qa-endpoint.ts        SSE 流式问答
-│   ├── home/               首页
-│   ├── qa/                 Q&A 页面
-│   └── vendor/             CDN 资源
-└── package.json            codegraph 依赖指向 "file:./engine/codegraph"
+上传文件 → 创建 Task → 后台执行 → 查看结果
 ```
+
+Task 是唯一的核心抽象。平台管理任务生命周期，不关心任务内容。
+模型精度比对 (`tasks/model_diff/`) 是第一个任务类型，后续可扩展日志分析、数据报表等。
+
+---
+
+## 架构
+
+```
+src/
+├── core/              # 平台层（所有任务共用）
+│   ├── api/           # 通用 API 调用
+│   ├── components/    # TopNav / TaskHistoryDrawer / AuthPage
+│   └── pages/         # HomePage / TaskPage（按 task.module 路由）
+│
+├── tasks/             # 你的各种任务
+│   ├── registry.ts    # 任务注册表
+│   ├── _template/     # 新任务的模板
+│   └── model_diff/    # 模型精度比对
+│       ├── TaskForm.tsx    # 创建任务的表单
+│       ├── ResultViewer.tsx # 任务结果展示
+│       └── mockData.ts     # 开发用 mock 数据
+
+backend/
+├── core/              # 平台层
+│   ├── middleware/     # JWT 认证
+│   ├── lib/           # task-engine（subprocess 执行器）
+│   └── routers/       # auth / files / tasks CRUD
+│
+├── tasks/             # 后端任务定义
+│   ├── registry.ts    # 任务注册表
+│   └── model_diff/
+│       ├── runner.ts  # shell 命令模板 + stdout 解析
+│       └── router.ts  # 任务专有路由（/layers）
+```
+
+**核心设计**：`Task` 表用 `module` + `params`(JSON) + `result`(JSON) 三个字段桥接前后端。一个表管所有任务类型。
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 | React + TypeScript + Vite + Tailwind CSS + shadcn/ui |
+| 后端 | Express + TypeScript |
+| 数据库 | SQLite（Prisma ORM） |
+| 认证 | JWT（passport.js） |
+| 任务执行 | `subprocess("shell 命令")`，脚本语言无关 |
+
+---
 
 ## 快速开始
 
 ```bash
-# 1. 克隆项目（含子模块）
-git clone --recurse-submodules https://github.com/your/opencodewiki.git
-# 已克隆的也可以：
-# git submodule update --init --depth 1
-
-# 2. 安装依赖
+# 1. 安装前端依赖
 npm install
 
-# 3. 配置 LLM 密钥
-mkdir -p ~/.opencodewiki
-# 编辑 ~/.opencodewiki/config.json:
-# {"apiKey":"sk-xxx","baseUrl":"https://api.openai.com/v1","model":"gpt-4o-mini"}
+# 2. 安装后端依赖
+cd backend && npm install && cd ..
 
-# 4. 构建 codegraph 引擎
-cd engine/codegraph && npm install && npm run build && cd ../..
+# 3. 初始化数据库
+cd backend && npx prisma db push && cd ..
 
-# 5. 初始化 codegraph 索引（使用本地引擎，指向 engine/codegraph/）
-node engine/codegraph/dist/bin/codegraph.js init ~/Code/example
-node engine/codegraph/dist/bin/codegraph.js index ~/Code/example
+# 4. 一键启动前后端
+npm run dev:all
+# 后端 → http://localhost:8000
+# 前端 → http://localhost:5173
 
-# 6. 启动服务
-npm run dev
-# OPENCODEWIKI_ACP_ENABLE=true npm run dev
-# OpenCodeWiki server running on http://localhost:4747
+# 或分别启动
+npm run dev            # 仅前端
+npm run dev:backend    # 仅后端
 ```
 
-## 引擎更新
+首次访问 `/` 会跳转到 `/login`，注册账号后自动登录。
+
+---
+
+## 任务生命周期
+
+```
+前端提交表单
+  → POST /api/tasks { module, fileIds, params }
+  → 创建 Task（status=pending）
+  → 后台 subprocess(shell 命令)
+  → 解析 stdout JSON → 存入 Task.result
+  → 前端轮询 GET /api/tasks/:id → status=completed
+  → 前端展示 ResultViewer
+```
+
+---
+
+## 添加新任务
+
+复制模板目录，改三处：
 
 ```bash
-cd engine/codegraph
-git pull origin master          # 拉新版本
-npm install && npm run build    # 重新构建
-cd ../..
-git add engine/codegraph
-git commit -m "chore: update codegraph to <新版本>"
+cp -r src/tasks/model_diff src/tasks/my_task
 ```
 
-更新后重新初始化索引：
-```bash
-node engine/codegraph/dist/bin/codegraph.js init
-node engine/codegraph/dist/bin/codegraph.js index
-```
+1. **`TaskForm.tsx`** — 上传什么文件、填什么参数
+2. **`ResultViewer.tsx`** — 结果怎么展示
+3. **`runner.ts`** — 调哪个 shell 脚本，怎么解析输出
 
-## 页面
+然后在 `tasks/registry.ts` 注册：
 
-| 地址 | 说明 |
-|------|------|
-| http://localhost:4747/ | 首页 / 仓库列表 |
-| http://localhost:4747/qa | Q&A 问答 |
-
-## API
-
-### 问答
-
-| 方法 | 路由 | 说明 |
-|------|------|------|
-| `POST` | `/api/qa` | SSE 流式问答（`{ question, repo?, sessionId?, history? }`） |
-| `GET` | `/api/qa/session/:id` | 会话历史 |
-
-### 仓库管理
-
-| 方法 | 路由 | 说明 |
-|------|------|------|
-| `GET` | `/api/repos` | 列出已注册仓库（含索引统计） |
-| `POST` | `/api/repos` | 注册仓库 `{ name, path }`（path 需有 `.codegraph/`） |
-| `DELETE` | `/api/repos/:name` | 移除注册 |
-
-### CodeGraph 工具
-
-| 方法 | 路由 | 说明 |
-|------|------|------|
-| `GET` | `/api/status` | 索引状态 |
-| `POST` | `/api/search` | 代码搜索 |
-| `POST` | `/api/context` | 符号上下文 |
-| `POST` | `/api/impact` | 影响分析 |
-| `POST` | `/api/callers` | 调用者 |
-| `POST` | `/api/callees` | 被调用者 |
-| `POST` | `/api/node` | 节点详情 |
-| `POST` | `/api/explore` | 探索分析 |
-| `POST` | `/api/files` | 文件列表 |
-
-## 配置
-
-所有配置通过 `~/.opencodewiki/config.json`，格式示例：
-
-```json
-{
-  "apiKey": "sk-xxx",
-  "baseUrl": "https://api.openai.com/v1",
-  "model": "gpt-4o-mini",
-  "provider": "openai"
+```typescript
+// src/tasks/registry.ts
+MODULES.my_task = {
+  name: '我的任务',
+  icon: 'FileText',
+  TaskForm: MyTaskForm,
+  ResultViewer: MyTaskResult,
 }
 ```
 
-支持的环境变量（覆盖 config.json）：
+---
 
-| 变量 | 对应字段 | 默认值 |
-|------|---------|--------|
-| `OPENAI_API_KEY` | apiKey | — |
-| `LLM_BASE_URL` | baseUrl | `https://api.openai.com/v1` |
-| `LLM_MODEL` | model | `gpt-4o-mini` |
+## API
 
-仓库列表存储在 `~/.opencodewiki/registry.json`。
+### 通用（所有任务共享）
+```
+POST   /auth/register            注册
+POST   /auth/login               登录 → JWT
+POST   /api/files/upload         上传文件
+POST   /api/tasks                创建任务 { module, fileIds, params }
+GET    /api/tasks                任务列表（分页，可筛 module/status）
+GET    /api/tasks/:id            任务详情（含 result）
+POST   /api/tasks/:id/cancel     取消运行中任务
+POST   /api/tasks/:id/retry      重试失败任务
+```
 
-## 任务跟踪
+### 任务专有
+```
+GET    /api/modules/model_diff/tasks/:id/layers?framework=xxx   层差异数据
+```
 
-见 `TASKS.md`。
+---
+
+## 项目结构
+
+```
+├── src/                    # 前端
+│   ├── core/               # 平台
+│   │   ├── api/            # HTTP 客户端
+│   │   ├── components/     # 通用组件
+│   │   └── pages/          # 路由页面
+│   ├── tasks/              # 任务目录
+│   │   ├── registry.ts     # 任务注册
+│   │   └── model_diff/     # 模型比对任务
+│   ├── stores/             # 状态管理
+│   ├── types/              # 类型定义
+│   └── App.tsx             # 路由入口
+│
+├── backend/                # 后端
+│   ├── src/
+│   │   ├── core/           # 平台
+│   │   ├── tasks/          # 任务目录
+│   │   └── index.ts        # 入口
+│   └── prisma/             # 数据库 schema
+│
+├── runners/                # 外部 shell 脚本（和项目语言无关）
+├── dev.sh                  # 一键启动
+├── .env.development        # 开发环境配置
+└── docs/                   # 设计文档
+```
