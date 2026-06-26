@@ -199,24 +199,28 @@ export default function ToolPage() {
       setTask(t)
 
       const poll = setInterval(async () => {
-        const updated = await getTask(t.id)
-        setTask(updated)
-        setLogs((prev) => [
-          ...prev,
-          `[${new Date().toLocaleTimeString()}] ${selectedFrameworks.join('/')} executing layer ${updated.progress}%`,
-        ])
-        if (updated.status === 'completed') {
-          clearInterval(poll)
-          setRunning(false)
-          setLayersLoading(true)
-          const allLayers = await getTaskLayers(t.id)
-          setLayers(allLayers)
-          setLayersLoading(false)
-          setPageState('analysis')
-        }
-        if (updated.status === 'failed') {
-          clearInterval(poll)
-          setRunning(false)
+        try {
+          const updated = await getTask(t.id)
+          setTask(updated)
+          setLogs((prev) => [
+            ...prev,
+            `[${new Date().toLocaleTimeString()}] ${selectedFrameworks.join('/')} 执行中 ${updated.progress}%`,
+          ])
+          if (updated.status === 'completed') {
+            clearInterval(poll)
+            setRunning(false)
+            setLayersLoading(true)
+            const allLayers = await getTaskLayers(t.id)
+            setLayers(allLayers)
+            setLayersLoading(false)
+            setPageState('analysis')
+          }
+          if (updated.status === 'failed') {
+            clearInterval(poll)
+            setRunning(false)
+          }
+        } catch (e) {
+          console.error('poll error', e)
         }
       }, 1500)
     } catch {
