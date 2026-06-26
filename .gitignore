@@ -4,3 +4,19 @@ dist
 .env*.local
 .DS_Store
 *.tsbuildinfo
+
+# backend
+backend/node_modules/
+backend/dist/
+backend/uploads/
+backend/prisma/*.db
+backend/prisma/*.db-journal
+backend/.env
+
+# backend
+backend/node_modules/
+backend/dist/
+backend/uploads/
+backend/prisma/*.db
+backend/prisma/*.db-journal
+backend/.env

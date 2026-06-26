@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  tasks     Task[]
+  files     File[]
+}
+
+model File {
+  id         String   @id @default(uuid())
+  userId     Int
+  filename   String
+  storedPath String
+  size       Int
+  mimeType   String   @default("application/octet-stream")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  userId      Int
+  module      String
+  status      String    @default("pending")
+  progress    Int       @default(0)
+  params      String    @default("{}")
+  result      String?
+  error       String?
+  fileIds     String    @default("[]")
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  user        User      @relation(fields: [userId], references: [id])
+}
