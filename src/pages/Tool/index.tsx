@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, FileIcon, Loader2, Plus, Layers } from 'lucide-react'
+import { Upload, FileIcon, Loader2, Plus, Layers, Search, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import {
   Select,
@@ -35,6 +36,17 @@ const MOCK_RECENT = [
   { id: 'task-003', name: 'bert_base_eval', status: 'running' as const, progress: 45 },
 ]
 
+const MOCK_ALL_TASKS = [
+  { id: 'task-001', name: 'resnet50_v1', model: 'resnet50.onnx', date: '2026-06-26 14:30', status: 'completed' as const, accuracy: '✓ 完美通过' },
+  { id: 'task-002', name: 'yolov8_test', model: 'yolov8s.onnx', date: '2026-06-26 11:20', status: 'completed' as const, accuracy: '⚠ 精度超标' },
+  { id: 'task-003', name: 'bert_base_eval', model: 'bert_base.onnx', date: '2026-06-25 09:15', status: 'running' as const, progress: 45 },
+  { id: 'task-004', name: 'efficientnet_b0', model: 'efficientnet-b0.onnx', date: '2026-06-24 16:45', status: 'completed' as const, accuracy: '✓ 完美通过' },
+  { id: 'task-005', name: 'mobilenet_v3', model: 'mobilenet-v3.onnx', date: '2026-06-23 10:30', status: 'completed' as const, accuracy: '✓ 完美通过' },
+  { id: 'task-006', name: 'deeplab_v3', model: 'deeplab-v3.onnx', date: '2026-06-22 08:00', status: 'failed' as const, accuracy: '✗ 推理失败' },
+  { id: 'task-007', name: 'vit_base', model: 'vit-base.onnx', date: '2026-06-21 15:20', status: 'completed' as const, accuracy: '⚠ 精度超标' },
+  { id: 'task-008', name: 'swin_tiny', model: 'swin-tiny.onnx', date: '2026-06-20 13:10', status: 'completed' as const, accuracy: '✓ 完美通过' },
+]
+
 export default function ToolPage() {
   const { toggleTheme } = useUIStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -53,6 +65,9 @@ export default function ToolPage() {
   const [task, setTask] = useState<ComparisonTask | null>(null)
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
+
+  // Drawer state
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Analysis state (State 2)
   const [layers, setLayers] = useState<LayerDiff[]>([])
@@ -359,7 +374,7 @@ export default function ToolPage() {
           <div className="w-full max-w-[640px] mt-8">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">最近分析任务</span>
-              <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => setHistoryOpen(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                 查看全部 ➔
               </button>
             </div>
@@ -555,4 +570,43 @@ export default function ToolPage() {
       </div>
     </div>
   )
+      {/* ── History Drawer ── */}
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent className="w-[480px] sm:max-w-[480px]">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-sm">历史任务</SheetTitle>
+          </SheetHeader>
+          <div className="relative mb-4">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <input className="w-full h-8 rounded-md border border-input bg-background pl-8 pr-3 text-xs outline-none focus:border-ring" placeholder="搜索任务..." />
+          </div>
+          <div className="space-y-1">
+            {MOCK_ALL_TASKS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => { setHistoryOpen(false); handleViewRecent(t.id) }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent text-left transition-colors"
+              >
+                <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium truncate">{t.name}</span>
+                    {t.status === 'completed' && (
+                      <span className={cn('text-[10px]', t.accuracy?.includes('完美') ? 'text-pass' : t.accuracy?.includes('超标') ? 'text-warn' : 'text-fail')}>{t.accuracy}</span>
+                    )}
+                    {t.status === 'running' && <span className="text-[10px] text-primary">运行中 {t.progress}%</span>}
+                    {t.status === 'failed' && <span className="text-[10px] text-fail">推理失败</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                    <span className="font-mono">{t.model}</span>
+                    <span>·</span>
+                    <Clock className="h-3 w-3" />
+                    <span>{t.date}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 }
