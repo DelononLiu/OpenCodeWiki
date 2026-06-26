@@ -23,7 +23,7 @@ export async function createTask(params: CreateTaskParams): Promise<ComparisonTa
     params: { frameworks: params.frameworks.filter(f => f !== 'onnxruntime') },
   }
 
-  const resp: any = await api.post('/api/tasks', body, { headers: authHeaders() })
+  const resp: any = await api.post('/tasks', body, { headers: authHeaders() })
   return {
     id: resp.id,
     model: { id: '', name: '', format: 'onnx', size: 0, uploadTime: '' },
@@ -41,7 +41,7 @@ export async function getTask(taskId: string): Promise<ComparisonTask> {
     return mockApi.getTask(taskId)
   }
 
-  const resp: any = await api.get(`/api/tasks/${taskId}`, { headers: authHeaders() })
+  const resp: any = await api.get(`/tasks/${taskId}`, { headers: authHeaders() })
   const result = resp.result || {}
 
   return {
@@ -65,7 +65,7 @@ export async function getTaskLayers(taskId: string, framework?: string): Promise
   }
 
   const qs = framework ? `?framework=${framework}` : ''
-  const resp: any = await api.get(`/api/modules/model_diff/tasks/${taskId}/layers${qs}`, {
+  const resp: any = await api.get(`/modules/model_diff/tasks/${taskId}/layers${qs}`, {
     headers: authHeaders(),
   })
   return resp.layers || []
@@ -76,7 +76,7 @@ export async function getTaskHistory(page = 1, limit = 20): Promise<any[]> {
     return []
   }
 
-  const resp: any = await api.get(`/api/tasks?page=${page}&limit=${limit}`, {
+  const resp: any = await api.get(`/tasks?page=${page}&limit=${limit}`, {
     headers: authHeaders(),
   })
 
