@@ -20,7 +20,7 @@ export function TopNav({ title, subtitle, showNewTask, onNewTask, onOpenHistory 
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="flex items-center justify-between h-12 px-6 border-b border-muted shrink-0">
+    <div className="flex items-center justify-between h-12 px-6 border-b border-border shadow-sm bg-background shrink-0">
       <div className="flex items-center gap-2" onClick={() => navigate('/')}>
         <svg width="18" height="18" viewBox="0 0 32 32" fill="none" className="cursor-pointer">
           <rect width="32" height="32" rx="6" fill="#1677ff" />
@@ -42,9 +42,9 @@ export function TopNav({ title, subtitle, showNewTask, onNewTask, onOpenHistory 
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-5">
         {showNewTask && (
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onNewTask}>
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground" onClick={onNewTask}>
             <Plus className="h-3.5 w-3.5" />
             新建任务
           </Button>

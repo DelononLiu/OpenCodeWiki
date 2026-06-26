@@ -9,11 +9,11 @@ import {
 import { cn } from '@/lib/utils'
 import { uploadModel } from '@/api/model'
 import { createTask, getTask, getTaskLayers, getTaskHistory, cancelTask, retryTask } from '@/api/task'
-import { useUIStore } from '@/stores/uiStore'
 import type { ModelFile, ComparisonTask, LayerDiff, LayerMetric } from '@/types'
 import { formatSize, extractArch, mockParams } from './utils'
 import { MOCK_RECENT, MOCK_TASKS, MOCK_LAYERS_ALL_PASS, MOCK_LAYERS_HAS_FAIL, buildMockTask } from './mockData'
 import { TaskHistoryDrawer } from '@/core/components/TaskHistoryDrawer'
+import { TopNav } from '@/core/components/TopNav'
 
 const FW_OPTIONS = [
   { value: 'tensorrt', label: 'TensorRT', color: '#9333ea' },
@@ -25,7 +25,6 @@ interface Props {
 }
 
 export function ModelDiffForm({ onTaskCreated }: Props) {
-  const { toggleTheme } = useUIStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [boxState, setBoxState] = useState<'empty' | 'config' | 'running'>('empty')
@@ -133,23 +132,7 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex items-center justify-between h-12 px-6 border-b border-muted">
-        <div className="flex items-center gap-2">
-          <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="6" fill="#1677ff" />
-            <path d="M16 6l8 12H8l8-12z" fill="white" />
-            <circle cx="16" cy="22" r="3" fill="white" />
-          </svg>
-          <span className="text-sm font-semibold tracking-tight">ModelDiff</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">文档</button>
-          <button className="text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={toggleTheme}>☀</button>
-          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">👤</span>
-          </div>
-        </div>
-      </div>
+      <TopNav onOpenHistory={() => setHistoryOpen(true)} />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
         <h1 className="text-xl font-semibold tracking-tight mb-6">神经网络模型精度比对</h1>
