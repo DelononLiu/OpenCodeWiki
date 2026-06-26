@@ -34,61 +34,52 @@ export function SummaryBar({ metrics, loading }: Props) {
     : 0
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       <Card className="border-muted">
-        <CardContent className="p-3.5 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Layers className="h-3.5 w-3.5" />
-            <span className="text-[11px] uppercase tracking-wider font-medium">总层数</span>
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">总层数</p>
+            <p className="font-mono text-base font-bold tabular-nums">{metrics.totalLayers}</p>
           </div>
-          <p className="font-mono text-xl font-bold tabular-nums">{metrics.totalLayers}</p>
         </CardContent>
       </Card>
 
       <Card className="border-muted">
-        <CardContent className="p-3.5 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <CheckCircle2 className="h-3.5 w-3.5 text-pass" />
-            <span className="text-[11px] uppercase tracking-wider font-medium">通过</span>
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <CheckCircle2 className="h-3.5 w-3.5 text-pass shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">通过</p>
+            <p className="font-mono text-base font-bold tabular-nums text-pass">
+              {metrics.passedLayers}
+              <span className="text-xs text-muted-foreground font-normal ml-0.5">/ {metrics.totalLayers}</span>
+            </p>
+            <Progress value={passRate} className="h-0.5 mt-1 [&>div]:bg-pass" />
           </div>
-          <p className="font-mono text-xl font-bold tabular-nums text-pass">
-            {metrics.passedLayers}
-            <span className="text-sm text-muted-foreground font-normal ml-1">/ {metrics.totalLayers}</span>
-          </p>
-          <Progress value={passRate} className="h-1 [&>div]:bg-pass" />
         </CardContent>
       </Card>
 
       <Card className="border-muted">
-        <CardContent className="p-3.5 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <XCircle className={cn('h-3.5 w-3.5', metrics.failedLayers > 0 ? 'text-fail' : 'text-pass')} />
-            <span className="text-[11px] uppercase tracking-wider font-medium">失败</span>
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <XCircle className={cn('h-3.5 w-3.5 shrink-0', metrics.failedLayers > 0 ? 'text-fail' : 'text-pass')} />
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">失败</p>
+            <p className={cn('font-mono text-base font-bold tabular-nums', metrics.failedLayers > 0 ? 'text-fail' : 'text-pass')}>
+              {metrics.failedLayers}
+            </p>
           </div>
-          <p className={cn(
-            'font-mono text-xl font-bold tabular-nums',
-            metrics.failedLayers > 0 ? 'text-fail' : 'text-pass'
-          )}>
-            {metrics.failedLayers}
-          </p>
-          {metrics.failedLayers > 0 && (
-            <Progress value={passRate} className="h-1 [&>div]:bg-fail" />
-          )}
         </CardContent>
       </Card>
 
       <Card className="border-muted">
-        <CardContent className="p-3.5 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Activity className="h-3.5 w-3.5" />
-            <span className="text-[11px] uppercase tracking-wider font-medium">平均余弦</span>
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">平均余弦</p>
+            <p className={cn('font-mono text-base font-bold tabular-nums', metrics.avgCosineSimilarity >= 0.99 ? 'text-pass' : 'text-warn')}>
+              {metrics.avgCosineSimilarity.toFixed(4)}
+            </p>
           </div>
-          <p className={cn(
-            'font-mono text-xl font-bold tabular-nums',
-            metrics.avgCosineSimilarity >= 0.99 ? 'text-pass' : 'text-warn'
-          )}>
-            {metrics.avgCosineSimilarity.toFixed(4)}
-          </p>
         </CardContent>
       </Card>
     </div>
