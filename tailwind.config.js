@@ -38,11 +38,22 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        pass: 'hsl(var(--pass))',
+        fail: 'hsl(var(--fail))',
+        warn: 'hsl(var(--warn))',
+        framework: {
+          onnx: 'hsl(var(--framework-onnx))',
+          tensorrt: 'hsl(var(--framework-tensorrt))',
+          openvino: 'hsl(var(--framework-openvino))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      fontFamily: {
+        mono: ['SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
       },
       keyframes: {
         'accordion-down': {

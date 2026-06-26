@@ -1,5 +1,6 @@
-import { Layers, CheckCircle2, XCircle, Percent } from 'lucide-react'
+import { Layers, CheckCircle2, XCircle, Activity } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import type { OverallMetrics } from '@/types'
 
@@ -8,43 +9,16 @@ interface Props {
   loading: boolean
 }
 
-function StatCard({ icon, label, value, colorClass, suffix }: {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  colorClass?: string
-  suffix?: string
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-            {icon}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={cn('text-xl font-bold mt-0.5', colorClass)}>
-              {value}
-              {suffix && <span className="text-sm text-muted-foreground font-normal ml-1">{suffix}</span>}
-            </p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 export function SummaryBar({ metrics, loading }: Props) {
   if (loading) {
     return (
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
+          <Card key={i} className="border-muted">
+            <CardContent className="p-3.5">
               <div className="animate-pulse space-y-2">
-                <div className="h-3 bg-muted rounded w-12" />
-                <div className="h-7 bg-muted rounded w-20" />
+                <div className="h-2.5 bg-muted rounded w-12" />
+                <div className="h-6 bg-muted rounded w-16" />
               </div>
             </CardContent>
           </Card>
@@ -56,35 +30,67 @@ export function SummaryBar({ metrics, loading }: Props) {
   if (!metrics) return null
 
   const passRate = metrics.totalLayers > 0
-    ? ((metrics.passedLayers / metrics.totalLayers) * 100).toFixed(1)
-    : '0'
+    ? Math.round((metrics.passedLayers / metrics.totalLayers) * 100)
+    : 0
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <StatCard
-        icon={<Layers className="h-5 w-5 text-primary" />}
-        label="总层数"
-        value={metrics.totalLayers}
-      />
-      <StatCard
-        icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-        label="通过"
-        value={metrics.passedLayers}
-        colorClass="text-green-500"
-        suffix={`/ ${metrics.totalLayers}`}
-      />
-      <StatCard
-        icon={<XCircle className={cn('h-5 w-5', metrics.failedLayers > 0 ? 'text-red-500' : 'text-green-500')} />}
-        label="失败"
-        value={metrics.failedLayers}
-        colorClass={metrics.failedLayers > 0 ? 'text-red-500' : 'text-green-500'}
-      />
-      <StatCard
-        icon={<Percent className="h-5 w-5 text-primary" />}
-        label="平均余弦相似度"
-        value={metrics.avgCosineSimilarity.toFixed(4)}
-        colorClass={metrics.avgCosineSimilarity >= 0.99 ? 'text-green-500' : 'text-yellow-500'}
-      />
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <Card className="border-muted">
+        <CardContent className="p-3.5 space-y-1">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Layers className="h-3.5 w-3.5" />
+            <span className="text-[11px] uppercase tracking-wider font-medium">总层数</span>
+          </div>
+          <p className="font-mono text-xl font-bold tabular-nums">{metrics.totalLayers}</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted">
+        <CardContent className="p-3.5 space-y-1">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-pass" />
+            <span className="text-[11px] uppercase tracking-wider font-medium">通过</span>
+          </div>
+          <p className="font-mono text-xl font-bold tabular-nums text-pass">
+            {metrics.passedLayers}
+            <span className="text-sm text-muted-foreground font-normal ml-1">/ {metrics.totalLayers}</span>
+          </p>
+          <Progress value={passRate} className="h-1 [&>div]:bg-pass" />
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted">
+        <CardContent className="p-3.5 space-y-1">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <XCircle className={cn('h-3.5 w-3.5', metrics.failedLayers > 0 ? 'text-fail' : 'text-pass')} />
+            <span className="text-[11px] uppercase tracking-wider font-medium">失败</span>
+          </div>
+          <p className={cn(
+            'font-mono text-xl font-bold tabular-nums',
+            metrics.failedLayers > 0 ? 'text-fail' : 'text-pass'
+          )}>
+            {metrics.failedLayers}
+          </p>
+          {metrics.failedLayers > 0 && (
+            <Progress value={passRate} className="h-1 [&>div]:bg-fail" />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted">
+        <CardContent className="p-3.5 space-y-1">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Activity className="h-3.5 w-3.5" />
+            <span className="text-[11px] uppercase tracking-wider font-medium">平均余弦</span>
+          </div>
+          <p className={cn(
+            'font-mono text-xl font-bold tabular-nums',
+            metrics.avgCosineSimilarity >= 0.99 ? 'text-pass' : 'text-warn'
+          )}>
+            {metrics.avgCosineSimilarity.toFixed(4)}
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

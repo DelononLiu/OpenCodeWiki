@@ -12,9 +12,9 @@ interface Props {
   onChange: (fw: string) => void
 }
 
-const FW_LABELS: Record<string, string> = {
-  tensorrt: 'TensorRT',
-  openvino: 'OpenVINO',
+const FW_CONFIG: Record<string, { label: string; color: string }> = {
+  tensorrt: { label: 'TensorRT', color: '#9333ea' },
+  openvino: { label: 'OpenVINO', color: '#f97316' },
 }
 
 export function FrameworkSwitch({ frameworks, selected, onChange }: Props) {
@@ -22,17 +22,23 @@ export function FrameworkSwitch({ frameworks, selected, onChange }: Props) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground">框架：</span>
+      <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">框架</span>
       <Select value={selected} onValueChange={onChange}>
-        <SelectTrigger className="w-36 h-8 text-xs">
+        <SelectTrigger className="w-32 h-7 text-xs bg-card border-muted">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {frameworks.map((fw) => (
-            <SelectItem key={fw} value={fw} className="text-xs">
-              {FW_LABELS[fw] || fw}
-            </SelectItem>
-          ))}
+          {frameworks.map((fw) => {
+            const cfg = FW_CONFIG[fw]
+            return (
+              <SelectItem key={fw} value={fw} className="text-xs">
+                <span className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg?.color }} />
+                  {cfg?.label || fw}
+                </span>
+              </SelectItem>
+            )
+          })}
         </SelectContent>
       </Select>
     </div>

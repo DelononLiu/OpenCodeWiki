@@ -13,19 +13,19 @@ interface Props {
 export function TaskStarter({ modelUploaded, hasFrameworks, disabled, loading, onClick }: Props) {
   if (!modelUploaded) {
     return (
-      <Alert variant="info">
+      <Alert variant="info" className="py-2.5">
         <Info className="h-4 w-4" />
-        <AlertDescription>请先上传模型</AlertDescription>
+        <AlertDescription className="text-xs">请先上传模型</AlertDescription>
       </Alert>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {!hasFrameworks && (
-        <Alert variant="warning">
+        <Alert variant="warning" className="py-2.5">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="text-xs">
             请至少选择一个推理框架（ONNX Runtime 基准已自动选择）
           </AlertDescription>
         </Alert>
@@ -34,16 +34,16 @@ export function TaskStarter({ modelUploaded, hasFrameworks, disabled, loading, o
         size="lg"
         disabled={disabled || loading}
         onClick={onClick}
-        className="w-full h-12 text-base gap-2"
+        className="w-full h-10 text-sm font-medium gap-2"
       >
         {loading ? (
           <>
-            <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+            <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
             正在创建任务...
           </>
         ) : (
           <>
-            <Zap className="h-5 w-5" />
+            <Zap className="h-4 w-4" />
             开始精度比对
           </>
         )}

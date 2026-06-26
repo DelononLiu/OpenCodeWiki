@@ -1,16 +1,20 @@
 import { create } from 'zustand'
 
 interface UIState {
-  theme: 'light' | 'dark'
+  theme: 'dark' | 'light'
   toggleTheme: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  theme: 'light',
+  theme: 'dark',
   toggleTheme: () =>
     set((s) => {
-      const next = s.theme === 'light' ? 'dark' : 'light'
-      document.documentElement.setAttribute('data-theme', next)
+      const next = s.theme === 'dark' ? 'light' : 'dark'
+      if (next === 'light') {
+        document.documentElement.classList.add('light')
+      } else {
+        document.documentElement.classList.remove('light')
+      }
       return { theme: next }
     }),
 }))
