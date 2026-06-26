@@ -29,6 +29,43 @@ function formatSize(bytes: number) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
+function extractArch(name: string) {
+  const n = name.toLowerCase()
+  if (n.includes('resnet')) return 'ResNet (CNN)'
+  if (n.includes('yolo')) return 'YOLO (CNN)'
+  if (n.includes('bert')) return 'BERT (Transformer)'
+  if (n.includes('efficientnet')) return 'EfficientNet (CNN)'
+  if (n.includes('mobilenet')) return 'MobileNet (CNN)'
+  if (n.includes('deeplab')) return 'DeepLab (CNN)'
+  if (n.includes('vit') || n.includes('swin')) return 'ViT (Transformer)'
+  if (n.includes('convnext')) return 'ConvNeXt (CNN)'
+  if (n.includes('whisper')) return 'Whisper (Transformer)'
+  if (n.includes('sd') || n.includes('stable')) return 'Stable Diffusion (UNet)'
+  if (n.includes('wav2vec')) return 'wav2vec 2.0 (Transformer)'
+  if (n.includes('clip')) return 'CLIP (Transformer)'
+  if (n.includes('sam')) return 'SAM (Transformer)'
+  return 'Unknown'
+}
+
+function mockParams(name: string) {
+  const n = name.toLowerCase()
+  if (n.includes('resnet50')) return '25.6M'
+  if (n.includes('yolov8')) return '11.2M'
+  if (n.includes('bert')) return '110M'
+  if (n.includes('efficientnet')) return '5.3M'
+  if (n.includes('mobilenet')) return '4.2M'
+  if (n.includes('deeplab')) return '59M'
+  if (n.includes('vit')) return '86M'
+  if (n.includes('swin')) return '50M'
+  if (n.includes('convnext')) return '88M'
+  if (n.includes('whisper')) return '769M'
+  if (n.includes('sd') || n.includes('stable')) return '860M'
+  if (n.includes('wav2vec')) return '317M'
+  if (n.includes('clip')) return '428M'
+  if (n.includes('sam')) return '641M'
+  return '—'
+}
+
 // ─── Mock history tasks ──────────────────────────────
 const MOCK_TASKS = [
   { id: 'task-001', name: 'resnet50_v1',   model: 'resnet50.onnx',      date: '2026-06-26 14:30', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
@@ -518,6 +555,37 @@ export default function ToolPage() {
           'flex-1 min-w-0 overflow-y-auto p-5 space-y-4',
           selectedLayerData && 'pr-0'
         )}>
+          {/* Model Info */}
+          {task && (
+            <div className="flex items-center gap-4 px-3 py-2 rounded-lg border border-muted bg-muted/30 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/70">架构</span>
+                <span>{extractArch(task.model.name)}</span>
+              </div>
+              <span className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/70">参数量</span>
+                <span>{mockParams(task.model.name)}</span>
+              </div>
+              <span className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/70">框架</span>
+                <span className="font-mono">{task.frameworks.filter(f => f !== 'onnxruntime').join(' + ')}</span>
+              </div>
+              <span className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/70">硬件</span>
+                <span>NVIDIA CUDA 12.1</span>
+              </div>
+              <span className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/70">文件</span>
+                <span className="font-mono">{task.model.name}</span>
+                <span className="text-muted-foreground/60">({formatSize(task.model.size)})</span>
+              </div>
+            </div>
+          )}
+
           {/* Metrics */}
           <SummaryBar metrics={currentMetrics} loading={false} layers={layers} frameworkId={selectedFramework} />
 
