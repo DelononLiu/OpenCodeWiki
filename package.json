@@ -8,6 +8,7 @@
     "dev:all": "bash dev.sh",
     "dev:backend": "cd backend && npx tsx src/index.ts",
     "build": "tsc -b && vite build",
+    "build:all": "cd backend && npm run build && cd .. && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
