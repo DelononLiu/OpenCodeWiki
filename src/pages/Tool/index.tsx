@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, FileIcon, Loader2, Plus, Layers, Search, Clock } from 'lucide-react'
+import { Upload, FileIcon, Loader2, Plus, Layers, Search, Clock, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -14,11 +14,10 @@ import {
 } from '@/components/ui/select'
 import { uploadModel } from '@/api/model'
 import { createTask, getTask, getTaskLayers } from '@/api/task'
-import { SummaryBar } from '@/pages/TaskDetail/SummaryBar'
 import { OverviewChart } from '@/pages/TaskDetail/OverviewChart'
 import { LayerTable } from '@/pages/TaskDetail/LayerTable'
 import { useUIStore } from '@/stores/uiStore'
-import type { ModelFile, ComparisonTask, LayerDiff, OverallMetrics } from '@/types'
+import type { ModelFile, ComparisonTask, LayerDiff, LayerMetric } from '@/types'
 
 type PageState = 'entry' | 'analysis'
 type BoxState = 'empty' | 'config' | 'running'
@@ -239,9 +238,6 @@ export default function ToolPage() {
 
   // ── Analysis data ────────────────────────────────
   const selectedLayerData = layers.find((l) => l.layerName === selectedLayer) ?? null
-  const currentMetrics: OverallMetrics | null = task?.comparisons.find(
-    (c) => c.framework.value === selectedFramework
-  )?.overallMetrics ?? null
 
   // ── Framework toggle ─────────────────────────────
   const toggleFramework = (fw: string) => {
@@ -557,42 +553,80 @@ export default function ToolPage() {
         )}>
           {/* Model Info */}
           {task && (
-            <div className="flex items-center gap-4 px-3 py-2 rounded-lg border border-muted bg-muted/30 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-foreground/70">架构</span>
-                <span>{extractArch(task.model.name)}</span>
-              </div>
-              <span className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-foreground/70">参数量</span>
-                <span>{mockParams(task.model.name)}</span>
-              </div>
-              <span className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-foreground/70">框架</span>
-                <span className="font-mono">{task.frameworks.filter(f => f !== 'onnxruntime').join(' + ')}</span>
-              </div>
-              <span className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-foreground/70">硬件</span>
-                <span>NVIDIA CUDA 12.1</span>
-              </div>
-              <span className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-foreground/70">文件</span>
-                <span className="font-mono">{task.model.name}</span>
-                <span className="text-muted-foreground/60">({formatSize(task.model.size)})</span>
+            <div className="rounded-lg border border-muted bg-card">
+              <div className="px-3.5 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider border-b border-muted">模型信息</div>
+              <div className="grid grid-cols-5 divide-x divide-muted text-[11px]">
+                <div className="px-3 py-2.5">
+                  <p className="text-muted-foreground/60 mb-0.5">架构</p>
+                  <p className="font-medium text-foreground">{extractArch(task.model.name)}</p>
+                </div>
+                <div className="px-3 py-2.5">
+                  <p className="text-muted-foreground/60 mb-0.5">参数量</p>
+                  <p className="font-medium text-foreground">{mockParams(task.model.name)}</p>
+                </div>
+                <div className="px-3 py-2.5">
+                  <p className="text-muted-foreground/60 mb-0.5">框架</p>
+                  <p className="font-mono text-foreground">{task.frameworks.filter(f => f !== 'onnxruntime').join(' + ')}</p>
+                </div>
+                <div className="px-3 py-2.5">
+                  <p className="text-muted-foreground/60 mb-0.5">硬件</p>
+                  <p className="font-medium text-foreground">NVIDIA CUDA 12.1</p>
+                </div>
+                <div className="px-3 py-2.5">
+                  <p className="text-muted-foreground/60 mb-0.5">文件</p>
+                  <p className="font-mono text-xs text-foreground">{task.model.name}</p>
+                  <p className="text-muted-foreground/60">{formatSize(task.model.size)}</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Metrics */}
-          <SummaryBar metrics={currentMetrics} loading={false} layers={layers} frameworkId={selectedFramework} />
+          {/* Layer Cosine + Radar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Layer Output Cosine */}
+            <div className="rounded-lg border border-muted bg-card">
+              <div className="px-3 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider border-b border-muted flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" />
+                层输出余弦（倒序）
+              </div>
+              <div className="px-3 py-2 space-y-0.5">
+                {layers.length === 0 && <p className="text-[11px] text-muted-foreground/60 py-1">无数据</p>}
+                {[...layers]
+                  .sort((a, b) => {
+                    const ma = a.metrics.find((m: LayerMetric) => m.frameworkId === selectedFramework)
+                    const mb = b.metrics.find((m: LayerMetric) => m.frameworkId === selectedFramework)
+                    return (ma?.cosineSimilarity ?? 1) - (mb?.cosineSimilarity ?? 1)
+                  })
+                  .map((l) => {
+                    const m = l.metrics.find((m: LayerMetric) => m.frameworkId === selectedFramework)
+                    if (!m) return null
+                    return (
+                      <button
+                        key={l.layerName}
+                        onClick={() => setSelectedLayer(l.layerName)}
+                        className={cn(
+                          'w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md transition-colors text-left',
+                          selectedLayer === l.layerName ? 'bg-accent' : 'hover:bg-accent/50'
+                        )}
+                      >
+                        <span className="text-[11px] font-mono text-muted-foreground truncate">{l.layerName}</span>
+                        <span className={cn(
+                          'font-mono text-xs font-bold tabular-nums shrink-0',
+                          m.passed ? 'text-pass' : 'text-fail'
+                        )}>
+                          {m.cosineSimilarity.toFixed(4)}
+                        </span>
+                      </button>
+                    )
+                  })}
+              </div>
+            </div>
 
-          {/* Charts */}
-          {task?.comparisons && task.comparisons.length > 0 && (
-            <OverviewChart comparisons={task.comparisons} />
-          )}
+            {/* Radar Chart */}
+            {task?.comparisons && task.comparisons.length > 0 && (
+              <OverviewChart comparisons={task.comparisons} />
+            )}
+          </div>
 
           {/* Table */}
           <div>
