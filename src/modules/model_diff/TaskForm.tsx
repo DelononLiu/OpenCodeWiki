@@ -134,7 +134,7 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
     <div className="min-h-screen flex flex-col">
       <TopNav onOpenHistory={() => setHistoryOpen(true)} />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 bg-muted/20">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 bg-muted/30">
         <h1 className="text-xl font-semibold tracking-tight mb-6">神经网络模型精度比对</h1>
 
         <div className="w-full max-w-[640px]">

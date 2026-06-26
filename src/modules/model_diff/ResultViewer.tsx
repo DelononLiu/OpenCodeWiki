@@ -85,7 +85,7 @@ export function ModelDiffResult({ taskId, onNewTask }: Props) {
         onOpenHistory={() => setHistoryOpen(true)}
       />
 
-      <div className="flex-1 flex min-h-0 bg-muted/20">
+      <div className="flex-1 flex min-h-0 bg-muted/30">
         <div className={cn(
           'flex-1 min-w-0 overflow-y-auto p-5 space-y-4',
           selectedLayerData && 'pr-0'
