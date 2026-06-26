@@ -29,23 +29,26 @@ function formatSize(bytes: number) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
-// ─── Mock recent tasks ─────────────────────────────────
-const MOCK_RECENT = [
-  { id: 'task-001', name: 'resnet50_v1', status: 'completed' as const, accuracy: '✓ 完美通过' },
-  { id: 'task-002', name: 'yolov8_test', status: 'completed' as const, accuracy: '⚠ 精度超标' },
-  { id: 'task-003', name: 'bert_base_eval', status: 'running' as const, progress: 45 },
+// ─── Mock history tasks (single source of truth) ─────
+const MOCK_TASKS = [
+  { id: 'task-001', name: 'resnet50_v1',      model: 'resnet50.onnx',         date: '2026-06-26 14:30', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-002', name: 'yolov8_test',       model: 'yolov8s.onnx',          date: '2026-06-26 11:20', status: 'completed' as const, accuracy: '⚠ 精度超标', progress: 100 },
+  { id: 'task-003', name: 'bert_base_eval',    model: 'bert_base.onnx',        date: '2026-06-25 09:15', status: 'running'  as const, accuracy: undefined,     progress: 45 },
+  { id: 'task-004', name: 'efficientnet_b0',   model: 'efficientnet-b0.onnx',  date: '2026-06-24 16:45', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-005', name: 'mobilenet_v3',      model: 'mobilenet-v3.onnx',     date: '2026-06-23 10:30', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-006', name: 'deeplab_v3',        model: 'deeplab-v3.onnx',       date: '2026-06-22 08:00', status: 'failed'   as const, accuracy: '✗ 推理失败', progress: 62 },
+  { id: 'task-007', name: 'vit_base',          model: 'vit-base.onnx',         date: '2026-06-21 15:20', status: 'completed' as const, accuracy: '⚠ 精度超标', progress: 100 },
+  { id: 'task-008', name: 'swin_tiny',         model: 'swin-tiny.onnx',        date: '2026-06-20 13:10', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-009', name: 'convnext_large',    model: 'convnext-large.onnx',   date: '2026-06-19 09:45', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-010', name: 'yolov8_seg',        model: 'yolov8s-seg.onnx',      date: '2026-06-18 17:00', status: 'completed' as const, accuracy: '⚠ 精度超标', progress: 100 },
+  { id: 'task-011', name: 'whisper_small',     model: 'whisper-small.onnx',    date: '2026-06-17 14:20', status: 'running'  as const, accuracy: undefined,     progress: 78 },
+  { id: 'task-012', name: 'stable_diffusion_v1-4', model: 'sd-v1-4.onnx',      date: '2026-06-16 11:10', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
+  { id: 'task-013', name: 'wav2vec2_large',    model: 'wav2vec2-large.onnx',   date: '2026-06-15 08:30', status: 'failed'   as const, accuracy: '✗ 推理失败', progress: 34 },
+  { id: 'task-014', name: 'clip_vit_large',    model: 'clip-vit-large.onnx',   date: '2026-06-14 16:00', status: 'completed' as const, accuracy: '⚠ 精度超标', progress: 100 },
+  { id: 'task-015', name: 'sam_vit_h',         model: 'sam-vit-h.onnx',        date: '2026-06-13 13:40', status: 'completed' as const, accuracy: '✓ 完美通过', progress: 100 },
 ]
 
-const MOCK_ALL_TASKS = [
-  { id: 'task-001', name: 'resnet50_v1', model: 'resnet50.onnx', date: '2026-06-26 14:30', status: 'completed' as const, accuracy: '✓ 完美通过' },
-  { id: 'task-002', name: 'yolov8_test', model: 'yolov8s.onnx', date: '2026-06-26 11:20', status: 'completed' as const, accuracy: '⚠ 精度超标' },
-  { id: 'task-003', name: 'bert_base_eval', model: 'bert_base.onnx', date: '2026-06-25 09:15', status: 'running' as const, progress: 45 },
-  { id: 'task-004', name: 'efficientnet_b0', model: 'efficientnet-b0.onnx', date: '2026-06-24 16:45', status: 'completed' as const, accuracy: '✓ 完美通过' },
-  { id: 'task-005', name: 'mobilenet_v3', model: 'mobilenet-v3.onnx', date: '2026-06-23 10:30', status: 'completed' as const, accuracy: '✓ 完美通过' },
-  { id: 'task-006', name: 'deeplab_v3', model: 'deeplab-v3.onnx', date: '2026-06-22 08:00', status: 'failed' as const, accuracy: '✗ 推理失败' },
-  { id: 'task-007', name: 'vit_base', model: 'vit-base.onnx', date: '2026-06-21 15:20', status: 'completed' as const, accuracy: '⚠ 精度超标' },
-  { id: 'task-008', name: 'swin_tiny', model: 'swin-tiny.onnx', date: '2026-06-20 13:10', status: 'completed' as const, accuracy: '✓ 完美通过' },
-]
+const MOCK_RECENT = MOCK_TASKS.slice(0, 3)
 
 export default function ToolPage() {
   const { toggleTheme } = useUIStore()
@@ -581,7 +584,7 @@ export default function ToolPage() {
             <input className="w-full h-8 rounded-md border border-input bg-background pl-8 pr-3 text-xs outline-none focus:border-ring" placeholder="搜索任务..." />
           </div>
           <div className="space-y-1">
-            {MOCK_ALL_TASKS.map((t) => (
+            {MOCK_TASKS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => { setHistoryOpen(false); handleViewRecent(t.id) }}
