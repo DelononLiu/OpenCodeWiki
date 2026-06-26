@@ -1,7 +1,7 @@
-import { Checkbox, Typography, Tag } from 'antd'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { FRAMEWORKS } from '@/types'
-
-const { Title } = Typography
+import { cn } from '@/lib/utils'
 
 interface Props {
   selected: string[]
@@ -19,37 +19,29 @@ export function FrameworkSelector({ selected, onChange }: Props) {
 
   return (
     <div>
-      <Title level={5} style={{ marginBottom: 12 }}>选择推理框架</Title>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <h3 className="text-sm font-semibold mb-3">选择推理框架</h3>
+      <div className="space-y-2">
         {FRAMEWORKS.map((fw) => {
           const isBaseline = fw.isBaseline
           const checked = selected.includes(fw.value)
           return (
             <div
               key={fw.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '12px 16px',
-                border: `1px solid ${checked ? '#1677ff' : '#d9d9d9'}`,
-                borderRadius: 6,
-                background: checked ? '#f0f5ff' : '#fff',
-                cursor: isBaseline ? 'not-allowed' : 'pointer',
-                opacity: isBaseline ? 0.85 : 1,
-              }}
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 border rounded-md transition-colors',
+                checked ? 'border-primary bg-primary/5' : 'border-border',
+                isBaseline ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+              )}
               onClick={() => !isBaseline && handleChange(fw.value, !checked)}
             >
               <Checkbox
                 checked={checked}
                 disabled={isBaseline}
-                onChange={(e) => handleChange(fw.value, e.target.checked)}
+                onCheckedChange={(val) => handleChange(fw.value, val === true)}
               />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 500 }}>{fw.name}</span>
-                {isBaseline && (
-                  <Tag color="blue" style={{ marginLeft: 8 }}>基准</Tag>
-                )}
+              <div className="flex-1 flex items-center gap-2">
+                <span className="text-sm font-medium">{fw.name}</span>
+                {isBaseline && <Badge variant="default">基准</Badge>}
               </div>
             </div>
           )

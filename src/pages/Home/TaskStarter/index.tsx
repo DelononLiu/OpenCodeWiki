@@ -1,7 +1,6 @@
-import { Button, Alert, Typography } from 'antd'
-import { ThunderboltOutlined } from '@ant-design/icons'
-
-const { Text } = Typography
+import { AlertCircle, Info, Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface Props {
   modelUploaded: boolean
@@ -14,36 +13,40 @@ interface Props {
 export function TaskStarter({ modelUploaded, hasFrameworks, disabled, loading, onClick }: Props) {
   if (!modelUploaded) {
     return (
-      <Alert
-        message="请先上传模型"
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      <Alert variant="info">
+        <Info className="h-4 w-4" />
+        <AlertDescription>请先上传模型</AlertDescription>
+      </Alert>
     )
   }
 
   return (
-    <div>
+    <div className="space-y-3">
       {!hasFrameworks && (
-        <Alert
-          message="请至少选择一个推理框架（ONNX Runtime 基准已自动选择）"
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
+        <Alert variant="warning">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            请至少选择一个推理框架（ONNX Runtime 基准已自动选择）
+          </AlertDescription>
+        </Alert>
       )}
       <Button
-        type="primary"
-        size="large"
-        icon={<ThunderboltOutlined />}
-        disabled={disabled}
-        loading={loading}
+        size="lg"
+        disabled={disabled || loading}
         onClick={onClick}
-        block
-        style={{ height: 48, fontSize: 16 }}
+        className="w-full h-12 text-base gap-2"
       >
-        开始精度比对
+        {loading ? (
+          <>
+            <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+            正在创建任务...
+          </>
+        ) : (
+          <>
+            <Zap className="h-5 w-5" />
+            开始精度比对
+          </>
+        )}
       </Button>
     </div>
   )

@@ -1,4 +1,4 @@
-import { Card, Typography } from 'antd'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -6,22 +6,17 @@ import {
 import type { FrameworkResult } from '@/types'
 import { getFrameworkColor } from '@/utils/color'
 
-const { Title } = Typography
-
 interface Props {
   comparisons: FrameworkResult[]
 }
 
 export function OverviewChart({ comparisons }: Props) {
-  // Bar chart data - per-framework metrics
   const barData = comparisons.map((c) => ({
     name: c.framework.name,
     通过层数: c.overallMetrics.passedLayers,
     失败层数: c.overallMetrics.failedLayers,
-    fill: getFrameworkColor(c.framework.id),
   }))
 
-  // Radar chart data - metric dimensions
   const radarData = [
     {
       metric: '余弦相似度',
@@ -45,40 +40,50 @@ export function OverviewChart({ comparisons }: Props) {
   if (comparisons.length === 0) return null
 
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      <Card style={{ flex: 1 }} title="层数对比">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={barData}>
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="通过层数" fill="#52c41a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="失败层数" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">层数对比</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={barData}>
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="通过层数" fill="#52c41a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="失败层数" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
       </Card>
 
-      <Card style={{ flex: 1 }} title="精度维度雷达图">
-        <ResponsiveContainer width="100%" height={240}>
-          <RadarChart data={radarData}>
-            <PolarGrid />
-            <PolarAngleAxis dataKey="metric" />
-            <PolarRadiusAxis angle={30} domain={[0.9, 1]} />
-            <Tooltip />
-            {comparisons.map((c) => (
-              <Radar
-                key={c.framework.id}
-                name={c.framework.name}
-                dataKey={c.framework.name}
-                stroke={getFrameworkColor(c.framework.id)}
-                fill={getFrameworkColor(c.framework.id)}
-                fillOpacity={0.2}
-              />
-            ))}
-            <Legend />
-          </RadarChart>
-        </ResponsiveContainer>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">精度维度雷达图</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={240}>
+            <RadarChart data={radarData}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="metric" fontSize={12} />
+              <PolarRadiusAxis angle={30} domain={[0.9, 1]} fontSize={10} />
+              <Tooltip />
+              {comparisons.map((c) => (
+                <Radar
+                  key={c.framework.id}
+                  name={c.framework.name}
+                  dataKey={c.framework.name}
+                  stroke={getFrameworkColor(c.framework.id)}
+                  fill={getFrameworkColor(c.framework.id)}
+                  fillOpacity={0.2}
+                />
+              ))}
+              <Legend />
+            </RadarChart>
+          </ResponsiveContainer>
+        </CardContent>
       </Card>
     </div>
   )

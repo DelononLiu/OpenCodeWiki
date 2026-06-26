@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Space, Button, Alert, Spin } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { ArrowLeft, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTaskStore } from '@/stores/taskStore'
 import { SummaryBar } from './SummaryBar'
 import { OverviewChart } from './OverviewChart'
@@ -33,7 +35,6 @@ export default function TaskDetailPage() {
     if (!id) return
     setLoading(true)
     setError(null)
-
     const load = async () => {
       try {
         await pollTask(id)
@@ -47,7 +48,6 @@ export default function TaskDetailPage() {
     load()
   }, [id])
 
-  // Reload layers when framework switches
   useEffect(() => {
     if (id && status === 'completed') {
       loadLayers(id)
@@ -59,82 +59,82 @@ export default function TaskDetailPage() {
   }
 
   const selectedLayerData = layers.find((l) => l.layerName === selectedLayer) ?? null
-  const detailOpen = selectedLayerData !== null
-
-  // Compute the current framework's overall metrics
   const currentMetrics: OverallMetrics | null = task?.comparisons.find(
     (c) => c.framework.value === selectedFramework
   )?.overallMetrics ?? null
-
   const frameworkIds = task?.frameworks.filter((f) => f !== 'onnxruntime') ?? []
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0' }}>
-        <Spin size="large" />
-        <p style={{ marginTop: 16, color: '#999' }}>加载任务...</p>
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <p className="text-sm text-muted-foreground">加载任务...</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <Alert
-        type="error"
-        message="加载失败"
-        description={error}
-        showIcon
-        action={<Button onClick={() => navigate('/')}>返回首页</Button>}
-      />
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>加载失败</AlertTitle>
+        <AlertDescription className="flex items-center gap-4">
+          {error}
+          <Button size="sm" variant="outline" onClick={() => navigate('/')}>
+            返回首页
+          </Button>
+        </AlertDescription>
+      </Alert>
     )
   }
 
   if (!task) return null
 
   return (
-    <>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} />
-            <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
-                任务 {task.id}
-              </h2>
-              <span style={{ color: '#999', fontSize: 13 }}>
-                {task.model.name} · {task.frameworks.filter((f) => f !== 'onnxruntime').join(', ')}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <FrameworkSwitch
-              frameworks={frameworkIds}
-              selected={selectedFramework}
-              onChange={setSelectedFramework}
-            />
-            {status === 'running' && (
-              <Alert
-                type="info"
-                message={`推理运行中 ${progress}%`}
-                showIcon
-                style={{ padding: '4px 12px' }}
-              />
-            )}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h2 className="text-lg font-semibold">任务 {task.id}</h2>
+            <p className="text-xs text-muted-foreground">
+              {task.model.name} · {task.frameworks.filter((f) => f !== 'onnxruntime').join(', ')}
+            </p>
           </div>
         </div>
 
-        {/* Summary Bar */}
-        <SummaryBar metrics={currentMetrics} loading={loading} />
+        <div className="flex items-center gap-3">
+          <FrameworkSwitch
+            frameworks={frameworkIds}
+            selected={selectedFramework}
+            onChange={setSelectedFramework}
+          />
+          {status === 'running' && (
+            <Alert variant="info" className="py-1.5 px-3 text-xs">
+              <AlertCircle className="h-3 w-3" />
+              <AlertDescription>推理运行中 {progress}%</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </div>
 
-        {/* Overview Charts */}
-        {task.comparisons.length > 0 && (
-          <OverviewChart comparisons={task.comparisons} />
-        )}
+      {/* Summary */}
+      <SummaryBar metrics={currentMetrics} loading={loading} />
 
-        {/* Layer Table */}
-        <Card title={<span style={{ fontWeight: 600 }}>层精度对比</span>} style={{ borderRadius: 8 }}>
+      {/* Charts */}
+      {task.comparisons.length > 0 && (
+        <OverviewChart comparisons={task.comparisons} />
+      )}
+
+      {/* Layer table */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">层精度对比</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
           <LayerTable
             layers={layers}
             frameworkId={selectedFramework}
@@ -142,15 +142,15 @@ export default function TaskDetailPage() {
             onSelectLayer={handleSelectLayer}
             selectedLayerName={selectedLayer}
           />
-        </Card>
-      </Space>
+        </CardContent>
+      </Card>
 
-      {/* Layer Detail Drawer */}
+      {/* Layer detail drawer */}
       <LayerDetail
         layer={selectedLayerData}
-        open={detailOpen}
+        open={selectedLayerData !== null}
         onClose={() => setSelectedLayer(null)}
       />
-    </>
+    </div>
   )
 }

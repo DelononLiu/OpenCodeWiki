@@ -1,11 +1,10 @@
-import { useState, useRef, useCallback } from 'react'
-import { Upload, Typography, Progress } from 'antd'
-import { InboxOutlined } from '@ant-design/icons'
+import { useState, useCallback } from 'react'
+import { Upload, X, FileIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import type { ModelFile, UploadProgress } from '@/types'
 import { uploadModel } from '@/api/model'
-
-const { Dragger } = Upload
-const { Text } = Typography
+import { cn } from '@/lib/utils'
 
 interface Props {
   onUploaded: (model: ModelFile) => void
@@ -14,23 +13,16 @@ interface Props {
 export function ModelUpload({ onUploaded }: Props) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<UploadProgress | null>(null)
-  const cancelRef = useRef(false)
+  const [dragOver, setDragOver] = useState(false)
 
   const handleUpload = useCallback(async (file: File) => {
-    if (!file.name.endsWith('.onnx')) {
-      // Allow .onnx only for MVP
-      return
-    }
-
-    cancelRef.current = false
+    if (!file.name.endsWith('.onnx')) return
     setUploading(true)
     setProgress({ percent: 0, fileName: file.name, status: 'uploading' })
 
     try {
       const model = await uploadModel(file, (pct) => {
-        if (!cancelRef.current) {
-          setProgress({ percent: pct, fileName: file.name, status: 'uploading' })
-        }
+        setProgress({ percent: pct, fileName: file.name, status: 'uploading' })
       })
       setProgress({ percent: 100, fileName: file.name, status: 'done' })
       onUploaded(model)
@@ -41,40 +33,65 @@ export function ModelUpload({ onUploaded }: Props) {
     }
   }, [onUploaded])
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleUpload(file)
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleUpload(file)
+  }
+
   return (
     <div>
-      <Dragger
-        accept=".onnx"
-        showUploadList={false}
-        beforeUpload={(file) => {
-          handleUpload(file)
-          return false
-        }}
-        disabled={uploading}
-        style={{ background: '#fafafa', borderRadius: 8 }}
+      <label
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        className={cn(
+          'flex flex-col items-center gap-3 p-10 border-2 border-dashed rounded-lg cursor-pointer transition-colors',
+          dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50',
+          uploading && 'pointer-events-none opacity-60'
+        )}
       >
-        <p className="ant-upload-drag-icon">
-          <InboxOutlined />
-        </p>
-        <p className="ant-upload-text">拖拽 ONNX 模型到此处，或点击选择</p>
-        <p className="ant-upload-hint" style={{ color: '#999' }}>
-          支持 .onnx 格式
-        </p>
-      </Dragger>
+        <div className="rounded-full bg-primary/10 p-3">
+          <Upload className="h-6 w-6 text-primary" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium">拖拽 ONNX 模型到此处，或点击选择</p>
+          <p className="text-xs text-muted-foreground mt-1">支持 .onnx 格式</p>
+        </div>
+        <input
+          type="file"
+          accept=".onnx"
+          onChange={handleFileSelect}
+          className="hidden"
+          disabled={uploading}
+        />
+      </label>
 
       {progress && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <Text ellipsis style={{ maxWidth: 300 }}>{progress.fileName}</Text>
-            <Text type={progress.status === 'error' ? 'danger' : 'secondary'}>
-              {progress.status === 'done' ? '✅ 上传完成' : progress.status === 'error' ? '上传失败' : '上传中...'}
-            </Text>
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="truncate">{progress.fileName}</span>
+            </div>
+            <span className={cn(
+              'text-xs shrink-0 ml-2',
+              progress.status === 'done' && 'text-green-600',
+              progress.status === 'error' && 'text-red-500'
+            )}>
+              {progress.status === 'done' ? '✅ 上传完成' :
+               progress.status === 'error' ? '上传失败' : '上传中...'}
+            </span>
           </div>
           <Progress
-            percent={progress.percent}
-            status={progress.status === 'error' ? 'exception' : 'active'}
-            strokeColor={progress.status === 'done' ? '#52c41a' : undefined}
-            size="small"
+            value={progress.percent}
+            className={cn(progress.status === 'done' && '[&>div]:bg-green-500')}
           />
         </div>
       )}
