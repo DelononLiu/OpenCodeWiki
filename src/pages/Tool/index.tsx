@@ -519,7 +519,7 @@ export default function ToolPage() {
           selectedLayerData && 'pr-0'
         )}>
           {/* Metrics */}
-          <SummaryBar metrics={currentMetrics} loading={false} />
+          <SummaryBar metrics={currentMetrics} loading={false} layers={layers} frameworkId={selectedFramework} />
 
           {/* Charts */}
           {task?.comparisons && task.comparisons.length > 0 && (
