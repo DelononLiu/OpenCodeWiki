@@ -9,9 +9,10 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`
+  const { headers: optHeaders, ...rest } = options || {}
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
+    ...rest,
+    headers: { 'Content-Type': 'application/json', ...(optHeaders as Record<string, string>) },
   })
 
   if (!res.ok) {
