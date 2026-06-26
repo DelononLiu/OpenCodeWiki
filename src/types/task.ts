@@ -11,6 +11,7 @@ export interface ComparisonTask {
   progress: number
   createdAt: string
   completedAt?: string
+  error?: string
   baseline: FrameworkResult | null
   comparisons: FrameworkResult[]
 }

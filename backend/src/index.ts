@@ -21,6 +21,15 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// 请求日志
+app.use((req, _res, next) => {
+  const start = Date.now()
+  _res.on('finish', () => {
+    console.log(`  ${req.method} ${req.originalUrl} → ${_res.statusCode} (${Date.now() - start}ms)`)
+  })
+  next()
+})
+
 // ── 公开路由（无需认证） ──
 app.use('/auth', authRouter)
 

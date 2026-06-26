@@ -464,26 +464,37 @@ export default function ToolPage() {
             {boxState === 'running' && task && (
               <div className="border rounded-xl p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                  {task.error ? (
+                    <div className="h-5 w-5 rounded-full bg-fail/20 flex items-center justify-center shrink-0">
+                      <span className="text-fail text-xs font-bold">!</span>
+                    </div>
+                  ) : (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                  )}
                   <div>
-                    <p className="text-sm font-medium">正在分析: {model?.name}</p>
-                    <p className="text-xs text-muted-foreground">进度: {task.progress}%  |  ETA: 估算中</p>
+                    <p className="text-sm font-medium">
+                      {task.error ? '分析失败' : `正在分析: ${model?.name}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {task.error
+                        ? task.error
+                        : `进度: ${task.progress}%  |  ETA: 估算中`}
+                    </p>
                   </div>
                 </div>
 
-                <Progress value={task.progress} className="h-2" />
+                {!task.error && <Progress value={task.progress} className="h-2" />}
 
                 {/* Logs */}
                 <div className="bg-black/40 rounded-md p-3 h-28 overflow-y-auto font-mono text-[11px] space-y-0.5">
                   {logs.map((log, i) => (
                     <div key={i} className="text-green-400/80">{log}</div>
                   ))}
-                  {logs.length === 0 && <div className="text-muted-foreground/50">等待执行日志...</div>}
+                  {task.error && (
+                    <div className="text-red-400/90 text-[11px]">{task.error}</div>
+                  )}
+                  {logs.length === 0 && !task.error && <div className="text-muted-foreground/50">等待执行日志...</div>}
                 </div>
-
-                <p className="text-[11px] text-muted-foreground text-center">
-                  完成后将自动进入分析视图
-                </p>
               </div>
             )}
           </div>

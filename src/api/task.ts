@@ -52,6 +52,7 @@ export async function getTask(taskId: string): Promise<ComparisonTask> {
     progress: resp.progress,
     createdAt: resp.createdAt,
     completedAt: resp.completedAt,
+    error: resp.error,
     baseline: null,
     comparisons: result.overall ? [
       { framework: { id: 'tensorrt', name: 'TensorRT', value: 'tensorrt' }, overallMetrics: result.overall },
