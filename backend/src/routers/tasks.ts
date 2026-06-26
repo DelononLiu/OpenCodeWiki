@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { getModule } from '../modules/registry.js'
-import { executeTask } from '../lib/task-engine.js'
+import { executeTask, cancelTask } from '../lib/task-engine.js'
 
 const router = Router()
 
@@ -102,6 +102,59 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (task.error) resp.error = task.error
 
     res.json(resp)
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// 取消任务
+router.post('/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    const task = await prisma.task.findUnique({ where: { id: req.params.id } })
+    if (!task) return res.status(404).json({ error: 'not found' })
+    if (task.status !== 'running' && task.status !== 'pending') {
+      return res.status(400).json({ error: `cannot cancel task in status: ${task.status}` })
+    }
+
+    cancelTask(task.id)
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { status: 'cancelled', completedAt: new Date() },
+    })
+
+    res.json({ id: task.id, status: 'cancelled' })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// 重试任务
+router.post('/:id/retry', async (req: Request, res: Response) => {
+  try {
+    const task = await prisma.task.findUnique({ where: { id: req.params.id } })
+    if (!task) return res.status(404).json({ error: 'not found' })
+    if (task.status !== 'failed' && task.status !== 'cancelled') {
+      return res.status(400).json({ error: `cannot retry task in status: ${task.status}` })
+    }
+
+    const newTask = await prisma.task.create({
+      data: {
+        userId: task.userId,
+        module: task.module,
+        status: 'pending',
+        params: task.params,
+        fileIds: task.fileIds,
+      },
+    })
+
+    executeTask(newTask.id).catch(console.error)
+
+    res.json({
+      id: newTask.id,
+      module: newTask.module,
+      status: newTask.status,
+      createdAt: newTask.createdAt.toISOString(),
+    })
   } catch (e: any) {
     res.status(500).json({ error: e.message })
   }

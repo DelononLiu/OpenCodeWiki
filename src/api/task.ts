@@ -91,3 +91,13 @@ export async function getTaskHistory(page = 1, limit = 20): Promise<any[]> {
     progress: t.progress,
   }))
 }
+
+export async function cancelTask(taskId: string): Promise<any> {
+  if (USE_MOCK) return { id: taskId, status: 'cancelled' }
+  return api.post(`/tasks/${taskId}/cancel`, undefined, { headers: authHeaders() })
+}
+
+export async function retryTask(taskId: string): Promise<any> {
+  if (USE_MOCK) return { id: `retry-${taskId}`, status: 'pending' }
+  return api.post(`/tasks/${taskId}/retry`, undefined, { headers: authHeaders() })
+}

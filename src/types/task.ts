@@ -1,7 +1,7 @@
 import type { ModelFile } from './model'
 import type { FrameworkResult } from './framework'
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed'
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface ComparisonTask {
   id: string

@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { uploadModel } from '@/api/model'
-import { createTask, getTask, getTaskLayers, getTaskHistory } from '@/api/task'
+import { createTask, getTask, getTaskLayers, getTaskHistory, cancelTask, retryTask } from '@/api/task'
 import { useUIStore } from '@/stores/uiStore'
 import type { ModelFile, ComparisonTask, LayerDiff, LayerMetric } from '@/types'
 import { formatSize, extractArch, mockParams } from './utils'
@@ -108,6 +108,12 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
     } catch {
       setRunning(false)
     }
+  }
+
+  const handleRetry = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    const t = await retryTask(id)
+    onTaskCreated(t.id)
   }
 
   const handleViewRecent = async (id: string) => {
@@ -268,6 +274,29 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
                 {task.error && <div className="text-red-400/90 text-[11px]">{task.error}</div>}
                 {logs.length === 0 && !task.error && <div className="text-muted-foreground/50">等待执行日志...</div>}
               </div>
+              {!task.error && (
+                <button
+                  onClick={async () => {
+                    await cancelTask(task.id)
+                    setRunning(false)
+                    setBoxState('empty')
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  取消任务
+                </button>
+              )}
+              {task.error && (
+                <button
+                  onClick={async () => {
+                    const t = await retryTask(task.id)
+                    onTaskCreated(t.id)
+                  }}
+                  className="text-xs text-primary hover:underline transition-colors"
+                >
+                  重试任务
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -292,7 +321,12 @@ export function ModelDiffForm({ onTaskCreated }: Props) {
                   {r.status === 'completed' && (
                     <span className={cn('text-[11px]', r.accuracy?.includes('完美') ? 'text-pass' : 'text-warn')}>{r.accuracy}</span>
                   )}
-                  {r.status === 'failed' && <span className="text-[11px] text-fail">{r.accuracy}</span>}
+                  {r.status === 'failed' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-fail">{r.accuracy}</span>
+                      <button onClick={(e) => handleRetry(e, r.id)} className="text-[10px] text-primary hover:underline">重试</button>
+                    </div>
+                  )}
                 </div>
               </button>
             ))}
