@@ -30,33 +30,36 @@ export default function HomePage() {
   const canStart = model !== null && frameworks.length > 0
 
   return (
-    <div className="max-w-lg mx-auto mt-10 space-y-4">
-      <div className="text-center space-y-1 mb-6">
-        <h1 className="text-lg font-semibold tracking-tight">模型精度差异分析</h1>
-        <p className="text-xs text-muted-foreground">
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="text-center mb-8 mt-12">
+        <h1 className="text-xl font-semibold tracking-tight">模型精度差异分析</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           上传 ONNX 模型，以 ONNX Runtime 为基准，比对推理框架的精度差异
         </p>
       </div>
 
-      <Card className="border-muted">
-        <CardContent className="p-4">
-          <ModelUpload onUploaded={setModel} />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-[1fr_280px] gap-5 items-start">
+        <Card className="border-muted">
+          <CardContent className="p-5">
+            <ModelUpload onUploaded={setModel} />
+          </CardContent>
+        </Card>
 
-      <Card className="border-muted">
-        <CardContent className="p-4">
-          <FrameworkSelector selected={frameworks} onChange={setFrameworks} />
-        </CardContent>
-      </Card>
-
-      <TaskStarter
-        modelUploaded={model !== null}
-        hasFrameworks={frameworks.length > 0}
-        disabled={!canStart}
-        loading={loading}
-        onClick={handleStart}
-      />
+        <div className="space-y-4">
+          <Card className="border-muted">
+            <CardContent className="p-4">
+              <FrameworkSelector selected={frameworks} onChange={setFrameworks} />
+            </CardContent>
+          </Card>
+          <TaskStarter
+            modelUploaded={model !== null}
+            hasFrameworks={frameworks.length > 0}
+            disabled={!canStart}
+            loading={loading}
+            onClick={handleStart}
+          />
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,19 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Layout } from '@/components/Layout'
-import HomePage from '@/pages/Home'
-import TaskDetailPage from '@/pages/TaskDetail'
+import ToolPage from '@/pages/Tool'
 
 function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/task/:id" element={<TaskDetailPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  )
+  return <ToolPage />
 }
 
 export default App
