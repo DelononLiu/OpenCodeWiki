@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, Clock, FileIcon } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -22,30 +22,27 @@ interface Props {
 
 export function TaskHistoryDrawer({ open, onOpenChange, onSelect }: Props) {
   const [tasks, setTasks] = useState<HistoryItem[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
     const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
     if (useMock) {
-      const { MOCK_TASKS } = await import('@/modules/model_diff/mockData')
-      setTasks(MOCK_TASKS as any)
+      import('@/modules/model_diff/mockData').then(({ MOCK_TASKS }) => {
+        setTasks(MOCK_TASKS as any)
+        setLoading(false)
+      })
     } else {
-      try {
-        const items = await getTaskHistory()
-        setTasks(items as any)
-      } catch {
-        setTasks([])
-      }
+      getTaskHistory()
+        .then((items) => { setTasks(items as any); console.log('history loaded', items.length, 'items') })
+        .catch(() => setTasks([]))
+        .finally(() => setLoading(false))
     }
-  }, [])
+  }, [open])
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(v) => {
-        if (v) load()
-        onOpenChange(v)
-      }}
-    >
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[480px] sm:max-w-[480px]">
         <SheetHeader className="mb-4">
           <SheetTitle className="text-sm">历史任务</SheetTitle>
@@ -55,7 +52,8 @@ export function TaskHistoryDrawer({ open, onOpenChange, onSelect }: Props) {
           <input className="w-full h-8 rounded-md border border-input bg-background pl-8 pr-3 text-xs outline-none focus:border-ring" placeholder="搜索任务..." />
         </div>
         <div className="space-y-1">
-          {tasks.length === 0 && <p className="text-[11px] text-muted-foreground/60 text-center py-4">暂无历史任务</p>}
+          {loading && <p className="text-[11px] text-muted-foreground/60 text-center py-4">加载中...</p>}
+          {!loading && tasks.length === 0 && <p className="text-[11px] text-muted-foreground/60 text-center py-4">暂无历史任务</p>}
           {tasks.map((t) => (
             <button
               key={t.id}
