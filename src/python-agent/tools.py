@@ -142,9 +142,21 @@ async def code_status() -> str:
     return await _get("/api/codegraph/status")
 
 
+@tool
+async def code_list_repos() -> str:
+    """
+    列出所有已索引的代码仓库。
+    用于：首次搜索前了解可用的仓库列表，然后使用 code_search 时指定 project 参数。
+
+    返回格式：[{"name":"仓库名","stats":{...}}]
+    """
+    return await _get("/api/repos")
+
+
 # ── 工具列表 ─────────────────────────────────────────────────────
 
 CODEGRAPH_TOOLS = [
+    code_list_repos,      # 放在首位，Agent 会先了解可用仓库
     code_search,
     code_context,
     code_callers,
