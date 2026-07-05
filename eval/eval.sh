@@ -26,10 +26,13 @@ echo "问题: $QUESTION"
 # ── Step 1: 调 QA pipeline ──
 echo "[1/3] 调用 QA pipeline..."
 RAW_FILE="$TMPDIR/qa-raw.txt"
+TIME_START=$(date +%s)
 curl -s -X POST http://localhost:4747/codewiki/api/qa \
   -H "Content-Type: application/json" \
   -d "{\"question\":\"$QUESTION\",\"repo\":\"$REPO\"}" \
   --max-time 120 > "$RAW_FILE" 2>/dev/null
+TIME_END=$(date +%s)
+ELAPSED=$((TIME_END - TIME_START))
 
 ANSWER_TEXT=$(python3 -c "
 import json
@@ -78,12 +81,14 @@ echo "=== 评分 ==="
 cat "$RESULT_FILE"
 
 # ── Step 3: 更新 METRICS.md ──
-CASE_ID_NUM=$CASE_ID RESULT_FILE_PATH=$RESULT_FILE python3 << 'PYEOF' 2>/dev/null || true
+export CASE_ID_NUM=$CASE_ID RESULT_FILE_PATH=$RESULT_FILE ELAPSED=$ELAPSED
+python3 << 'PYEOF' 2>/dev/null || true
 import json, os
 
 metrics_file = 'METRICS.md'
 case_id = os.environ['CASE_ID_NUM']
 result_file = os.environ['RESULT_FILE_PATH']
+elapsed = os.environ.get('ELAPSED', '?')
 
 with open(result_file) as f:
     r = json.load(f)
@@ -105,12 +110,13 @@ for i, line in enumerate(lines):
     if line.startswith(prefix):
         parts = line.split('|')
         if len(parts) >= 5:
-            # | 001 | desc | 基准 | 最新 | 变化 |
+            # | 001 | desc | 基准 | 最新 | 变化 | 耗时 |
             old_val = parts[3].strip()
             old_score = int(old_val) if old_val.isdigit() else 0
             diff = new_total - old_score
             parts[4] = f' **{new_total}** '
             parts[5] = f' {diff:+d} '
+            parts[6] = f' {elapsed}s '
             lines[i] = '|'.join(parts)
             found = True
         break
@@ -123,7 +129,7 @@ if not found:
         with open(case_file) as f:
             d = json.load(f)
         desc = d.get('question', '?')[:30]
-    lines.append(f'| {case_id} | {desc} | ? | **{new_total}** | — |\n')
+    lines.append(f'| {case_id} | {desc} | ? | **{new_total}** | — | {elapsed}s |\n')
 
 with open(metrics_file, 'w') as f:
     f.writelines(lines)
