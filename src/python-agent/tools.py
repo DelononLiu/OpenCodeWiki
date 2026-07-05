@@ -73,6 +73,8 @@ def _call_cli(tool: str, args: dict) -> str:
     """调用 codebase-memory-mcp CLI"""
     cli_args = [BINARY, "cli", tool, json.dumps(args)]
     _log(f"CLI: {BINARY} cli {tool} ({json.dumps({k: v for k, v in args.items() if k != 'query' or len(str(v)) < 60})})")
+    MAX_OUTPUT = 3000  # 最大输出字符数，防止撑爆 LLM 上下文
+
     try:
         result = subprocess.run(
             cli_args,
@@ -89,8 +91,15 @@ def _call_cli(tool: str, args: dict) -> str:
         for line in reversed(lines):
             line = line.strip()
             if line.startswith("{"):
-                return line
-        return result.stdout
+                output = line
+                if len(output) > MAX_OUTPUT:
+                    output = output[:MAX_OUTPUT] + '...}'
+                    _log(f"  (truncated to {MAX_OUTPUT} chars)")
+                return output
+        output = result.stdout
+        if len(output) > MAX_OUTPUT:
+            output = output[:MAX_OUTPUT] + '...'
+        return output
     except subprocess.TimeoutExpired:
         return '{"error": "CLI timeout"}'
     except FileNotFoundError:
@@ -317,7 +326,10 @@ async def code_grep(pattern: str, project: str = "") -> str:
         if result.returncode == 1:
             return ""  # no matches
         result.check_returncode()
-        return result.stdout
+        output = result.stdout
+        if len(output) > 3000:
+            output = output[:3000] + "\n...(truncated)"
+        return output
     except subprocess.TimeoutExpired:
         return '{"error": "rg timeout"}'
     except Exception as e:
