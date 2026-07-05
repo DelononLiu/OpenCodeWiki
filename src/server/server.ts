@@ -7,6 +7,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createQaEndpoint } from './qa-endpoint.js';
 import { getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa/session.js';
+import { getQaMode } from './acp/AcpClient.js';
 import { langgraphHandler } from './handlers/langgraph-handler.js';
 import qaRouter, { createLightweightSearchHandler } from './qa-router.js';
 import * as qaStore from './qa-store.js';
@@ -1130,17 +1131,14 @@ app.get('/api/me', (req, res) => {
 });
 
 // ── 问答模式路由 ──────────────────────────────────────────────────
-// QA_MODE 环境变量切换：llm（默认）| acp | langgraph
+// 从 config.json qaMode 或 OPENCODEWIKI_QA_MODE 环境变量读取。
+//  llm（默认）| acp | langgraph
 // 每种实现在独立文件中，前端无感知。
-const QA_MODE = process.env.QA_MODE || 'llm';
+const QA_MODE = getQaMode();
 const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope(), handler);
 
-if (QA_MODE === 'langgraph') {
-  app.post('/api/qa', langgraphHandler);
-} else {
-  // llm 和 acp 由 qa-endpoint.ts 统一处理（ACP_ENABLE 环境变量切换）
-  app.post('/api/qa', qaHandler);
-}
+const qaRouter = QA_MODE === 'langgraph' ? langgraphHandler : qaHandler;
+app.post('/api/qa', qaRouter);
 
 app.get('/api/qa/session/:id', (req, res) => {
   const session = getSession(req.params.id);

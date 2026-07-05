@@ -112,6 +112,29 @@ export function isAcpCrossRoot(acpCrossRoot?: boolean): boolean {
   return fileCfg.acpCrossRoot === true;
 }
 
+export type QaMode = 'llm' | 'acp' | 'langgraph';
+
+/**
+ * 获取问答模式。
+ * 优先级：OPENCODEWIKI_QA_MODE 环境变量 > config.json qaMode > 默认 'llm'
+ *
+ * - llm: 纯 LLM，一次调用
+ * - acp: ACP Agent 子进程（qar-agent）
+ * - langgraph: Python LangGraph Agent（handlers/langgraph-handler.ts）
+ */
+export function getQaMode(): QaMode {
+  const env = process.env.OPENCODEWIKI_QA_MODE;
+  if (env && ['llm', 'acp', 'langgraph'].includes(env)) {
+    return env as QaMode;
+  }
+  const fileCfg = loadConfigFile();
+  const mode = fileCfg.qaMode;
+  if (mode && ['llm', 'acp', 'langgraph'].includes(mode)) {
+    return mode as QaMode;
+  }
+  return 'llm';
+}
+
 export class AcpClient {
   private connection: acp.ClientSideConnection | null = null;
   private agentManager: AgentManager;

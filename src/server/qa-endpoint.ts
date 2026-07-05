@@ -2,7 +2,7 @@
  * qa-endpoint.ts — LLM + ACP 问答处理器。
  *
  * 共享模块（qa/）已抽离到独立文件，本文件只包含 createQaEndpoint。
- * LLM 和 ACP 两种模式通过 ACP_ENABLED 环境变量切换。
+ * LLM 和 ACP 两种模式通过 config.json qaMode 字段切换。
  */
 
 import crypto from 'crypto';
@@ -11,7 +11,7 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import type { ServerResponse } from 'http';
-import { AcpClient, isAcpEnabled, isAcpCrossRoot } from './acp/AcpClient.js';
+import { AcpClient, getQaMode, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 import * as qaStore from './qa-store.js';
 import type { Domain } from './qa-store.js';
@@ -27,7 +27,7 @@ import {
 } from './qa/prompt-utils.js';
 import type { QaMessage, QaSession } from './qa/types.js';
 
-const ACP_ENABLED = isAcpEnabled();
+const QA_MODE = getQaMode();
 const ACP_CROSS_ROOT = isAcpCrossRoot();
 const CROSS_REPO_ACP_CLIENT = '__cross__';
 
@@ -89,7 +89,7 @@ export function createQaEndpoint(
   crossRepoScope?: string[],
   handler?: any,
 ) {
-  if (ACP_ENABLED && listRepos) {
+  if (QA_MODE === 'acp' && listRepos) {
     listRepos().then(repos => { for (const r of repos) resolveRepo(r.name).then(e => { if (e) initRepoClient(r.name, e.storagePath); }); });
   }
 
@@ -134,7 +134,7 @@ export function createQaEndpoint(
     try { llmConfig = await resolveLLMConfig(); } catch {}
     const hasLLM = !!llmConfig?.apiKey;
 
-    if (!ACP_ENABLED && !hasLLM) {
+    if (QA_MODE !== 'acp' && !hasLLM) {
       res.status(500).json({ error: 'LLM not configured' }); return;
     }
 
@@ -227,15 +227,14 @@ export function createQaEndpoint(
         const repos: RepoInfo[] = [];
         if (isCrossRepo && repoBaseMap) { for (const [name, sp] of repoBaseMap) repos.push({ name, storagePath: sp }); }
         else if (entry) repos.push({ name: entry.name || repoName || 'default', storagePath: entry.storagePath });
-        const mode: 'llm' | 'acp' = ACP_ENABLED ? 'acp' : 'llm';
-        const matches = await resolver.search(intentResult, repos, mode);
-        pipelineContext = mode === 'llm' ? resolver.buildLLMContext(matches, intentResult) : resolver.buildACPContext(matches, intentResult);
+        const matches = await resolver.search(intentResult, repos);
+        pipelineContext = QA_MODE === 'acp' ? resolver.buildACPContext(matches, intentResult) : resolver.buildLLMContext(matches, intentResult);
       } catch (e) { log('warn', 'pipeline error (non-fatal)', { error: (e as Error)?.message }); }
     }
 
     log('info', '【✓】完成', { intent: pipelineIntent, sources: sources.length });
 
-    if (!ACP_ENABLED && handler && !pipelineContext && hasLLM) {
+    if (QA_MODE !== 'acp' && handler && !pipelineContext && hasLLM) {
       pipelineContext = '## NOTE\n未在代码库中搜索到与问题相关的内容。请告知用户未找到相关代码，并引导用户提供更具体的信息（如函数名、错误信息、文件路径等）以便进一步定位。';
     }
 
@@ -266,17 +265,17 @@ export function createQaEndpoint(
       '- **回答输出格式必须严格遵循下方 ## 回答模板 中的一种模板（A/B/C/D/E），不允许自由发挥。**\n' +
       '- **问题相关信息搜索链路：search_graph（语义搜索符号）→ get_code_snippet（源码片段分析）→ trace_path（调用链追溯）→ grep（纯文本 fallback/提取）**\n' +
       '- 每个回答最多包含 6 个引用。\n' +
-      (!ACP_ENABLED ? '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' : '') +
+      (QA_MODE !== 'acp' ? '- **引用必须使用下方 SEARCH CONTEXT 中列出的精确路径，禁止编造不存在的文件路径。**\n' : '') +
       (isCrossRepo ? '- 引用格式：(repoName:path/file.ts:line)\n' : '- 引用格式：(relative/path/file.ts:line)\n') +
       '- 范围引用用 (path:start-end)\n' +
       (isCrossRepo ? '- 引用文件路径使用 仓库名+相对路径 格式\n' : '- 引用文件路径使用相对路径\n') +
       '\n' + domainFlow + '\n\n' + structure + '\n\n' +
       (uploadedContext ? uploadedContext + '\n' : '') +
       (pipelineContext ? pipelineContext + '\n\n---\n注意：以上是 PIPELINE 分析结果。\n\n' :
-      !ACP_ENABLED ? '## SEARCH CONTEXT\n以下是搜索到的代码文件：\n\n- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n---\n' : '');
+      QA_MODE !== 'acp' ? '## SEARCH CONTEXT\n以下是搜索到的代码文件：\n\n- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n---\n' : '');
 
     // ── ACP 模式 ──────────────────────────────────────────────────
-    if (ACP_ENABLED) {
+    if (QA_MODE === 'acp') {
       let acpRepoName: string | undefined;
       let acpRepoBase: string | undefined;
       if (isCrossRepo && repoBaseMap && repoBaseMap.size > 0) {

@@ -17,6 +17,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { getQaMode } from './acp/AcpClient.js';
 
 // ── 向量搜索接口（由外部注入，避免 ESM/TS 编译路径问题）────────────────
 export interface VectorSearchAPI {
@@ -207,6 +208,11 @@ export class QaResolver {
     private executeTool: (tool: string, args: any) => Promise<{ content: [{ text: string }] }>,
   ) {}
 
+  /** 当前是否纯 LLM 模式（非 ACP） */
+  private get isLLMMode(): boolean {
+    return getQaMode() === 'llm' || getQaMode() === 'langgraph';
+  }
+
   /** 第2轮精筛结果（供前端展示），无第二轮时返回空 */
   getRefinedSources(): PipelineMatch[] { return this._sourceMatches; }
 
@@ -336,7 +342,7 @@ export class QaResolver {
     return this.rankAndDedup(all);
   }
 
-  async search(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  async search(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // ── 第0步：BM25 语义搜索定位实体（参考 Claude：一次 semantic query 让排序区分相关结果） ──
     if (intent.entityName && intent.entityName.length >= 2) {
       const query = intent.english_query || intent.question || intent.entityName;
@@ -383,13 +389,13 @@ export class QaResolver {
     // ── 第1轮：BM25 + grep ──
     let matches: PipelineMatch[];
     switch (intent.intent) {
-      case 'what-is':        matches = await this.searchWhatIs(intent, repos, mode); break;
-      case 'where-is':       matches = await this.searchWhereIs(intent, repos, mode); break;
-      case 'how-to':         matches = await this.searchHowTo(intent, repos, mode); break;
-      case 'why-error':      matches = await this.searchWhyError(intent, repos, mode); break;
-      case 'what-structure': matches = await this.searchWhatStructure(intent, repos, mode); break;
-      case 'what-impact':    matches = await this.searchWhatImpact(intent, repos, mode); break;
-      default:               matches = await this.searchWhatIs(intent, repos, mode); break;
+      case 'what-is':        matches = await this.searchWhatIs(intent, repos); break;
+      case 'where-is':       matches = await this.searchWhereIs(intent, repos); break;
+      case 'how-to':         matches = await this.searchHowTo(intent, repos); break;
+      case 'why-error':      matches = await this.searchWhyError(intent, repos); break;
+      case 'what-structure': matches = await this.searchWhatStructure(intent, repos); break;
+      case 'what-impact':    matches = await this.searchWhatImpact(intent, repos); break;
+      default:               matches = await this.searchWhatIs(intent, repos); break;
     }
 
     // 中文 grep 补充
@@ -405,7 +411,7 @@ export class QaResolver {
     matches = this.rankAndDedup(matches);
 
     // ── 第2轮：候选筛选 + 深读（仅 LLM 模式，有 LLM 配置且不是太简单的问题）──
-    if (mode === 'llm' && this.llm && intent.question && intent.question.length > 6 && matches.length > 0) {
+    if (this.isLLMMode && this.llm && intent.question && intent.question.length > 6 && matches.length > 0) {
       const candidates = this.buildCandidateList(matches);
       console.log('[qa]   ▸ round2 candidates:', candidates.length, 'chars,', matches.length, 'matches');
       const filter = await this.filterCandidates(intent.question, candidates);
@@ -436,13 +442,13 @@ export class QaResolver {
           const extraIntent = { ...intent, searchTerms: filter.newTerms.slice(0, 2) };
           let extra: PipelineMatch[];
           switch (intent.intent) {
-            case 'what-is':        extra = await this.searchWhatIs(extraIntent, repos, mode); break;
-            case 'where-is':       extra = await this.searchWhereIs(extraIntent, repos, mode); break;
-            case 'how-to':         extra = await this.searchHowTo(extraIntent, repos, mode); break;
-            case 'why-error':      extra = await this.searchWhyError(extraIntent, repos, mode); break;
-            case 'what-structure': extra = await this.searchWhatStructure(extraIntent, repos, mode); break;
-            case 'what-impact':    extra = await this.searchWhatImpact(extraIntent, repos, mode); break;
-            default:               extra = await this.searchWhatIs(extraIntent, repos, mode); break;
+            case 'what-is':        extra = await this.searchWhatIs(extraIntent, repos); break;
+            case 'where-is':       extra = await this.searchWhereIs(extraIntent, repos); break;
+            case 'how-to':         extra = await this.searchHowTo(extraIntent, repos); break;
+            case 'why-error':      extra = await this.searchWhyError(extraIntent, repos); break;
+            case 'what-structure': extra = await this.searchWhatStructure(extraIntent, repos); break;
+            case 'what-impact':    extra = await this.searchWhatImpact(extraIntent, repos); break;
+            default:               extra = await this.searchWhatIs(extraIntent, repos); break;
           }
           if (extra.length > 0) {
             console.log('[qa]   ▸ round2 new matches:', extra.length);
@@ -571,10 +577,10 @@ export class QaResolver {
   // ═══════════════════════════════════════════════════
 
   /** what-is: 精确匹配 → 展开定义 → BM25 兜底 */
-  private async searchWhatIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchWhatIs(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // 精确匹配优先
     if (intent.exactMatches && intent.exactMatches.length > 0) {
-      if (mode === 'llm' && intent.exactMatches.length === 1) {
+      if (this.isLLMMode && intent.exactMatches.length === 1) {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
@@ -593,7 +599,7 @@ export class QaResolver {
       allMatches.push(...repoMatches);
     }
     let ranked = this.rankAndDedup(allMatches);
-    if (mode === 'llm' && ranked.length > 0) {
+    if (this.isLLMMode && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
@@ -602,10 +608,10 @@ export class QaResolver {
   }
 
   /** where-is: 精确定位符号定义的位置 */
-  private async searchWhereIs(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchWhereIs(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // 精确匹配优先
     if (intent.exactMatches && intent.exactMatches.length > 0) {
-      if (mode === 'llm' && intent.exactMatches.length === 1) {
+      if (this.isLLMMode && intent.exactMatches.length === 1) {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
@@ -638,7 +644,7 @@ export class QaResolver {
       }
     }
     let ranked = this.rankAndDedup(allMatches);
-    if (mode === 'llm' && ranked.length > 0) {
+    if (this.isLLMMode && ranked.length > 0) {
       const topN = Math.min(15, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
@@ -647,10 +653,10 @@ export class QaResolver {
   }
 
   /** how-to: 精确匹配 → 追踪调用链 → BM25 兜底 */
-  private async searchHowTo(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchHowTo(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // 精确匹配优先
     if (intent.exactMatches && intent.exactMatches.length > 0) {
-      if (mode === 'llm' && intent.exactMatches.length === 1) {
+      if (this.isLLMMode && intent.exactMatches.length === 1) {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
@@ -673,14 +679,14 @@ export class QaResolver {
       allMatches.push(...repoMatches);
     }
     let ranked = this.rankAndDedup(allMatches);
-    if (mode === 'llm') {
+    if (this.isLLMMode) {
       ranked = await this.expandWithCallersCallees(ranked.slice(0, 3), repos);
     }
     return ranked;
   }
 
   /** why-error: 精确匹配 → grep 错误码 → BM25 兜底 */
-  private async searchWhyError(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchWhyError(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     const allMatches: PipelineMatch[] = [];
 
     // Separate error patterns (ALL_CAPS, numbers) from symbol names
@@ -724,7 +730,7 @@ export class QaResolver {
     let ranked = this.rankAndDedup(allMatches);
 
     // LLM mode: expand with context for deeper analysis
-    if (mode === 'llm' && ranked.length > 0) {
+    if (this.isLLMMode && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
@@ -734,10 +740,10 @@ export class QaResolver {
   }
 
   /** what-structure: 精确匹配 → 展开定义 → BM25 兜底 */
-  private async searchWhatStructure(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchWhatStructure(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // 精确匹配优先
     if (intent.exactMatches && intent.exactMatches.length > 0) {
-      if (mode === 'llm' && intent.exactMatches.length === 1) {
+      if (this.isLLMMode && intent.exactMatches.length === 1) {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
@@ -756,7 +762,7 @@ export class QaResolver {
       allMatches.push(...repoMatches);
     }
     let ranked = this.rankAndDedup(allMatches);
-    if (mode === 'llm' && ranked.length > 0) {
+    if (this.isLLMMode && ranked.length > 0) {
       const topN = Math.min(10, ranked.length);
       const expanded = await this.expandWithContext(ranked.slice(0, topN), repos);
       ranked = expanded;
@@ -765,10 +771,10 @@ export class QaResolver {
   }
 
   /** what-impact: 精确匹配 → 追踪调用链 → BM25 兜底 */
-  private async searchWhatImpact(intent: IntentResult, repos: RepoInfo[], mode: 'llm' | 'acp'): Promise<PipelineMatch[]> {
+  private async searchWhatImpact(intent: IntentResult, repos: RepoInfo[]): Promise<PipelineMatch[]> {
     // 精确匹配优先
     if (intent.exactMatches && intent.exactMatches.length > 0) {
-      if (mode === 'llm' && intent.exactMatches.length === 1) {
+      if (this.isLLMMode && intent.exactMatches.length === 1) {
         const m = intent.exactMatches[0];
         if (m.name) {
           const repo = repos.find(r => r.name === m.repo);
@@ -791,7 +797,7 @@ export class QaResolver {
       allMatches.push(...repoMatches);
     }
     let ranked = this.rankAndDedup(allMatches);
-    if (mode === 'llm' && ranked.length > 0) {
+    if (this.isLLMMode && ranked.length > 0) {
       const top = ranked[0];
       if (top.name) {
         const repo = repos.find(r => r.name === top.repo);
