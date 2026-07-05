@@ -49,45 +49,30 @@ async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncG
     final_answer = ""
 
     try:
-        async for event in agent.astream_events(
+        async for chunk in agent.astream(
             {"messages": messages},
             config=config,
-            version="v2",
         ):
-            kind = event["event"]
-
-            # LLM 流式输出 token
-            if kind == "on_chat_model_stream":
-                chunk = event["data"]["chunk"]
-                if hasattr(chunk, "content") and chunk.content:
-                    final_answer += chunk.content
-                    yield _sse("token", {"content": chunk.content})
-
-            # 工具调用开始
-            elif kind == "on_tool_start":
-                tool_name = event["name"] or event.get("run_id", "")[:8]
-                yield _sse("reasoning", {
-                    "content": f"🔍 正在使用 `{tool_name}` 搜索..."
-                })
-
-            # 工具调用结束
-            elif kind == "on_tool_end":
-                output = event["data"].get("output", "")
-                if output:
-                    # 截取太长输出避免 SSE 爆炸
-                    output_str = str(output)
-                    if len(output_str) > 200:
-                        output_str = output_str[:200] + "..."
-                    yield _sse("reasoning", {
-                        "content": f"📥 获取到结果 ({len(output_str)} chars)"
-                    })
-
-            # Agent 开始思考（介于工具调用之间）
-            elif kind == "on_chain_stream":
-                if event.get("name") == "agent" and not event["data"].get("output"):
-                    yield _sse("reasoning", {
-                        "content": "💭 分析搜索结果..."
-                    })
+            if "__end__" in chunk:
+                break
+            for node, values in chunk.items():
+                if isinstance(values, dict):
+                    if "messages" in values:
+                        msgs = values["messages"]
+                        if msgs:
+                            for m in (msgs if isinstance(msgs, list) else [msgs]):
+                                role = getattr(m, "type", "") or getattr(m, "role", "")
+                                if role not in ("ai", "assistant"):
+                                    continue
+                                if hasattr(m, "content") and m.content and isinstance(m.content, str):
+                                    text = m.content
+                                    if text not in final_answer:
+                                        new_text = text[len(final_answer):] if text.startswith(final_answer) else text
+                                        if new_text:
+                                            final_answer = text
+                                            yield _sse("token", {"content": new_text})
+                    if "next" in values:
+                        yield _sse("reasoning", {"content": "🔍 正在搜索..."})
 
     except Exception as e:
         error_message = str(e)

@@ -6,6 +6,7 @@ Tools: codegraph 工具注册。
 """
 
 import json
+import sys
 from typing import Optional
 
 import httpx
@@ -15,21 +16,33 @@ from config import get_codegraph_bridge_url
 
 
 def _ts_url(path: str) -> str:
-    return f"{get_codegraph_bridge_url()}{path}"
+    base = get_codegraph_bridge_url()
+    url = f"{base}{path}"
+    return url
+
+
+def _log(msg: str):
+    print(f"[tools] {msg}", file=sys.stderr)
 
 
 async def _post(path: str, body: dict = None) -> str:
     """POST 请求 TS API，返回文本响应"""
+    url = _ts_url(path)
+    _log(f"POST {url}")
     async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(_ts_url(path), json=body or {})
+        resp = await client.post(url, json=body or {})
+        _log(f"  → {resp.status_code}")
         resp.raise_for_status()
         return resp.text
 
 
 async def _get(path: str) -> str:
     """GET 请求 TS API"""
+    url = _ts_url(path)
+    _log(f"GET {url}")
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(_ts_url(path))
+        resp = await client.get(url)
+        _log(f"  → {resp.status_code}")
         resp.raise_for_status()
         return resp.text
 
@@ -143,6 +156,24 @@ async def code_status() -> str:
 
 
 @tool
+async def code_grep(pattern: str, project: str = "") -> str:
+    """
+    文本搜索代码内容。基于 ripgrep 实现，比语义搜索更适合：
+    - 搜索具体字符串、错误码、宏定义、函数调用
+    - 搜索配置文件内容（CMakeLists.txt、Makefile、package.json 等）
+    - 不确定符号名时用文本搜索定位
+
+    参数：
+      pattern: 搜索关键词（支持正则）
+      project: 仓库名（来自 code_list_repos），不传则搜所有
+    """
+    body = {"pattern": pattern}
+    if project:
+        body["project"] = project
+    return await _post("/api/codegraph/grep", body)
+
+
+@tool
 async def code_list_repos() -> str:
     """
     列出所有已索引的代码仓库。
@@ -157,6 +188,7 @@ async def code_list_repos() -> str:
 
 CODEGRAPH_TOOLS = [
     code_list_repos,      # 放在首位，Agent 会先了解可用仓库
+    code_grep,            # ripgrep 文本搜索
     code_search,
     code_context,
     code_callers,

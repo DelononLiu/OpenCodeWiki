@@ -5,6 +5,7 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
 import { createQaEndpoint } from './qa-endpoint.js';
 import { getSession, listSessions, listFrequentQuestions, searchQuestions } from './qa/session.js';
 import { getQaMode } from './acp/AcpClient.js';
@@ -1073,6 +1074,37 @@ app.get('/api/codegraph/status', async (_req, res) => {
     const result = await handler.execute('codegraph_status', {});
     res.json(result?.content?.[0]?.text || '');
   } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ripgrep 文本搜索 ───────────────────────────────────────
+const RG_BIN = path.resolve(rootDir, 'vendor', 'rg');
+app.post('/api/codegraph/grep', express.json(), async (req, res) => {
+  const { pattern, project } = req.body || {};
+  if (!pattern || typeof pattern !== 'string') {
+    res.status(400).json({ error: 'Missing pattern' }); return;
+  }
+  try {
+    // Resolve repo path from registry
+    const registry = await loadRegistry();
+    let searchDir = rootDir; // default to self
+    if (project && typeof project === 'string') {
+      const entry = registry.find(r => r.name === project);
+      if (entry) searchDir = entry.path;
+    }
+    // Run ripgrep
+    const result = await new Promise<string>((resolve, reject) => {
+      execFile(RG_BIN, ['--no-heading', '-n', pattern, searchDir],
+        { timeout: 15000, maxBuffer: 100 * 1024 },
+        (err, stdout) => {
+          if (err && (err as any).code === 1) { resolve(''); return; } // no matches
+          if (err) { reject(err); return; }
+          resolve(stdout);
+        });
+    });
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/repos', async (_req, res) => {
