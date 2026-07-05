@@ -73,7 +73,7 @@ def _call_cli(tool: str, args: dict) -> str:
     """调用 codebase-memory-mcp CLI"""
     cli_args = [BINARY, "cli", tool, json.dumps(args)]
     _log(f"CLI: {BINARY} cli {tool} ({json.dumps({k: v for k, v in args.items() if k != 'query' or len(str(v)) < 60})})")
-    MAX_OUTPUT = 3000  # 最大输出字符数，防止撑爆 LLM 上下文
+    MAX_OUTPUT = 10000  # 最大输出字符数，防止撑爆 LLM 上下文
 
     try:
         result = subprocess.run(
@@ -327,8 +327,8 @@ async def code_grep(pattern: str, project: str = "") -> str:
             return ""  # no matches
         result.check_returncode()
         output = result.stdout
-        if len(output) > 3000:
-            output = output[:3000] + "\n...(truncated)"
+        if len(output) > MAX_OUTPUT:
+            output = output[:MAX_OUTPUT] + "\n...(truncated)"
         return output
     except subprocess.TimeoutExpired:
         return '{"error": "rg timeout"}'
