@@ -78,17 +78,56 @@ echo "=== 评分 ==="
 cat "$RESULT_FILE"
 
 # ── Step 3: 更新 METRICS.md ──
-python3 -c "
-import json, datetime
-with open('$RESULT_FILE') as f:
+CASE_ID_NUM=$CASE_ID RESULT_FILE_PATH=$RESULT_FILE python3 << 'PYEOF' 2>/dev/null || true
+import json, os
+
+metrics_file = 'METRICS.md'
+case_id = os.environ['CASE_ID_NUM']
+result_file = os.environ['RESULT_FILE_PATH']
+
+with open(result_file) as f:
     r = json.load(f)
 if 'error' in r:
     exit(0)
-dim = r.get('scores', {})
-row = f'| {datetime.date.today()} | $CASE_ID | $COMMIT_HASH | {r.get(\"total\",0)} | {dim.get(\"completeness\",0)} | {dim.get(\"code_refs\",0)} | {dim.get(\"structure\",0)} | {dim.get(\"depth\",0)} | {dim.get(\"actionability\",0)} |\n'
-with open('METRICS.md', 'a') as f:
-    f.write(row)
+
+new_total = r.get('total', 0)
+
+# 读取 METRICS.md
+lines = []
+if os.path.exists(metrics_file):
+    with open(metrics_file) as f:
+        lines = f.readlines()
+
+# 查找用例行: "| 001 | ..."
+prefix = f'| {case_id} '
+found = False
+for i, line in enumerate(lines):
+    if line.startswith(prefix):
+        parts = line.split('|')
+        if len(parts) >= 5:
+            # | 001 | desc | 基准 | 最新 | 变化 |
+            old_val = parts[3].strip()
+            old_score = int(old_val) if old_val.isdigit() else 0
+            diff = new_total - old_score
+            parts[4] = f' **{new_total}** '
+            parts[5] = f' {diff:+d} '
+            lines[i] = '|'.join(parts)
+            found = True
+        break
+
+if not found:
+    # 新用例，追加一行
+    case_file = f'cases/{int(case_id):03d}.json'
+    desc = '?'
+    if os.path.exists(case_file):
+        with open(case_file) as f:
+            d = json.load(f)
+        desc = d.get('question', '?')[:30]
+    lines.append(f'| {case_id} | {desc} | ? | **{new_total}** | — |\n')
+
+with open(metrics_file, 'w') as f:
+    f.writelines(lines)
 print('METRICS.md 已更新')
-" 2>/dev/null || true
+PYEOF
 
 rm -rf "$TMPDIR"
