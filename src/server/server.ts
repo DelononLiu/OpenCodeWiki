@@ -1006,6 +1006,72 @@ const listRepos = async () => {
   return results;
 };
 
+// ── codegraph 工具 API（供 Python LangGraph Agent 调用） ──────────
+// 这些路由包装 codebase-memory-mcp 的 CLI 工具，通过 HTTP 暴露给外部服务。
+
+app.post('/api/codegraph/search', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('codegraph_search', req.body);
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/context', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('codegraph_context', req.body);
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/callers', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('trace_path', { ...req.body, direction: 'inbound' });
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/callees', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('trace_path', { ...req.body, direction: 'outbound' });
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/impact', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('trace_path', { ...req.body, direction: 'both', depth: req.body.depth ?? 2 });
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/node', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('codegraph_node', req.body);
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/explore', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('codegraph_explore', req.body);
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/codegraph/files', express.json(), async (req, res) => {
+  try {
+    const result = await handler.execute('codegraph_files', req.body);
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/codegraph/status', async (_req, res) => {
+  try {
+    const result = await handler.execute('codegraph_status', {});
+    res.json(result?.content?.[0]?.text || '');
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/repos', async (_req, res) => {
   const repos = await listRepos();
   res.json(repos);
@@ -1063,6 +1129,43 @@ app.get('/api/me', (req, res) => {
 
 const qaHandler = createQaEndpoint(resolveRepo, resolveLLMConfig, search, listRepos, searchCallers, searchImpact, loadCrossRepoScope(), handler);
 app.post('/api/qa', qaHandler);
+
+// ── Python LangGraph Agent 代理路由 ─────────────────────────────
+// 将请求转发到 Python FastAPI 服务（端口 8000），SSE 流透传到前端。
+const PY_AGENT_URL = process.env.PYTHON_AGENT_URL || 'http://localhost:8000';
+app.post('/api/qa/agent', express.json(), async (req, res) => {
+  try {
+    const pyResp = await fetch(`${PY_AGENT_URL}/agent/qa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    if (!pyResp.ok) {
+      const errText = await pyResp.text().catch(() => 'unknown error');
+      res.status(502).json({ error: `Agent backend error: ${errText.slice(0, 500)}` });
+      return;
+    }
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    const reader = pyResp.body!.getReader();
+    const decoder = new TextDecoder();
+    let aborted = false;
+    req.on('close', () => { aborted = true; reader.cancel().catch(() => {}); });
+    while (true) {
+      if (aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+  } catch (e: any) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: e.message })}\n\n`);
+    res.end();
+  }
+});
+// ────────────────────────────────────────────────────────────────
 
 app.get('/api/qa/session/:id', (req, res) => {
   const session = getSession(req.params.id);
