@@ -8,25 +8,23 @@
   },
   "total": 22,
   "strengths": [
-    "代码引用非常准确，文件路径和行号具体到函数级别",
-    "结构清晰，采用分层架构（API层→核心处理层→执行层→工具层）",
-    "表格形式呈现方法功能，便于快速查阅",
-    "调用链总结完整，从用户代码到后端执行一目了然"
+    "代码引用非常准确，行号具体且与参考答案一致",
+    "结构清晰，使用表格和流程图直观展示调用链和拆分机制",
+    "覆盖了核心入口、数据结构、拆分策略和公共API等关键维度",
+    "对拆分机制（split_equal/simple/seq）的描述详细且准确"
   ],
   "weaknesses": [
-    "缺少对`llama_encode()`入口函数的提及，与参考答案相比不完整",
-    "未提及`n_batch`和`n_ubatch`参数控制机制",
-    "未说明`process_ubatch()`函数的具体位置和功能",
-    "缺少对`split_simple()`、`split_equal()`、`split_seq()`三种拆分策略的对比说明"
+    "缺少对n_batch和n_ubatch参数控制作用的明确说明",
+    "未提及llama_encode()入口，仅覆盖了decode路径",
+    "未明确区分逻辑batch大小和物理微批大小的概念"
   ],
   "suggestions": [
-    "补充`llama_encode()`作为另一个公开API入口",
-    "增加对`n_batch`和`n_ubatch`参数控制batch大小的说明",
-    "明确提及`process_ubatch()`函数在`src/llama-context.cpp:1300-1370`的位置和功能",
-    "对比三种拆分策略的适用场景和差异"
+    "补充n_batch和n_ubatch参数的作用说明，明确逻辑与物理batch的区别",
+    "添加llama_encode()入口的引用，使覆盖更完整",
+    "在流程图中标注n_ubatch对拆分的影响，增强可理解性"
   ],
   "case": "003",
-  "date": "2026-07-05T16:28:50.505459",
-  "commit": "5094457",
-  "answer_len": 3622
+  "date": "2026-07-06T02:16:39.981682",
+  "commit": "116b6f9",
+  "answer_len": 1642
 }
