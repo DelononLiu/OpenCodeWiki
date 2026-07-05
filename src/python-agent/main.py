@@ -27,12 +27,16 @@ def get_agent():
     return _agent
 
 
-async def event_stream(question: str, session_id: str) -> AsyncGenerator[str, None]:
+async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncGenerator[str, None]:
     """LangGraph Agent SSE 流式输出"""
     agent = get_agent()
 
     # 1. session 事件
     yield _sse("session", {"id": session_id})
+
+    # 2. 构建消息：包含仓库上下文
+    repo_hint = f"\n\n(当前项目: {repo})" if repo else ""
+    messages = [("user", question + repo_hint)]
 
     # 2. 运行 Agent
     config = {
@@ -46,7 +50,7 @@ async def event_stream(question: str, session_id: str) -> AsyncGenerator[str, No
 
     try:
         async for event in agent.astream_events(
-            {"messages": [("user", question)]},
+            {"messages": messages},
             config=config,
             version="v2",
         ):
@@ -119,6 +123,7 @@ async def agent_qa(request: Request):
     body = await request.json()
     question = (body.get("question") or "").strip()
     session_id = body.get("sessionId") or str(uuid.uuid4())
+    repo = body.get("repo") or body.get("project") or ""
 
     if not question:
         return StreamingResponse(
@@ -127,7 +132,7 @@ async def agent_qa(request: Request):
         )
 
     return StreamingResponse(
-        event_stream(question, session_id),
+        event_stream(question, session_id, repo),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
