@@ -42,7 +42,7 @@ async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncG
     config = {
         "configurable": {"thread_id": session_id},
         # 限制最大工具调用步数，防止无限循环
-        "recursion_limit": 25,
+        "recursion_limit": 100,
     }
 
     error_message = None
