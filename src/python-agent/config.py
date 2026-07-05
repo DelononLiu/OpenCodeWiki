@@ -52,8 +52,13 @@ def get_llm_config() -> dict:
 
 
 def get_codegraph_bridge_url() -> str:
-    """获取 TS codegraph-bridge 的基地址"""
-    return os.environ.get("CODEGRAPH_BRIDGE_URL", "http://localhost:4747")
+    """获取 TS codegraph-bridge 的基地址（含 BASE_PATH）"""
+    base = os.environ.get("CODEGRAPH_BRIDGE_URL", "http://localhost:4747")
+    cfg = load_config()
+    base_path = cfg.get("basePath", "") or ""
+    if base_path and not base.endswith(base_path):
+        base = base.rstrip("/") + "/" + base_path.lstrip("/")
+    return base
 
 
 def is_agent_enabled() -> bool:
