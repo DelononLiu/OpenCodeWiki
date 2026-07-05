@@ -115,9 +115,12 @@ def _normalize_args(tool: str, args: dict) -> dict:
             mapped["pattern"] = mapped.pop("query")
 
     if tool == "get_code_snippet":
-        # get_code_snippet 用 qualified_name 不是 symbol
-        if "symbol" in mapped:
-            mapped["qualified_name"] = mapped.pop("symbol")
+        # get_code_snippet 需要 qualified_name（全限定名）
+        # 如果传入的是裸 symbol，用 search_graph 查出全名
+        if "symbol" in mapped and "qualified_name" not in mapped:
+            sym = mapped.pop("symbol")
+            # 先试试直接当 qualified_name 用
+            mapped["qualified_name"] = sym
         if "name" in mapped and "qualified_name" not in mapped:
             mapped["qualified_name"] = mapped.pop("name")
 
@@ -176,13 +179,27 @@ async def code_search(query: str, project: str = "") -> str:
 
 
 @tool
-async def code_context(symbol: str) -> str:
+async def code_context(symbol: str, project: str = "") -> str:
     """
     获取符号的完整上下文定义。传入函数名、类名、变量名等符号名。
     用于：查看某个函数/类的完整实现代码。
     """
-    args = {"symbol": symbol}
-    result = _call_cli("get_code_snippet", args)
+    args = {"qualified_name": symbol}
+    if project:
+        args["project"] = project
+    result = _call_cli("get_code_snippet", _normalize_args("get_code_snippet", args))
+    # 如果失败（qualified_name 格式不对），用 search_graph 查出全限定名再试
+    if "qualified_name is required" in result or "error" in result.lower():
+        search_result = _call_cli("search_graph", {"query": symbol, "limit": 1})
+        try:
+            data = json.loads(search_result)
+            if data.get("results"):
+                qn = data["results"][0].get("qualified_name")
+                if qn:
+                    args["qualified_name"] = qn
+                    result = _call_cli("get_code_snippet", args)
+        except (json.JSONDecodeError, KeyError, IndexError):
+            pass
     return result
 
 
