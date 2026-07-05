@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bash scripts/start.sh --watch",
+    "dev:all": "bash scripts/start.sh --watch & cd src/python-agent && source .venv/bin/activate && uvicorn main:app --port 8000 --reload",
+    "dev:agent": "cd src/python-agent && source .venv/bin/activate && uvicorn main:app --port 8000 --reload",
     "start": "bash scripts/start.sh",
     "build": "npx tsc",
     "wiki": "npx tsx scripts/wiki.mjs",

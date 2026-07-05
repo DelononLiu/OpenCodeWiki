@@ -43,7 +43,7 @@ done
 
 if [ "$WATCH" = "watch" ]; then
   echo "  监听模式：代码变更自动重启"
-  exec npx tsx watch src/server/cbm-bridge.ts "${ARGS[@]}"
+  exec npx tsx watch src/server/server.ts "${ARGS[@]}"
 else
-  exec npx tsx src/server/cbm-bridge.ts "${ARGS[@]}"
+  exec npx tsx src/server/server.ts "${ARGS[@]}"
 fi
