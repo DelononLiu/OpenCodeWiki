@@ -31,7 +31,7 @@ opencodewiki/
 │   │   │   ├── prompt-utils.ts     # 分类/模板/翻译
 │   │   │   └── types.ts            # 共享类型
 │   │   ├── acp/                    # ACP 协议（旧）
-│   │   ├── cbm-bridge.ts           # codebase-memory-mcp 桥接层
+│   │   ├── codegraph-bridge.ts      # codebase-memory-mcp 桥接层
 │   │   ├── qa-resolver.ts          # 意图分析引擎
 │   │   └── wiki-integration.ts     # Wiki 生成
 │   └── index.ts                    # 入口导出

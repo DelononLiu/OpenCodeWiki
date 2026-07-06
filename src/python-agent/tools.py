@@ -337,6 +337,30 @@ async def code_grep(pattern: str, project: str = "") -> str:
 
 
 @tool
+async def code_read_wiki(project: str = "") -> str:
+    """
+    读取项目的 wiki 文档（由 openwiki 生成）。
+    用于：回答前了解项目背景、架构、工作流，使回答更准确。
+    """
+    registry = _load_registry()
+    wiki_base = None
+    if project:
+        for entry in registry:
+            if entry.get("name") == project:
+                wiki_base = Path(entry["path"]) / ".codegraph" / "wiki"
+                break
+    if not wiki_base or not wiki_base.exists():
+        return "wiki not found"
+    qs = wiki_base / "quickstart.md"
+    if qs.exists():
+        text = qs.read_text()
+        if len(text) > 4000:
+            text = text[:4000] + "\n...(truncated)"
+        return text
+    return "wiki not found"
+
+
+@tool
 async def code_list_repos() -> str:
     """
     列出所有已索引的代码仓库。
@@ -350,6 +374,7 @@ async def code_list_repos() -> str:
 
 CODEGRAPH_TOOLS = [
     code_list_repos,
+    code_read_wiki,
     code_grep,
     code_search,
     code_context,

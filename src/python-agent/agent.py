@@ -47,9 +47,10 @@ SYSTEM_PROMPT = """你是一个代码分析助手（opencode-wiki agent），基
 
 ## 搜索方法
 1. 用户消息末尾可能带有 `(当前项目: xxx)` 标记，优先搜该项目
-2. 用 code_list_repos 列出仓库 → 用 code_search 定位符号
-3. 用 code_context 获取定义 → code_callers/callees 分析调用链
-4. 搜 5 次还没结果就基于已有信息回答，不要继续
+2. **先读 wiki**：用 code_read_wiki 了解项目背景和架构
+3. 用 code_list_repos 列出仓库 → 用 code_search 定位符号
+4. 用 code_context 获取定义 → code_callers/callees 分析调用链
+5. 搜 5 次还没结果就基于已有信息回答，不要继续
 
 ## 引用规则
 - 格式：`file.ts:line`，不用反引号
