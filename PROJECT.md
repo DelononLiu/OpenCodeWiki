@@ -1,6 +1,6 @@
 # OpenCodeWiki — 开源代码问答系统
 
-OpenCodeWiki 是一个基于 Tree‑sitter 的开源代码问答系统，支持**纯 LLM 模式**和**ACP Agent 模式**两种问答方式。底层引擎使用 [codegraph](https://github.com/colbymchenry/codegraph)（TypeScript + SQLite + MCP）。
+OpenCodeWiki 是一个基于 Tree‑sitter 的开源代码问答系统，支持**纯 LLM 模式**、**ACP Agent 模式**和**LangGraph Agent 模式**三种问答方式。底层引擎使用 codebase-memory-mcp（Go + SQLite），通过 `cbm-bridge.ts` 封装工具调用。
 
 > 本项目是 `opencodewiki` 分支，从 GitNexus 项目中独立出来的 CodeWiki 演进版本。
 
@@ -10,31 +10,42 @@ OpenCodeWiki 是一个基于 Tree‑sitter 的开源代码问答系统，支持*
 
 ```
 opencodewiki/
-├── package.json                     # 依赖: codegraph, express, cors
+├── package.json                     # 依赖: express, cors
 ├── tsconfig.json                    # ES2022 / NodeNext / strict
-├── start.sh                         # npx tsx 启动脚本
+├── scripts/
+│   └── start.sh                     # npx tsx 启动脚本
 ├── src/
+│   ├── python-agent/               # LangGraph Agent（Python）
+│   │   ├── main.py                 # FastAPI + SSE
+│   │   ├── agent.py                # LangGraph agent + system prompt
+│   │   ├── tools.py                # codebase-memory-mcp CLI 工具
+│   │   └── config.py               # 配置读取
 │   ├── server/
-│   │   ├── codegraph-bridge.ts      # Express HTTP API 包装 ToolHandler
-│   │   └── qa-endpoint.ts          # SSE 流式问答端点（双模式）
-│   ├── acp/
-│   │   ├── AcpClient.ts            # ACP ClientSideConnection 封装
-│   │   ├── AgentManager.ts         # Agent 子进程 spawn/管理
-│   │   ├── callbacks.ts            # ACP Client 回调实现
-│   │   ├── types.ts                # AcpMessageHandler, FileChange 类型
-│   │   └── index.ts                # 统一导出
-│   └── index.ts                    # 入口（导出 createQaEndpoint）
-├── qa/
-│   └── index.html                  # Q&A 前端（SSE 流式 + Markdown + 代码高亮）
-├── home/
-│   └── index.html                  # Wiki 概览页面
+│   │   ├── server.ts               # Express 入口 + 路由
+│   │   ├── qa-endpoint.ts          # LLM + ACP 模式（旧，保留 fallback）
+│   │   ├── handlers/
+│   │   │   └── langgraph-handler.ts # LangGraph TS 代理
+│   │   ├── qa/
+│   │   │   ├── session.ts          # Session CRUD
+│   │   │   ├── sources.ts          # 源码引用解析
+│   │   │   ├── prompt-utils.ts     # 分类/模板/翻译
+│   │   │   └── types.ts            # 共享类型
+│   │   ├── acp/                    # ACP 协议（旧）
+│   │   ├── cbm-bridge.ts           # codebase-memory-mcp 桥接层
+│   │   ├── qa-resolver.ts          # 意图分析引擎
+│   │   └── wiki-integration.ts     # Wiki 生成
+│   └── index.ts                    # 入口导出
+├── eval/                           # 评测
+│   ├── cases/                      # 评测用例（001~005）
+│   ├── eval.sh                     # 评测运行器
+│   └── METRICS.md                  # 评测指标历史
 ├── vendor/
 │   ├── marked.min.js               # Markdown 渲染
 │   ├── highlight.min.js            # 代码高亮
-│   └── mermaid.min.js              # 图表渲染
+│   └── rg                          # ripgrep 二进制
 ├── docs/
-│   ├── 调研01-codegraph替换方案.md
-│   └── 调研02-三合一融合方案.md
+│   ├── 调研03-Agent框架选型.md
+│   └── superpowers/specs/
 ├── AGENTS.md                       # AI Agent 开发指南
 ├── PROJECT.md                      # 本文档
 └── TASKS.md                        # 任务注册中心
@@ -44,23 +55,24 @@ opencodewiki/
 
 ## API 定义
 
-### `src/server/codegraph-bridge.ts`
+### `src/server/server.ts`
 
-HTTP API 包装 codegraph 的 `ToolHandler`，共 9 条路由：
+Express 入口，通过 `cbm-bridge.ts` 调用 codebase-memory-mcp CLI。9 条工具 API 路由：
 
-| 路由 | 后端调用 | 说明 |
-|------|----------|------|
-| `POST /api/search` | `handler.execute('codegraph_search', body)` | 代码搜索 |
-| `POST /api/context` | `handler.execute('codegraph_context', body)` | 符号上下文 |
-| `POST /api/impact` | `handler.execute('codegraph_impact', body)` | 影响分析 |
-| `GET /api/status` | `handler.execute('codegraph_status', {})` | 索引状态 |
-| `POST /api/files` | `handler.execute('codegraph_files', body)` | 文件列表 |
-| `POST /api/callers` | `handler.execute('codegraph_callers', body)` | 调用者查询 |
-| `POST /api/callees` | `handler.execute('codegraph_callees', body)` | 被调用者查询 |
-| `POST /api/node` | `handler.execute('codegraph_node', body)` | 节点详情 |
-| `POST /api/explore` | `handler.execute('codegraph_explore', body)` | 探索分析 |
+| 路由 | 说明 |
+|------|------|
+| `POST /api/codegraph/search` | 语义代码搜索 |
+| `POST /api/codegraph/context` | 符号上下文定义 |
+| `POST /api/codegraph/impact` | 影响范围分析 |
+| `POST /api/codegraph/callers` | 调用者查询 |
+| `POST /api/codegraph/callees` | 被调用者查询 |
+| `POST /api/codegraph/node` | AST 节点详情 |
+| `POST /api/codegraph/explore` | 探索式搜索 |
+| `POST /api/codegraph/files` | 文件列表 |
+| `GET /api/codegraph/status` | 索引状态 |
 
-启动：`npx tsx src/server/codegraph-bridge.ts`（端口 4747，可通过 `PORT` 环境变量配置）
+支持 `BASE_PATH` 环境变量（如 `/codewiki`）将路由挂载到前缀下。
+端口 4747，可通过 `PORT` 环境变量配置。
 
 ### `src/server/qa-endpoint.ts`
 
