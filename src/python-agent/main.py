@@ -11,18 +11,9 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 
-from graph import build_graph
+from graph import get_graph
 
 app = FastAPI(title="OpenCodeWiki Agent", version="0.1.0")
-
-_graph = None
-
-
-def get_graph():
-    global _graph
-    if _graph is None:
-        _graph = build_graph()
-    return _graph
 
 
 async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncGenerator[str, None]:

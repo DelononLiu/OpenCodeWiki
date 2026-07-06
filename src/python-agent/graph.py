@@ -105,10 +105,8 @@ async def run_sub(state: GraphState) -> dict:
 
     limit = INTENT_LIMITS.get(intent, 20)
 
-    final = await agent.ainvoke(
-        {"messages": msgs},
-        {"configurable": {"thread_id": "sub"}, "recursion_limit": limit},
-    )
+    config = {"recursion_limit": limit, "configurable": {"thread_id": "sub"}}
+    final = await agent.ainvoke({"messages": msgs}, config)
 
     return {"messages": final.get("messages", [])}
 
@@ -128,3 +126,14 @@ def build_graph():
 
     graph.set_entry_point("classify")
     return graph.compile(checkpointer=MemorySaver())
+
+
+# 全局图实例，供 main.py 使用
+_graph = None
+
+
+def get_graph():
+    global _graph
+    if _graph is None:
+        _graph = build_graph()
+    return _graph
