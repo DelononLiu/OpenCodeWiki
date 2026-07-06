@@ -110,13 +110,17 @@ for i, line in enumerate(lines):
     if line.startswith(prefix):
         parts = line.split('|')
         if len(parts) >= 5:
-            # | 001 | desc | 基准 | 最新 | 变化 | 耗时 |
-            old_val = parts[3].strip()
-            old_score = int(old_val) if old_val.isdigit() else 0
-            diff = new_total - old_score
+            # | 001 | desc | 前次 | 本次 | 变化 | 前次耗时 | 本次耗时 |
+            prev_score_val = parts[4].strip().strip('*')  # 旧的"本次"分 → 新的"前次"
+            parts[3] = f' {prev_score_val} '
             parts[4] = f' **{new_total}** '
+            prev_score = int(prev_score_val) if prev_score_val.isdigit() else 0
+            diff = new_total - prev_score if prev_score else 0
             parts[5] = f' {diff:+d} '
-            parts[6] = f' {elapsed}s '
+            # 耗时
+            prev_time = parts[7].strip() if len(parts) >= 8 else '-'
+            parts[6] = f' {prev_time} '  # 前次耗时 = 旧的本次耗时
+            parts[7] = f' {elapsed}s '   # 本次耗时
             lines[i] = '|'.join(parts)
             found = True
         break
@@ -129,7 +133,7 @@ if not found:
         with open(case_file) as f:
             d = json.load(f)
         desc = d.get('question', '?')[:30]
-    lines.append(f'| {case_id} | {desc} | ? | **{new_total}** | — | {elapsed}s |\n')
+    lines.append(f'| {case_id} | {desc} | — | **{new_total}** | — | — | {elapsed}s |\n')
 
 with open(metrics_file, 'w') as f:
     f.writelines(lines)
