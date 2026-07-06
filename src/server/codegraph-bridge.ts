@@ -1,11 +1,11 @@
 /**
- * cbm-bridge.ts — codebase-memory-mcp 桥接层
+ * codegraph-bridge.ts — codebase-memory-mcp 桥接层
  *
  * 替代 @colbymchenry/codegraph 的 ToolHandler，通过 execSync 调用
  * codebase-memory-mcp 的 CLI 接口。接口签名与旧的 handler.execute() 兼容。
  *
  * 使用方式:
- *   const bridge = new CbmBridge();
+ *   const bridge = new CodegraphBridge();
  *   const result = await bridge.execTool('search_graph', { query: 'foo', project: 'my-proj' });
  *
  * 项目名推导（codebase-memory-mcp 内部使用）:
@@ -42,14 +42,14 @@ const INDEX_TOOLS = new Set(['index_repository', 'index_status']);
 
 // ── 类型 ──────────────────────────────────────────────────────────
 
-export interface CbmToolResult {
+export interface CodegraphToolResult {
   content: { type: string; text: string }[];
   isError?: boolean;
 }
 
-// ── CbmBridge ──────────────────────────────────────────────────────
+// ── CodegraphBridge ──────────────────────────────────────────────────────
 
-export class CbmBridge {
+export class CodegraphBridge {
   private binaryPath: string;
   private binaryChecked = false;
   private binaryAvailable = false;
@@ -58,7 +58,7 @@ export class CbmBridge {
     /** 当前项目（OpenCodeWiki 自身）的根目录，用于 self-repo 默认 project */
     private selfRepoPath?: string,
   ) {
-    this.binaryPath = CbmBridge.resolveBinary();
+    this.binaryPath = CodegraphBridge.resolveBinary();
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -105,7 +105,7 @@ export class CbmBridge {
     edges?: number;
     error?: string;
   }> {
-    const binary = CbmBridge.resolveBinary();
+    const binary = CodegraphBridge.resolveBinary();
     let available = false;
     try {
       execFileSync(binary, ['--version'], { stdio: 'pipe', encoding: 'utf-8', timeout: 5000 });
@@ -141,21 +141,21 @@ export class CbmBridge {
    * @param tool  工具名（兼容旧的 codegraph_xxx 名称）
    * @param args  参数字典
    */
-  async execTool(tool: string, args: Record<string, any> = {}): Promise<CbmToolResult> {
+  async execTool(tool: string, args: Record<string, any> = {}): Promise<CodegraphToolResult> {
     return this._exec(tool, args);
   }
 
   /** 别名，与旧的 handler.execute(tool, args) 签名兼容 */
-  async execute(tool: string, args: Record<string, any> = {}): Promise<CbmToolResult> {
+  async execute(tool: string, args: Record<string, any> = {}): Promise<CodegraphToolResult> {
     return this._exec(tool, args);
   }
 
-  private async _exec(tool: string, args: Record<string, any> = {}): Promise<CbmToolResult> {
-    const cbmTool = this.resolveTool(tool);
-    const cbmArgs = this.mapArgs(cbmTool, args);
-    const timeout = INDEX_TOOLS.has(cbmTool) ? TIMEOUT_INDEX : TIMEOUT_DEFAULT;
+  private async _exec(tool: string, args: Record<string, any> = {}): Promise<CodegraphToolResult> {
+    const cgTool = this.resolveTool(tool);
+    const cgArgs = this.mapArgs(cgTool, args);
+    const timeout = INDEX_TOOLS.has(cgTool) ? TIMEOUT_INDEX : TIMEOUT_DEFAULT;
 
-    const cliArgs = ['cli', cbmTool, JSON.stringify(cbmArgs)];
+    const cliArgs = ['cli', cgTool, JSON.stringify(cgArgs)];
 
     try {
       const result = spawnSync(this.binaryPath, cliArgs, {
@@ -170,7 +170,7 @@ export class CbmBridge {
         return {
           content: [{ type: 'text', text: JSON.stringify({
             error: result.error.message || String(result.error),
-            tool: cbmTool,
+            tool: cgTool,
           }) }],
           isError: true,
         };
@@ -202,7 +202,7 @@ export class CbmBridge {
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: errMsg, tool: cbmTool }) }],
+        content: [{ type: 'text', text: JSON.stringify({ error: errMsg, tool: cgTool }) }],
         isError: true,
       };
     }
@@ -240,11 +240,11 @@ export class CbmBridge {
 
     // 1. projectPath → project（路径转项目名）
     if (mapped.projectPath) {
-      mapped.project = CbmBridge.repoPathToProjectName(mapped.projectPath);
+      mapped.project = CodegraphBridge.repoPathToProjectName(mapped.projectPath);
       delete mapped.projectPath;
     } else if (this.selfRepoPath && !mapped.project) {
       // 没有传 project 时默认 self repo（兼容旧行为）
-      mapped.project = CbmBridge.repoPathToProjectName(this.selfRepoPath);
+      mapped.project = CodegraphBridge.repoPathToProjectName(this.selfRepoPath);
     }
 
     // 2. 工具特定参数映射
@@ -311,15 +311,15 @@ export class CbmBridge {
 
 // ── 单例工厂 ──────────────────────────────────────────────────────
 
-let _bridge: CbmBridge | null = null;
+let _bridge: CodegraphBridge | null = null;
 
 /**
- * 获取共享 CbmBridge 实例（应用启动时设置 selfRepoPath）。
+ * 获取共享 CodegraphBridge 实例（应用启动时设置 selfRepoPath）。
  * 供 cbm-bridge 和 qa-resolver 使用。
  */
-export function getBridge(selfRepoPath?: string): CbmBridge {
+export function getBridge(selfRepoPath?: string): CodegraphBridge {
   if (!_bridge) {
-    _bridge = new CbmBridge(selfRepoPath);
+    _bridge = new CodegraphBridge(selfRepoPath);
   }
   return _bridge;
 }
@@ -343,7 +343,7 @@ export function resetBridge(): void {
  * cbm-bridge → server 的单向依赖关系。
  */
 export async function startServer(): Promise<void> {
-  console.log('[cbm-bridge] Starting OpenCodeWiki server...');
+  console.log('[codegraph-bridge] Starting OpenCodeWiki server...');
   await import('./server.js');
 }
 
@@ -351,14 +351,14 @@ export async function startServer(): Promise<void> {
 
 const entryFile = process.argv[1] || '';
 const isMainEntry =
-  entryFile.endsWith('cbm-bridge.ts') ||
-  entryFile.endsWith('cbm-bridge.js') ||
-  entryFile.endsWith('/cbm-bridge.ts') ||
-  entryFile.endsWith('/cbm-bridge.js');
+  entryFile.endsWith('codegraph-bridge.ts') ||
+  entryFile.endsWith('codegraph-bridge.js') ||
+  entryFile.endsWith('/codegraph-bridge.ts') ||
+  entryFile.endsWith('/codegraph-bridge.js');
 
 if (isMainEntry) {
   startServer().catch(err => {
-    console.error('[cbm-bridge] Failed to start server:', err);
+    console.error('[codegraph-bridge] Failed to start server:', err);
     process.exit(1);
   });
 }

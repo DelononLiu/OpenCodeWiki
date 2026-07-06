@@ -1021,8 +1021,8 @@ export class QaResolver {
           if (vecResults.length === 0) continue;
           // 向量结果映射为 PipelineMatch
           const projectName = repo.storagePath ? repo.storagePath.replace(/^\//, '').replace(/\//g, '-') : repo.name;
-          const cbmDbDir = path.join(os.homedir(), '.cache', 'codebase-memory-mcp');
-          const codegraphDb = path.join(cbmDbDir, projectName + '.db');
+          const cgDbDir = path.join(os.homedir(), '.cache', 'codebase-memory-mcp');
+          const codegraphDb = path.join(cgDbDir, projectName + '.db');
           try {
             const { DatabaseSync } = await import('node:sqlite');
             const db = new DatabaseSync(codegraphDb);
@@ -1104,7 +1104,7 @@ export class QaResolver {
             filePath: r.file_path || r.file || '',
             startLine: r.start_line || 1,
             endLine: r.end_line || r.start_line || 1,
-            kind: this.classifyCbmKind(r.label || r.kind || ''),
+            kind: this.classifyCgKind(r.label || r.kind || ''),
             score: r.rank !== undefined ? Math.round(100 - r.rank) : 60,
             snippet: '',
             repo: repoName,
@@ -1345,7 +1345,7 @@ ${this._agentContext ? `\n项目概览（供参考项目结构和命名约定）
   }
 
   /** Map codebase-memory-mcp label to internal MatchKind */
-  private classifyCbmKind(label: string): MatchKind {
+  private classifyCgKind(label: string): MatchKind {
     const k = (label || '').toLowerCase();
     if (['function', 'method', 'class', 'interface', 'type', 'enum'].includes(k)) return 'definition';
     if (['variable', 'property', 'field', 'parameter'].includes(k)) return 'declaration';

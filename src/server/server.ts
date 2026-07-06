@@ -19,7 +19,7 @@ import {
 } from './wiki-integration.js';
 import { loadWikiMeta } from './wiki-meta.js';
 import { setupAuth } from './auth/index.js';
-import { CbmBridge, getBridge } from './cbm-bridge.js';
+import { CodegraphBridge, getBridge } from './codegraph-bridge.js';
 
 // Vector store — 可选，提供混合检索（FTS5 + 向量 + RRF）
 try {
@@ -68,7 +68,7 @@ async function saveRegistry(entries: RegistryEntry[]): Promise<void> {
 
 async function getCodegraphStatsFor(projectPath: string) {
   try {
-    const projectName = CbmBridge.repoPathToProjectName(projectPath);
+    const projectName = CodegraphBridge.repoPathToProjectName(projectPath);
     const result = await handler.execute('index_status', { project: projectName });
     const text = result?.content?.[0]?.text || '{}';
     const data = JSON.parse(text);
@@ -108,12 +108,12 @@ const handler = await initHandler();
 async function initHandler(): Promise<any> {
   const b = getBridge(rootDir);
   if (!b.isAvailable()) {
-    console.warn('[cbm] codebase-memory-mcp not available — search/QA will be degraded');
+    console.warn('[codegraph] codebase-memory-mcp not available — search/QA will be degraded');
     return {
       execute: async (_method: string, _args?: any) => ({ content: [{ text: '' }] }),
     };
   }
-  console.log('[cbm] Using codebase-memory-mcp as index engine');
+  console.log('[codegraph] Using codebase-memory-mcp as index engine');
   return b;
 }
 
@@ -128,7 +128,7 @@ let _archCache: Record<string, any> = {};
 async function getArchitecture(repoPath: string): Promise<any | null> {
   if (_archCache[repoPath]) return _archCache[repoPath];
   try {
-    const projectName = CbmBridge.repoPathToProjectName(repoPath);
+    const projectName = CodegraphBridge.repoPathToProjectName(repoPath);
     const result = await handler.execute('get_architecture', { project: projectName });
     const text = result?.content?.[0]?.text;
     if (!text) return null;
@@ -146,7 +146,7 @@ setInterval(() => { _archCache = {}; }, 10 * 60 * 1000);
  */
 async function searchByLabel(repoPath: string, label: string, limit = 40): Promise<any[]> {
   try {
-    const projectName = CbmBridge.repoPathToProjectName(repoPath);
+    const projectName = CodegraphBridge.repoPathToProjectName(repoPath);
     const result = await handler.execute('search_graph', {
       name_pattern: '.*',
       label,
@@ -786,7 +786,7 @@ app.post('/api/reindex', express.json(), async (req, res) => {
   if (!entry) { res.status(404).json({ error: 'Repo not found' }); return; }
   try {
     const { execFileSync } = await import('child_process');
-    const projectName = CbmBridge.repoPathToProjectName(entry.path);
+    const projectName = CodegraphBridge.repoPathToProjectName(entry.path);
     const mode = full ? 'full' : 'fast';
     execFileSync('codebase-memory-mcp', ['cli', 'index_repository', JSON.stringify({
       repo_path: entry.path,
@@ -917,9 +917,9 @@ const search = async (query: string, repo?: string) => {
 /** Run search_graph (trace_path inbound) for a symbol in a specific repo. */
 const searchCallers = async (symbol: string, repo?: string) => {
   try {
-    const projectName = repo ? CbmBridge.repoPathToProjectName(
+    const projectName = repo ? CodegraphBridge.repoPathToProjectName(
       loadRegistrySync().find(r => r.name === repo)?.path || repo
-    ) : CbmBridge.repoPathToProjectName(rootDir);
+    ) : CodegraphBridge.repoPathToProjectName(rootDir);
     const result = await handler.execute('trace_path', {
       function_name: symbol,
       direction: 'inbound',
@@ -937,9 +937,9 @@ const searchCallers = async (symbol: string, repo?: string) => {
 /** Run trace_path (both directions) for impact analysis of a symbol. */
 const searchImpact = async (symbol: string, repo?: string) => {
   try {
-    const projectName = repo ? CbmBridge.repoPathToProjectName(
+    const projectName = repo ? CodegraphBridge.repoPathToProjectName(
       loadRegistrySync().find(r => r.name === repo)?.path || repo
-    ) : CbmBridge.repoPathToProjectName(rootDir);
+    ) : CodegraphBridge.repoPathToProjectName(rootDir);
     const result = await handler.execute('trace_path', {
       function_name: symbol,
       direction: 'both',
@@ -1116,7 +1116,7 @@ app.post('/api/repos', async (req, res) => {
   const { name, path: repoPath } = req.body;
   if (!name || !repoPath) { res.status(400).json({ error: 'Missing name or path' }); return; }
   const absPath = path.resolve(repoPath);
-  const projectName = CbmBridge.repoPathToProjectName(absPath);
+  const projectName = CodegraphBridge.repoPathToProjectName(absPath);
   // 验证索引是否存在（通过检测 index_status）
   try {
     const check = await handler.execute('index_status', { project: projectName });

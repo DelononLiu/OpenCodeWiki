@@ -23,6 +23,8 @@ export interface AcpConfig {
   acpCrossRoot?: boolean;
   /** Working directory override. */
   acpCwd?: string;
+  /** 问答模式：llm | acp | langgraph */
+  qaMode?: string;
 }
 
 /**
