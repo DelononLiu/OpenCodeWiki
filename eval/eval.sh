@@ -76,6 +76,18 @@ python3 score.py > "$RESULT_FILE" 2>&1 || {
   exit 1
 }
 
+# 注入题目和回答到结果 JSON
+echo "$QUESTION" > "$TMPDIR/question.txt"
+python3 -c "
+import json
+with open('$RESULT_FILE') as f:
+    d = json.load(f)
+d['question'] = open('$TMPDIR/question.txt').read().strip()
+d['answer'] = open('$TMPDIR/answer.txt').read()
+with open('$RESULT_FILE', 'w') as f:
+    json.dump(d, f, ensure_ascii=False, indent=2)
+" 2>/dev/null || true
+
 echo ""
 echo "=== 评分 ==="
 cat "$RESULT_FILE"

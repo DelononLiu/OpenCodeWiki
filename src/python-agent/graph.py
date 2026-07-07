@@ -5,6 +5,7 @@ StateGraph: 按意图路由的自定义 Agent 流程。
 """
 
 import asyncio
+import uuid
 from typing import AsyncGenerator, Literal
 
 from langgraph.graph import END, StateGraph
@@ -107,7 +108,8 @@ async def run_sub(state: GraphState) -> dict:
 
     limit = INTENT_LIMITS.get(intent, 20)
 
-    config = {"recursion_limit": limit, "configurable": {"thread_id": "sub"}}
+    tid = uuid.uuid4().hex[:12]
+    config = {"recursion_limit": limit, "configurable": {"thread_id": tid}}
 
     try:
         final = await agent.ainvoke({"messages": msgs}, config)
