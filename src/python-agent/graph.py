@@ -10,7 +10,8 @@ from typing import AsyncGenerator, Literal
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.errors import GraphRecursionError
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from typing import TypedDict, Sequence
 
 from agent import SYSTEM_PROMPT
@@ -71,6 +72,7 @@ def _get_agent(intent: str):
             model=llm,
             tools=CODEGRAPH_TOOLS,
             prompt=_prompt_for(intent),
+            checkpointer=MemorySaver(),
             name=f"agent-{intent}",
         )
     return _agents[intent]
@@ -106,9 +108,20 @@ async def run_sub(state: GraphState) -> dict:
     limit = INTENT_LIMITS.get(intent, 20)
 
     config = {"recursion_limit": limit, "configurable": {"thread_id": "sub"}}
-    final = await agent.ainvoke({"messages": msgs}, config)
 
-    return {"messages": final.get("messages", [])}
+    try:
+        final = await agent.ainvoke({"messages": msgs}, config)
+        all_msgs = final.get("messages", [])
+    except GraphRecursionError:
+        # 触底时直接用 LLM 回答，不做状态恢复
+        llm = build_llm(get_llm_config())
+        resp = llm.invoke(
+            f"用户问题：{state['question']}\n\n"
+            f"在代码库中搜索了{limit}步未找到完整信息，请基于已有知识直接回答。"
+        )
+        all_msgs = [AIMessage(content=resp.content)]
+
+    return {"messages": all_msgs}
 
 
 # ── 构建图 ──────────────────────────────────────────────────
