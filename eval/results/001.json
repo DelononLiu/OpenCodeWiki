@@ -3,28 +3,30 @@
     "completeness": 4,
     "code_refs": 5,
     "structure": 5,
-    "depth": 4,
-    "actionability": 4
+    "depth": 5,
+    "actionability": 5
   },
-  "total": 22,
+  "total": 24,
   "strengths": [
-    "对比表格清晰，覆盖了入口、核心类、阶段管理、状态机、适用范围、持久化等关键维度",
-    "代码引用非常具体，给出了文件路径和行号，如`TaskFlow.ts:114`、`AssistantHandler.ts:109`",
-    "架构示意图（Mermaid图）直观展示了任务流和小助手的核心组件及共享内核",
-    "提到了小助手转任务流的`/go`或`/totask`功能，增加了实用性"
+    "代码引用非常具体，包含文件路径和行号，远超参考答案",
+    "结构清晰，使用对比表格和Mermaid流程图，可读性强",
+    "深度足够，深入到数据模型、状态机、互转能力等实现细节",
+    "可执行性强，读者能清晰理解何时使用哪种模式"
   ],
   "weaknesses": [
-    "完整性上，参考答案中提到的协议解析（如`[TASK_UPDATE]`、`<TODO_UPDATE>`）、消息存储方式（单文件vs独立存储）、消息压缩、前端渲染管道等细节未覆盖",
-    "深度上，未深入讨论session管理（如`__assistant__`虚拟ID vs 独立session）和状态机具体流转细节",
-    "可执行性上，虽然给出了入口代码，但未像参考答案那样明确给出‘何时用哪个’的简洁指导"
+    "完整性方面，未提及参考答案中的消息压缩、审批流程、知识提取等维度",
+    "未明确说明小助手使用固定ASSISTANT_SYSTEM_PROMPT而任务流使用分阶段提示词",
+    "未提及任务流中的子任务委派机制"
   ],
   "suggestions": [
-    "补充协议解析、消息存储、消息压缩等对比维度，以提升完整性",
-    "增加session管理和状态机具体流转的说明，以增强深度",
-    "在总结部分添加类似‘何时用哪个’的实用建议，帮助读者快速决策"
+    "补充消息压缩、审批流程、知识提取等对比维度",
+    "增加系统提示词差异的说明",
+    "补充子任务委派机制（TASK_DELEGATE）的说明"
   ],
   "case": "001",
-  "date": "2026-07-07T00:13:21.483951",
-  "commit": "9f06313",
-  "answer_len": 2215
+  "date": "2026-07-07T23:19:05.838137",
+  "commit": "52f31d6",
+  "answer_len": 5431,
+  "question": "kcode中小助手和任务流的区别",
+  "answer": "## 小助手 vs 任务流：核心区别\n\nKCode 是**双模式架构**：小助手（Chat Mode）是自由对话，任务流（Task Mode）是结构化五阶段管线。两者共享相同的底层内核（Agent 连接、流式渲染、终端执行、文件 diff），但 UI 组织、数据模型和用户交互路径完全不同。\n\n下面详细说明：\n\n---\n\n### 1. 入口与 UI 差异\n\n| 维度 | 小助手 (Chat Mode) | 任务流 (Task Mode) |\n|------|-------------------|-------------------|\n| 入口 | 直接打开编辑器面板，无侧边任务列表依赖 | 从侧边栏任务列表点击或新建任务后打开 |\n| 渲染管线 | `assistantPipeline.ts:19` — 简单流式对话 | `renderManager.ts:33` (`initTaskV3`) — 多轮对话+阶段卡片 |\n| 视图切换 | 隐藏 `task-view`，显示 `assistant-view` (`assistantView.ts:7`) | 隐藏 `assistant-view`，显示 `task-view` |\n| 头部信息 | 显示 `🤖 KCode 小助手` + 标语 slogan | 显示任务标题 + 类别标签 + 阶段进度条 (当前/已完成/待完成) |\n\n---\n\n### 2. 阶段管理 (最核心的差异)\n\n**小助手**：**无阶段管线**。消息按时间顺序平铺，自由对话，没有 Goal→Plan→Execute 的约束。仅在首次启动时有\"引导步骤\"（`GUIDE_STEPS`），完成后进入自由对话模式。\n\n**任务流**：**5 阶段状态机** (`TaskFlow.ts:92`)，每个任务有明确的 phase 状态流转：\n\n```mermaid\ngraph LR\n    A[🎯 Goal<br/>目标定义] --> B[📋 Plan<br/>计划拆分]\n    B --> C[⚡ Execute<br/>执行代码]\n    C --> D[🔍 Self-Verify<br/>自我验证]\n    D --> E[👀 Review<br/>人工审查]\n    E -->|通过| F[✅ 完成]\n    E -->|不通过| B\n```\n\n每个阶段由 `TaskFlow` 维护独立状态：\n- `goalProposed` / `planProposed` / `executeFinished` / `selfVerifyFinished` — 标识当前阶段是否已完成 (`TaskFlow.ts:96-99`)\n- 同时在对话流中解析特殊标记：`[TASK_UPDATE]`（更新任务元数据）、`[TASK_DELEGATE]`（委派子任务）、`<TODO_UPDATE>`（更新待办）(`TaskFlow.ts:224-388`)\n\n---\n\n### 3. 数据模型差异\n\n**小助手消息** (`types/index.ts:63`)：\n```\nAssistantMessage { id, taskId, type, role, content, timestamp }\n```\n- 存储在 `assistantMessages` 数组中\n- 无阶段概念，无计划步骤，无确认项\n\n**任务对象** (`types/index.ts:76`)：\n```\nTask {\n  id, title, type: 'task' | 'chat',\n  phase: 'goal' | 'plan' | 'execute' | 'self_verify' | 'review',\n  status, planSteps, confirmedItems, pendingItems,\n  flowIteration?, category?, hooks?, ...\n}\n```\n- 存储在独立任务文件中\n- 包含完整的阶段状态、计划列表、确认项、迭代配置\n\n---\n\n### 4. 典型使用场景\n\n| 场景 | 推荐模式 | 原因 |\n|------|---------|------|\n| \"这个函数是什么意思？\" | ✅ **小助手** | 快速问答，无需阶段管理 |\n| \"帮我写一个用户登录模块\" | ✅ **任务流** | 需要分步执行、代码生成、自我验证 |\n| \"这段代码为什么报错？\" | ✅ **小助手** | 诊断问题，一次对话即可 |\n| \"重构整个模块，分 3 个步骤完成\" | ✅ **任务流** | 多阶段执行，每步可审查 |\n| \"实现完成后还要写单元测试\" | ✅ **任务流** | 自动进入 Self-Verify 阶段 |\n\n---\n\n### 5. 互转能力\n\n小助手可以**升级**为任务流：通过 `AssistantHandler.convertToTask()` (`AssistantHandler.ts:148`) 将最近 10 条对话上下文打包成一个 Task 对象，自动创建新任务并进入任务流模式。这是典型的\"先聊后做\"路径——先用小助手讨论需求，确认后再转为结构化任务执行。\n\n---\n\n### 总结\n\n> **小助手 = 自由聊天模式**，适合快速问答、调试、一次性操作；**任务流 = 结构化五阶段管线**，适合功能开发、代码审查、缺陷分析等需要分步执行+人工把关的场景。两者共享内核但组织方式完全不同，并在 `Panel.ts:370-403` 中通过 `loadTask()` vs `loadAssistant()` 两条路径切换。Sorry, need more steps to process this request.## 小助手 vs 任务流：核心区别\n\nKCode 采用**双模式架构**：小助手（Chat Mode）是自由对话，任务流（Task Mode）是结构化五阶段管线。两者共享同一个底层内核（Agent 连接、流式渲染、终端执行、文件 diff），但 UI 组织、数据模型和用户路径完全不同。\n\n---\n\n### 1. 入口与 UI 差异\n\n| 维度 | 小助手 (Chat Mode) | 任务流 (Task Mode) |\n|------|-------------------|-------------------|\n| 入口 | 直接打开编辑器面板，不依赖侧边栏 | 从侧边栏任务列表点击/新建后打开 |\n| 渲染管线 | `assistantPipeline.ts:19` — 简单流式消息 | `renderManager.ts:33` (initTaskV3) — 多轮+阶段卡片 |\n| 视图切换 | 隐藏 `task-view`，显示 `assistant-view` (`assistantView.ts:7`) | 隐藏 `assistant-view`，显示 `task-view` |\n| 头部信息 | 显示 `🤖 KCode 小助手` + 标语 slogan | 显示任务标题 + 类别标签 + 阶段进度条 |\n\n关键代码在 `Panel.ts:370-403`，通过两条路径切换：\n\n- **`loadAssistant()`** (`Panel.ts:380`) — 设置 `currentTaskId = null`，显示小助手视图\n- **`loadTask(taskId)`** (`Panel.ts:370`) — 设置 `currentTaskId = taskId`，走任务流管线\n\n---\n\n### 2. 阶段管理（最核心的差异）\n\n**小助手**：**无阶段管线**。消息按时间顺序平铺，自由对话，没有 Goal→Plan→Execute→Verify→Review 的约束。仅首次启动时有 `GUIDE_STEPS` 引导步骤（`AssistantHandler.ts`），完成后进入纯自由对话模式。\n\n**任务流**：**5 阶段状态机**，每个任务有明确的 phase 状态流转：\n\n```mermaid\ngraph LR\n    G[🎯 Goal<br/>目标定义] --> P[📋 Plan<br/>计划拆分]\n    P --> E[⚡ Execute<br/>执行代码]\n    E --> S[🔍 Self-Verify<br/>自我验证]\n    S --> R[👀 Review<br/>人工审查]\n    R -->|通过| D[✅ 完成]\n    R -->|不通过| P\n```\n\n`TaskFlow` (`taskflow/TaskFlow.ts:92`) 维护每个阶段的独立状态标记：\n- `goalProposed` / `planProposed` / `executeFinished` / `selfVerifyFinished` — 标识当前阶段的完成状态\n- 在流式对话中解析特殊协议标记：`[TASK_UPDATE]`、`[TASK_DELEGATE]`、`<TODO_UPDATE>`、`<KNOWLEDGE_ENTRY>`，实现 AI 与任务元数据的双向交互\n\n---\n\n### 3. 数据模型差异\n\n| 维度 | 小助手消息 | 任务对象 |\n|------|-----------|---------|\n| 类型 | `AssistantMessage` — 仅有 `{id, role, content, timestamp}` | `Task` — 含 phase、status、planSteps、confirmedItems 等完整字段 |\n| 存储 | 单数组 `assistantMessages` | 每个任务独立文件 |\n| 持久化路径 | `ProjectFs._assistantMessagesPath()` | `ProjectFs._taskDir()` — 每个任务独立目录 |\n\n任务对象完整字段（`types/index.ts:76`）：\n```typescript\ninterface Task {\n  id, title, type: 'task' | 'chat',\n  phase: 'goal' | 'plan' | 'execute' | 'self_verify' | 'review',\n  status, planSteps, confirmedItems, pendingItems,\n  flowIteration?, category?, hooks?, ...\n}\n```\n\n---\n\n### 4. 典型使用场景\n\n| 场景 | 推荐模式 | 原因 |\n|------|---------|------|\n| \"这个函数是什么意思？\" | ✅ **小助手** | 快速问答，无需阶段管理 |\n| \"这段代码为什么报错？\" | ✅ **小助手** | 诊断问题，一次对话即可 |\n| \"帮我写一个用户登录模块\" | ✅ **任务流** | 需要分步执行+代码生成+自我验证 |\n| \"重构整个模块，分 3 步完成\" | ✅ **任务流** | 多阶段执行，每步可审查确认 |\n| \"先帮我分析需求\" | ✅ **小助手→任务流** | 小助手讨论→`convertToTask()` 转为正式任务 |\n\n---\n\n### 5. 互转：小助手 → 任务流的\"升级\"路径\n\n小助手可以升级为任务流，这是典型的**\"先聊后做\"模式**（`AssistantHandler.ts:148`）：\n\n```typescript\n// 提取最近10条对话上下文\nconst context = messages.slice(-10).map(m => ...).join('\\n');\n// 自动创建 Task 对象\nconst newTask: Task = { id: `task_${Date.now()}`, title, goal: context, phase: 'goal', ... };\n// 添加到任务存储并打开任务流视图\nthis.store.addTask(newTask);\nthis.loadTask?.(newTask.id);\n// 将最后两条对话作为初始消息发送给 Agent\nawait this.sessionHandler.handleSendMessage(lastTwo, newTask.id);\n```\n\n---\n\n### 总结\n\n> **小助手 = 自由聊天模式**，适合快速问答、调试、一次性操作；**任务流 = 结构化五阶段管线**，适合功能开发、代码审查、缺陷分析等需要分步执行+人工把关的场景。两者共享 `AgentService`、`AcpClient`、终端执行等底层内核，但在 `Panel.ts` 中通过 `loadTask()` vs `loadAssistant()` 两条路径切换，数据模型完全隔离。\n"
 }
