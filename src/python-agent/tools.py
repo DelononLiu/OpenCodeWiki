@@ -40,6 +40,9 @@ def _find_binary() -> str:
 
 BINARY = _find_binary()
 
+# 最大输出字符数，防止撑爆 LLM 上下文
+MAX_OUTPUT = 10000
+
 
 def _log(msg: str):
     print(f"[tools] {msg}", file=sys.stderr)
@@ -73,8 +76,6 @@ def _call_cli(tool: str, args: dict) -> str:
     """调用 codebase-memory-mcp CLI"""
     cli_args = [BINARY, "cli", tool, json.dumps(args)]
     _log(f"CLI: {BINARY} cli {tool} ({json.dumps({k: v for k, v in args.items() if k != 'query' or len(str(v)) < 60})})")
-    MAX_OUTPUT = 10000  # 最大输出字符数，防止撑爆 LLM 上下文
-
     try:
         result = subprocess.run(
             cli_args,

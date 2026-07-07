@@ -4,6 +4,7 @@ FastAPI 入口：StateGraph Agent 服务。
 启动：uvicorn main:app --port 8000 --reload
 """
 
+import asyncio
 import json
 import uuid
 from typing import AsyncGenerator
@@ -24,9 +25,12 @@ async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncG
 
     final_answer = ""
     try:
-        result = await graph.ainvoke(
-            {"question": question, "project": repo, "intent": "", "messages": []},
-            config={"configurable": {"thread_id": session_id}},
+        result = await asyncio.wait_for(
+            graph.ainvoke(
+                {"question": question, "project": repo, "intent": "", "messages": []},
+                config={"configurable": {"thread_id": session_id}},
+            ),
+            timeout=90,
         )
         for m in result.get("messages", []):
             role = getattr(m, "type", "") or getattr(m, "role", "")
@@ -36,8 +40,13 @@ async def event_stream(question: str, session_id: str, repo: str = "") -> AsyncG
         if final_answer:
             yield _sse("token", {"content": final_answer})
         else:
-            yield _sse("reasoning", {"content": "未能生成回答"})
+            msgs = result.get("messages", [])
+            yield _sse("reasoning", {
+                "content": f"未能生成回答（消息数: {len(msgs)}）"
+            })
 
+    except asyncio.TimeoutError:
+        yield _sse("error", {"message": "Agent 执行超时（90s），请简化问题后重试"})
     except Exception as e:
         yield _sse("error", {"message": f"Agent 执行出错: {e}"})
 

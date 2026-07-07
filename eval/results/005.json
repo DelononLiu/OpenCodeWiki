@@ -2,32 +2,32 @@
   "scores": {
     "completeness": 3,
     "code_refs": 3,
-    "structure": 3,
+    "structure": 4,
     "depth": 3,
-    "actionability": 3
+    "actionability": 4
   },
-  "total": 15,
+  "total": 17,
   "strengths": [
-    "对默认DEBUG日志已启用的说明很清晰，纠正了常见误解",
-    "引用了具体的文件路径和行号，增强了可信度",
-    "使用mermaid流程图直观展示了编译时和运行时的日志控制层次"
+    "结构清晰，分运行时和编译期两部分，并给出了推荐方案",
+    "运行时调试部分覆盖了CLI参数、环境变量和代码回调三种方式，可执行性强",
+    "编译期选项列出了多个后端专用调试开关，信息较全面"
   ],
   "weaknesses": [
-    "遗漏了运行时日志级别控制的关键方式（-lv 5 / --log-verbosity），仅提到--verbose",
-    "未提及后端专用调试开关（Vulkan/WebGPU等），覆盖不够全面",
-    "对GGML_DEBUG宏的描述不够准确，参考答案指出其控制GGML_PRINT_DEBUG等宏，而待评估回答仅说控制内部诊断代码",
-    "缺少完整的可执行命令示例，如cmake命令中缺少-DCMAKE_BUILD_TYPE=Debug和-DCMAKE_C_FLAGS"
+    "遗漏了核心编译宏GGML_DEBUG的详细说明，参考答案中明确指出了GGML_DEBUG控制GGML_PRINT_DEBUG等宏，待评估回答仅简单提及",
+    "未提及-DCMAKE_BUILD_TYPE=Debug的作用（关优化、加调试符号），参考答案对此有明确说明",
+    "代码引用行号可能不准确或过时，如ggml-impl.h:125和llama-impl.h:31，参考答案未引用具体行号更稳妥",
+    "编译期部分未说明如何通过CMake传递-DGGML_DEBUG=1，仅提到在ggml-impl.h中手动定义，缺少完整编译命令示例"
   ],
   "suggestions": [
-    "补充运行时日志级别控制的具体命令，如-lv 5和--log-verbosity",
-    "增加后端调试开关的说明，如Vulkan、WebGPU相关选项",
-    "完善cmake编译命令示例，包含-DCMAKE_BUILD_TYPE=Debug和完整的-DCMAKE_C_FLAGS=\"-DGGML_DEBUG=1\"",
-    "明确区分GGML_LOG_DEBUG（默认启用）和GGML_DEBUG（需编译时开启）的不同作用"
+    "补充GGML_DEBUG宏的详细说明，包括其控制的宏（GGML_PRINT_DEBUG等）和不同级别（5、10）",
+    "增加完整的CMake编译命令示例，展示如何通过-DCMAKE_C_FLAGS传递-DGGML_DEBUG=1",
+    "说明-DCMAKE_BUILD_TYPE=Debug的作用，以及它本身不开启额外打印但会关优化",
+    "核实并更新代码引用行号，或改为不引用具体行号以避免过时"
   ],
   "case": "005",
-  "date": "2026-07-07T23:21:15.890042",
-  "commit": "52f31d6",
-  "answer_len": 1233,
+  "date": "2026-07-08T00:09:22.379517",
+  "commit": "f33eb37",
+  "answer_len": 1329,
   "question": "我想编译库，开调试打印要配啥",
-  "answer": "Sorry, need more steps to process this request.好问题，让我看看 llama.cpp 的调试打印机制和对应的编译选项。现在我已经完整了解了日志机制，总结如下：\n\n---\n\n默认情况下 **DEBUG 日志已经是编译启用并输出到 stderr 的**，你不需要额外配置就能看到。但如果想看到更底层的内部调试信息，可以分层次配置。\n\n## 层次一：默认构建（已包含 DEBUG 日志）\n\n`GGML_LOG_DEBUG`（`ggml/src/ggml-impl.h:122`）和 `LLAMA_LOG_DEBUG`（`src/llama-impl.h:31`）两个宏默认**始终被编译进库**，且默认回调 `ggml_log_callback_default`（`ggml/src/ggml.c:313`）不按 level 过滤，**所有 DEBUG 消息直接输出到 stderr**。所以：\n\n```bash\ncmake -B build\ncmake --build build\n```\n\n就能看到形如 `ggml_init: ...` 的 DEBUG 打印。\n\n## 层次二：启用额外内部调试（编译时）\n\n`GGML_DEBUG` 宏（`ggml/src/ggml-impl.h:125`）硬编码为 `0`，控制一些**更深度的内部诊断代码**。用编译器标志覆盖开启：\n\n```bash\ncmake -B build -DCMAKE_CXX_FLAGS=\"-DGGML_DEBUG=1\"\ncmake --build build\n```\n\n这会启用更多 ggml 内部的调试检查。\n\n## 层次三：运行时 Verbose 日志（工具/Server）\n\n对于具体的工具（server, cli 等），有 `--verbose` 或 `--log-level` 运行时参数，通过 `common_log_set_verbosity_thold()`（`common/log.cpp:35`）控制 common 层的日志阈值。\n\n```mermaid\nflowchart LR\n    subgraph 编译时\n        A[cmake -B build] --> B[GGML_LOG_DEBUG 已启用]\n        C[-DGGML_DEBUG=1] --> D[额外内部调试代码]\n    end\n    subgraph 运行时\n        E[默认输出到 stderr] --> F[看到 DEBUG 日志]\n        G[--verbose 参数] --> H[common 层更详细日志]\n    end\n```\n\n**一句话**：只需标准 CMake 构建，DEBUG 打印就已经是开着的。如果想看更底层细节，加 `-DCMAKE_CXX_FLAGS=\"-DGGML_DEBUG=1\"`。\n"
+  "answer": "现在我已经掌握了完整信息。以下是为 llama.cpp 编译 `libllama` 库并开启调试打印的方式：\n\n## 运行时开启调试打印（推荐）\n\n**不需要重新编译库**，直接用运行时参数或环境变量控制：\n\n### 方式一：CLI 参数 `--verbosity` / `--log-verbosity`\n\n所有工具（server、cli、completion 等）统一支持 `-lv` / `--verbosity` / `--log-verbosity` 参数（`common/arg.cpp:3341`），值说明：\n\n| 值 | 级别 | 说明 |\n|---|---|---|\n| `3`（默认）| INFO | 常规信息 |\n| `4` | TRACE | 更多追踪信息 |\n| `5` | DEBUG | 调试打印（含 `LLAMA_LOG_DEBUG` 输出） |\n\n用法示例：\n```bash\n./llama-cli -m model.gguf -lv 5          # 开启 DEBUG 级别打印\n./llama-server -m model.gguf --verbosity 5\n```\n\n### 方式二：环境变量 `LLAMA_ARG_LOG_VERBOSITY`\n\n```bash\nexport LLAMA_ARG_LOG_VERBOSITY=5\n./llama-cli -m model.gguf\n```\n\n### 方式三：代码中 `llama_log_set()` 自定义过滤\n\n通过 `llama_log_set()`（`include/llama.h:1517`）设置回调，可在回调中按 `GGML_LOG_LEVEL_DEBUG` 等级别过滤输出。\n\n## 编译期 GGML 底层调试宏（需重新编译）\n\n如需 GGML 张量库层级的更细粒度调试，编译时添加：\n\n| CMake 选项 | 说明 |\n|---|---|\n| `-DGGML_VULKAN_DEBUG=ON` | Vulkan 后端调试输出 |\n| `-DGGML_WEBGPU_DEBUG=ON` | WebGPU 后端调试输出 |\n| `-DGGML_METAL_SHADER_DEBUG=ON` | Metal 着色器调试 |\n| `-DGGML_HEXAGON_HTP_DEBUG=ON` | Hexagon HTP 调试输出 |\n\n以及代码中手动定义的宏（`ggml/src/ggml-impl.h:125`）：\n```c\n#define GGML_DEBUG 1  // ggml 底层调试（默认 0，值越大越详细）\n```\n需在 `ggml/src/ggml-impl.h` 或编译命令中添加 `-DGGML_DEBUG=1`。\n\n## 一句话总结\n\n**编译库本身不需要额外选项，运行时传 `--verbosity 5` 或设环境变量 `LLAMA_ARG_LOG_VERBOSITY=5` 即可开启所有调试打印**。代码中 `LLAMA_LOG_DEBUG` 宏（`src/llama-impl.h:31`）输出的信息都会显示出来。\n"
 }
