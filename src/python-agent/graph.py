@@ -59,7 +59,17 @@ INTENT_LIMITS = {
 
 def _prompt_for(intent: str) -> str:
     guide = INTENT_GUIDE.get(intent, INTENT_GUIDE["general"])
-    return f"{SYSTEM_PROMPT}\n\n## 当前意图\n{INTENTS.get(intent, '通用')}\n\n{guide}"
+    return f"""{SYSTEM_PROMPT}
+
+## 当前意图
+{INTENTS.get(intent, '通用')}
+
+{guide}
+
+## 回答要求
+- 回答标题必须基于用户问题生成，不要套用其他话题的标题
+- 第一句话直接回答问题核心
+"""
 
 
 # ── 懒加载子 agent ─────────────────────────────────────────
