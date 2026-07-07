@@ -46,13 +46,13 @@ INTENT_GUIDE = {
     "how-to": "工具侧重：code_search → code_callers/callees。追踪调用链展示用法。",
     "why-error": "工具侧重：code_grep → code_search → code_callers。先搜错误码再定位代码。",
     "what-impact": "工具侧重：code_search → code_callers → code_callees。追踪双向调用链。",
-    "build": "工具侧重：code_grep → code_search。编译选项、宏定义优先用 grep。",
+    "build": "工具侧重：code_grep → code_search。编译选项、CMakeLists.txt、宏定义优先用 code_grep 文本搜索，不要用 search_graph 搜这些。",
     "general": "综合搜索。先 grep 确认方向，再用 search 定位。",
 }
 
 INTENT_LIMITS = {
     "where-is": 10, "what-is": 20, "how-to": 25,
-    "why-error": 30, "what-impact": 30, "build": 25, "general": 20,
+    "why-error": 30, "what-impact": 30, "build": 30, "general": 20,
 }
 
 
