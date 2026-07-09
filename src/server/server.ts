@@ -18,6 +18,7 @@ import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
 import { loadWikiMeta } from './wiki-meta.js';
+import { EntityStore } from './wiki-entity.js';
 import { setupAuth } from './auth/index.js';
 import { CodegraphBridge, getBridge } from './codegraph-bridge.js';
 
@@ -1361,6 +1362,32 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
   if (content === null) { res.status(404).json({ error: `Wiki page "${page}" not found` }); return; }
 
   res.json({ page, repoName: entry.name, content });
+});
+
+// ── 实体系统 ────────────────────────────────────────────────
+let _entityStore: EntityStore | null = null;
+function getEntityStore(): EntityStore {
+  if (!_entityStore) _entityStore = new EntityStore(rootDir);
+  return _entityStore;
+}
+
+app.get('/api/wiki/entities/search', async (req, res) => {
+  const q = (req.query.q as string || '').trim();
+  if (!q) { res.json({ results: [] }); return; }
+  const results = await getEntityStore().search(q);
+  res.json({ results });
+});
+
+app.get('/api/wiki/entities/hot', async (_req, res) => {
+  const results = await getEntityStore().hot(10);
+  res.json({ results });
+});
+
+app.get('/api/wiki/entities/:slug', async (req, res) => {
+  const entity = await getEntityStore().get(req.params.slug);
+  if (!entity) { res.status(404).json({ error: 'Entity not found' }); return; }
+  await getEntityStore().bump(req.params.slug);
+  res.json(entity);
 });
 
 const knownRepos = async () => {
