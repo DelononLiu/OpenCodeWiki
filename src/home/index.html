@@ -348,5 +348,49 @@ document.getElementById('fileInput').addEventListener('change', function(e) { ha
 /* USER_BAR_JS */
 </script>
 
+<!-- ── 实体搜索 + 热门 ── -->
+<div class="entity-section" style="max-width:680px;margin:24px auto;padding:0 16px">
+  <div style="margin-bottom:12px">
+    <input type="text" id="entitySearch" placeholder="搜索代码实体..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+  </div>
+  <div id="entityResults" style="margin-bottom:16px"></div>
+  <div id="hotEntities" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    <span style="font-size:12px;color:var(--text3)">热门实体：</span>
+  </div>
+</div>
+
+<script>
+async function loadHotEntities() {
+  const r = await fetch('/api/wiki/entities/hot');
+  const d = await r.json();
+  const c = document.getElementById('hotEntities');
+  if (!d.results?.length) return;
+  c.innerHTML = '<span style="font-size:12px;color:var(--text3)">热门实体：</span>' +
+    d.results.map(e =>
+      `<a href="/wiki/entity/${e.slug}" style="padding:3px 10px;background:#eef2ff;border-radius:16px;font-size:13px;color:#2563eb;text-decoration:none">${e.name}</a>`
+    ).join('');
+}
+
+let entitySearchTimer = null;
+document.getElementById('entitySearch').addEventListener('input', function() {
+  clearTimeout(entitySearchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('entityResults').innerHTML = ''; return; }
+  entitySearchTimer = setTimeout(async () => {
+    const r = await fetch(`/api/wiki/entities/search?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    const c = document.getElementById('entityResults');
+    if (!d.results?.length) { c.innerHTML = '<div style="padding:8px;color:var(--text3)">未找到匹配实体</div>'; return; }
+    c.innerHTML = d.results.slice(0, 8).map(e =>
+      `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <a href="/wiki/entity/${e.slug}" style="font-weight:600;color:var(--blue);text-decoration:none">${e.name}</a>
+        <span style="color:var(--text3);font-size:12px;margin-left:8px">${e.definition}</span>
+      </div>`
+    ).join('');
+  }, 300);
+});
+loadHotEntities();
+</script>
+
 </body>
 </html>

@@ -103,6 +103,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
 const vendorDir = path.resolve(rootDir, 'vendor');
 const qaIndexFile = path.resolve(rootDir, 'src', 'qa', 'index.html');
 const homeIndexFile = path.resolve(rootDir, 'src', 'home', 'index.html');
+const entityViewFile = path.resolve(rootDir, 'src', 'wiki', 'entity.html');
 
 const handler = await initHandler();
 
@@ -776,6 +777,13 @@ app.get('/qa/', sendQaPage);
 app.get('/qa/*', sendQaPage);
 app.get('/', sendHomePage);
 app.get('/admin', sendAdminPage);
+app.get('/wiki/entity/:slug', async (_req, res) => {
+  try {
+    const content = await fs.readFile(entityViewFile, 'utf-8');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(content);
+  } catch { res.status(404).send('Entity page not found'); }
+});
 app.get('/:repoName/qa', sendQaPage);
 
 // ── 增量索引 + 多库路由 API ──
