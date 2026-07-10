@@ -7,8 +7,10 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 
-const ENTITIES_DIR = '.codegraph' + path.sep + 'wiki' + path.sep + 'entities';
+/** 全局实体存储目录（所有项目共享） */
+const GLOBAL_ENTITIES_DIR = path.join(os.homedir(), '.opencodewiki', 'entities');
 
 export interface WikiEntityFile {
   /** 文件名（不包含路径） */
@@ -37,10 +39,14 @@ export interface WikiEntity {
 }
 
 export class EntityStore {
-  constructor(private repoPath: string) {}
+  constructor(private repoPath?: string) {}
 
   private get dir(): string {
-    return path.join(this.repoPath, ENTITIES_DIR);
+    // 优先用 ~/.opencodewiki/entities/，没有则用 repoPath 下的
+    if (this.repoPath) {
+      return path.join(this.repoPath, '.codegraph', 'wiki', 'entities');
+    }
+    return GLOBAL_ENTITIES_DIR;
   }
 
   async all(): Promise<WikiEntity[]> {

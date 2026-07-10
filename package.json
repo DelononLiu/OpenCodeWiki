@@ -16,6 +16,8 @@
     "watch": "node scripts/reindex.mjs --watch",
     "postinstall": "node scripts/postinstall.mjs",
     "setup": "npm install --ignore-scripts && node scripts/postinstall.mjs",
+    "wiki:entity": "cd src/python-agent && source .venv/bin/activate && python3 -c \"import json, os; from wiki_entity_builder import generate_skeleton; c='$*'.split(); r=generate_skeleton(c[0],' '.join(c[1:])); os.makedirs(os.path.dirname('$HOME/.opencodewiki/entities/x'),exist_ok=True); json.dump(r,open(os.path.expanduser('$HOME/.opencodewiki/entities/'+r['slug']+'.json'),'w'),ensure_ascii=False,indent=2); print(r['slug']+' written')\"",
+    "wiki:entity:list": "ls ~/.opencodewiki/entities/ 2>/dev/null || echo '(no entities)'",
     "eval:qa": "EMBED_ENGINE=local LD_LIBRARY_PATH=node_modules/sharp/vendor/8.14.5/lib:$LD_LIBRARY_PATH node eval/runner.mjs",
     "eval:report": "node eval/report.mjs",
     "eval:answer": "bash eval/eval.sh"

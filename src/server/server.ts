@@ -1375,7 +1375,7 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
 // ── 实体系统 ────────────────────────────────────────────────
 let _entityStore: EntityStore | null = null;
 function getEntityStore(): EntityStore {
-  if (!_entityStore) _entityStore = new EntityStore(rootDir);
+  if (!_entityStore) _entityStore = new EntityStore();
   return _entityStore;
 }
 
