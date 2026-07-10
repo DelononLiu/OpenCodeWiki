@@ -22,20 +22,33 @@ shift || true
 case "$cmd" in
   generate)
     repo_dir="$1"
-    concept="$2"
-    if [ -z "$repo_dir" ] || [ -z "$concept" ]; then
-      echo "用法: $0 generate <repo_dir> <概念名>"
-      echo "示例: $0 generate /home/long2015/Code/llama.cpp 批量推理"
+    shift 2 2>/dev/null
+    if [ -z "$repo_dir" ]; then
+      echo "用法: $0 generate <repo_dir> [概念名...]"
+      echo "示例: $0 generate /home/long2015/Code/llama.cpp                  # 全生成"
+      echo "      $0 generate /home/long2015/Code/llama.cpp 批量推理 量化    # 指定"
       exit 1
     fi
-    # 自动推导 project 名（去掉首 /，替换 / 为 -）
     project=$(echo "$repo_dir" | sed 's|^/||;s|/|-|g')
-    # 实体写入 repo 的 .codegraph/wiki/entities/
     target_dir="$repo_dir/.codegraph/wiki/entities"
     mkdir -p "$target_dir"
+
+    # 默认实体列表（按仓库匹配）
+    concepts=("$@")
+    if [ ${#concepts[@]} -eq 0 ]; then
+      case "$repo_dir" in
+        *llama*)   concepts=("批量推理" "推理引擎" "量化方案" "KV Cache" "Tokenizer 处理" "模型加载") ;;
+        *kcode*)   concepts=("任务流" "插件系统" "ACP 协议" "WebView 渲染" "设备管理") ;;
+        *OpenCodeWiki*) concepts=("问答引擎" "Wiki 系统" "评测框架" "Agent 路由" "源码引用解析") ;;
+        *)         echo "未知仓库，请指定概念名"; exit 1 ;;
+      esac
+      echo "将生成 ${#concepts[@]} 个实体: ${concepts[*]}"
+    fi
+
     cd "$PY_DIR"
     source .venv/bin/activate
-    python3 -c "
+    for concept in "${concepts[@]}"; do
+      python3 -c "
 import json, sys, os
 sys.path.insert(0, '.')
 from wiki_entity_builder import generate_skeleton
@@ -43,10 +56,9 @@ result = generate_skeleton('$project', '$concept')
 fp = os.path.join('$target_dir', result['slug'] + '.json')
 with open(fp, 'w') as f:
     json.dump(result, f, ensure_ascii=False, indent=2)
-print(f'✅ {result[\"name\"]} → {fp}')
-print(f'   定义: {result[\"definition\"]}')
-print(f'   文件: {len(result[\"files\"])} 个, 关联: {len(result[\"relations\"])} 个')
+print(f'✅ {result[\"name\"]} → {result[\"slug\"]}.json  ({result[\"definition\"]})')
 "
+    done
     ;;
   list)
     if [ -d "$ENTITIES_DIR" ]; then
