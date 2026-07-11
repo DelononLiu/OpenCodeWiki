@@ -59,6 +59,9 @@ export function initKnowledgeDb(): void {
       qid INTEGER
     );
 
+    -- Unique index to support INSERT OR IGNORE dedup
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_qa ON entity_qa(entity_slug, qid);
+
     CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
       name, definition, content='entities', content_rowid='rowid'
     );

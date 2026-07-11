@@ -83,4 +83,26 @@ describe('knowledge-db', () => {
       .all() as { name: string }[];
     assert.strictEqual(tables.length, 4, '实体表数量不变');
   });
+
+  it('entity_qa 表有唯一索引支持 INSERT OR IGNORE 去重', () => {
+    const db = mod.getKnowledgeDb();
+
+    // Verify the unique index exists
+    const indexes = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_entity_qa'")
+      .all() as { name: string }[];
+    assert.strictEqual(indexes.length, 1, 'idx_entity_qa 唯一索引存在');
+
+    // Insert a test entity first to satisfy foreign key constraint
+    db.prepare("INSERT OR IGNORE INTO entities(slug, name) VALUES(?, ?)").run('test-entity', 'Test Entity');
+
+    // Verify INSERT OR IGNORE works by inserting a duplicate
+    db.prepare('INSERT OR IGNORE INTO entity_qa(entity_slug, qid) VALUES(?, ?)').run('test-entity', 1);
+    db.prepare('INSERT OR IGNORE INTO entity_qa(entity_slug, qid) VALUES(?, ?)').run('test-entity', 1);
+
+    const count = (db
+      .prepare('SELECT COUNT(*) AS cnt FROM entity_qa WHERE entity_slug = ? AND qid = ?')
+      .get('test-entity', 1) as { cnt: number }).cnt;
+    assert.strictEqual(count, 1, '重复插入应被忽略，只保留一行');
+  });
 });

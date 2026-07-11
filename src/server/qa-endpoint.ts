@@ -19,6 +19,7 @@ import { unifiedSearch } from './search-service.js';
 import type { SearchResultEntity } from './search-service.js';
 import { QaResolver, classifyScopeRule } from './qa-resolver.js';
 import type { IntentResult, PipelineMatch, RepoInfo } from './qa-resolver.js';
+import { getKnowledgeDb } from './knowledge-db.js';
 
 // ── 共享模块（qa/） ──────────────────────────────────────────
 import { sessions, getSession, saveSessionToDisk, updateSessionInMemory } from './qa/session.js';
@@ -136,6 +137,59 @@ export async function routeQuestion(question: string): Promise<RouteResult> {
   }
 
   return { type: 'llm', data: { context } };
+}
+
+/**
+ * linkAnswerToEntities — QA 回答后自动关联实体。
+ *
+ * 1. 从问题文本中搜索匹配的实体（name / definition LIKE 匹配）
+ * 2. 从回答中提取 #slug 标记
+ * 3. 将关联写入 knowledge.db 的 entity_qa 表
+ *
+ * 不会抛出异常——所有错误都会被捕获并记录，避免影响 QA 响应。
+ */
+export async function linkAnswerToEntities(question: string, answer: string, qid: number | undefined): Promise<void> {
+  if (qid === undefined || qid === null) return;
+
+  try {
+    const db = getKnowledgeDb();
+    const q = question.toLowerCase();
+    const a = answer.toLowerCase();
+
+    const matchedSlugs = new Set<string>();
+
+    // 1. Fetch all entity names and check if they appear in question or answer text
+    const allEntities = db.prepare('SELECT slug, name FROM entities').all() as { slug: string; name: string }[];
+
+    for (const entity of allEntities) {
+      const nameLower = entity.name.toLowerCase();
+      if (q.includes(nameLower) || a.includes(nameLower)) {
+        matchedSlugs.add(entity.slug);
+      }
+    }
+
+    // 2. Extract #slug annotations from answer
+    const slugRegex = /#([a-zA-Z0-9_-]+)/g;
+    let m;
+    while ((m = slugRegex.exec(answer)) !== null) {
+      const slugEntity = db.prepare('SELECT slug FROM entities WHERE slug = ?').get(m[1]) as { slug: string } | undefined;
+      if (slugEntity) {
+        matchedSlugs.add(slugEntity.slug);
+      }
+    }
+
+    if (matchedSlugs.size === 0) return;
+
+    // 3. Write associations to entity_qa table
+    const stmt = db.prepare('INSERT OR IGNORE INTO entity_qa(entity_slug, qid) VALUES(?, ?)');
+    for (const slug of matchedSlugs) {
+      stmt.run(slug, qid);
+    }
+
+    log('debug', 'linked QA to entities', { qid, slugs: [...matchedSlugs] });
+  } catch (e) {
+    log('error', 'linkAnswerToEntities failed (non-fatal)', { qid, error: (e as Error)?.message });
+  }
 }
 
 export function createQaEndpoint(
@@ -346,6 +400,8 @@ export function createQaEndpoint(
         if (qid) res.write('data: ' + JSON.stringify({ type: 'qid', qid }) + '\n\n');
         res.write('data: ' + JSON.stringify({ type: 'tag', tag: routeResult.data.tag, qid: routeResult.data.qid }) + '\n\n');
         res.write('data: ' + JSON.stringify({ type: 'token', content: routeResult.data.answer }) + '\n\n');
+        // Auto-link entities from answer
+        linkAnswerToEntities(question, routeResult.data.answer, qid).catch(() => {});
         res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
         res.end();
         return;
@@ -397,6 +453,8 @@ export function createQaEndpoint(
                 session!.sources = resolvedSources.length > sources.length ? resolvedSources : sources;
                 if (resolvedSources.length > sources.length) res.write('data: ' + JSON.stringify({ type: 'sources', sources: resolvedSources }) + '\n\n');
               }
+              // Auto-link entities from ACP answer
+              linkAnswerToEntities(question, content || '', qid).catch(() => {});
               res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n'); res.end();
             } catch (err: any) {
               if (!aborted) { res.write('data: ' + JSON.stringify({ type: 'error', message: err.message }) + '\n\n'); res.end(); }
@@ -478,6 +536,8 @@ export function createQaEndpoint(
         session!.sources = resolvedSources.length > sources.length ? resolvedSources : sources;
         if (resolvedSources.length > sources.length) res.write('data: ' + JSON.stringify({ type: 'sources', sources: resolvedSources }) + '\n\n');
       }
+      // Auto-link entities from LLM answer
+      linkAnswerToEntities(question, assistantContent, qid).catch(() => {});
       res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n'); res.end();
     } catch (err: any) {
       if (!aborted) { res.write('data: ' + JSON.stringify({ type: 'error', message: err.message }) + '\n\n'); res.end(); }
