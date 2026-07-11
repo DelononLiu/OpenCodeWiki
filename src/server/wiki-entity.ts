@@ -29,7 +29,7 @@ export interface WikiEntityRelation {
 export interface WikiEntity {
   slug: string;
   name: string;
-  status: 'initial' | 'calibrated' | 'filled';
+  status: 'draft' | 'reviewed' | 'published';
   definition: string;
   project: string;
   files: WikiEntityFile[];
@@ -109,4 +109,14 @@ export class EntityStore {
       await this.save(entity);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 实体服务委托（新代码应使用 EntityService 而非 EntityStore）
+// ---------------------------------------------------------------------------
+import { EntityService } from './entity-service.js';
+const entityService = new EntityService();
+
+export function getEntityService(): EntityService {
+  return entityService;
 }
