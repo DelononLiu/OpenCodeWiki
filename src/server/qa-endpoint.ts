@@ -15,6 +15,8 @@ import { AcpClient, getQaMode, isAcpCrossRoot } from './acp/AcpClient.js';
 import type { AcpMessageHandler } from './acp/types.js';
 import * as qaStore from './qa-store.js';
 import type { Domain } from './qa-store.js';
+import { unifiedSearch } from './search-service.js';
+import type { SearchResultEntity } from './search-service.js';
 import { QaResolver, classifyScopeRule } from './qa-resolver.js';
 import type { IntentResult, PipelineMatch, RepoInfo } from './qa-resolver.js';
 
@@ -77,6 +79,63 @@ async function acpPrompt(
   };
   await client.sendPrompt(acpSessionId, prompt, handler);
   return content;
+}
+
+// ── Dual-path route types ──────────────────────────────────────
+
+export interface RouteResultDirect {
+  type: 'direct';
+  data: { answer: string; qid: number; tag: string; };
+}
+export interface RouteResultSuggestion {
+  type: 'llm-with-suggestion';
+  data: { context: { entities: SearchResultEntity[] }; suggestion: { qid: number; question: string; }; };
+}
+export interface RouteResultLlm {
+  type: 'llm';
+  data: { context: { entities: SearchResultEntity[] }; };
+}
+export type RouteResult = RouteResultDirect | RouteResultSuggestion | RouteResultLlm;
+
+/**
+ * routeQuestion — 统一搜索 + 路由决策。
+ *
+ * 1. 高置信度 (>=0.85) → direct（直接返回校准答案）
+ * 2. 中等置信度 (0.5-0.85) → llm-with-suggestion（LLM 生成 + 相关问题推荐）
+ * 3. 低置信度 (<0.5) → llm（纯 LLM 生成）
+ */
+export async function routeQuestion(question: string): Promise<RouteResult> {
+  const results = await unifiedSearch(question);
+
+  const topQa = results.qa[0];
+  if (topQa && topQa.score >= 0.85) {
+    const { getEntryDetail } = await import('./qa-store.js');
+    const detail = getEntryDetail(topQa.qid);
+    if (detail?.calibratedAnswer) {
+      return {
+        type: 'direct',
+        data: {
+          answer: detail.calibratedAnswer.answer,
+          qid: topQa.qid,
+          tag: 'standard',
+        },
+      };
+    }
+  }
+
+  const context = { entities: results.entities };
+
+  if (topQa && topQa.score >= 0.5) {
+    return {
+      type: 'llm-with-suggestion',
+      data: {
+        context,
+        suggestion: { qid: topQa.qid, question: topQa.question },
+      },
+    };
+  }
+
+  return { type: 'llm', data: { context } };
 }
 
 export function createQaEndpoint(
@@ -259,7 +318,7 @@ export function createQaEndpoint(
 
     const sourceRefs = sources.map(s => s.filePath + (s.startLine ? ':' + s.startLine + (s.endLine && s.endLine !== s.startLine ? '-' + s.endLine : '') : '')).join('\n- ');
 
-    const systemPrompt = 'You are opencodewiki, a code analyst. Answer the question in DeepWiki style.\n\n' +
+    let systemPrompt = 'You are opencodewiki, a code analyst. Answer the question in DeepWiki style.\n\n' +
       (agentContext ? `## 项目概览\n${agentContext}\n\n` : '') +
       '## RULES\n- Always answer in Chinese.\n- Use mermaid diagrams for architecture flows when relevant.\n- Use code blocks for commands or examples.\n- Keep paragraphs short (2-4 sentences).\n- Do not restate the question.\n- If unsure, say so.\n- 禁止写文件，所有内容直接输出。\n- 禁止使用 Explore Task。\n' +
       '- **回答输出格式必须严格遵循下方 ## 回答模板 中的一种模板（A/B/C/D/E），不允许自由发挥。**\n' +
@@ -273,6 +332,39 @@ export function createQaEndpoint(
       (uploadedContext ? uploadedContext + '\n' : '') +
       (pipelineContext ? pipelineContext + '\n\n---\n注意：以上是 PIPELINE 分析结果。\n\n' :
       QA_MODE !== 'acp' ? '## SEARCH CONTEXT\n以下是搜索到的代码文件：\n\n- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n---\n' : '');
+
+    // ── 双路路由：先检查校准 QA 命中 ──────────────────────────────
+    if (QA_MODE !== 'acp') {
+      const routeResult = await routeQuestion(question);
+
+      if (routeResult.type === 'direct') {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.write('data: ' + JSON.stringify({ type: 'session', id: sessionId }) + '\n\n');
+        if (qid) res.write('data: ' + JSON.stringify({ type: 'qid', qid }) + '\n\n');
+        res.write('data: ' + JSON.stringify({ type: 'tag', tag: routeResult.data.tag, qid: routeResult.data.qid }) + '\n\n');
+        res.write('data: ' + JSON.stringify({ type: 'token', content: routeResult.data.answer }) + '\n\n');
+        res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
+        res.end();
+        return;
+      }
+
+      // Add entity context to system prompt
+      if (routeResult.data.context?.entities?.length) {
+        const entitySection = '## ENTITY KNOWLEDGE\n以下是与问题相关的实体知识：\n\n' +
+          routeResult.data.context.entities
+            .map((e: SearchResultEntity) => `- **${e.name}**: ${e.definition}`)
+            .join('\n') + '\n\n';
+        systemPrompt = entitySection + systemPrompt;
+      }
+
+      // Store suggestion footer for later append after LLM generation
+      if (routeResult.type === 'llm-with-suggestion') {
+        (session as any)._suggestionFooter = `\n\n---\n> \u{1F914} 你可能想问: [#Q${routeResult.data.suggestion.qid} ${routeResult.data.suggestion.question}](/qa?qid=${routeResult.data.suggestion.qid})`;
+      }
+    }
 
     // ── ACP 模式 ──────────────────────────────────────────────────
     if (QA_MODE === 'acp') {
@@ -368,6 +460,15 @@ export function createQaEndpoint(
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) { assistantContent += delta; res.write('data: ' + JSON.stringify({ type: 'token', content: delta }) + '\n\n'); }
           } catch {}
+        }
+      }
+
+      // Append suggestion footer if applicable (from llm-with-suggestion routing)
+      if (!aborted) {
+        const suggestionFooter = (session as any)._suggestionFooter;
+        if (suggestionFooter) {
+          assistantContent += suggestionFooter;
+          res.write('data: ' + JSON.stringify({ type: 'token', content: suggestionFooter }) + '\n\n');
         }
       }
 
