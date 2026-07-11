@@ -136,6 +136,26 @@ CREATE INDEX IF NOT EXISTS idx_qa_created ON qa_entries(created_at);
 CREATE INDEX IF NOT EXISTS idx_ca_entry ON calibrated_answers(qa_entry_id);
 `;
 
+// FTS5 全文索引（独立常量确保迁移后重新创建触发器）
+const SQL_CREATE_FTS5 = `
+CREATE VIRTUAL TABLE IF NOT EXISTS qa_entries_fts USING fts5(
+    question, content='qa_entries', content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_insert AFTER INSERT ON qa_entries BEGIN
+    INSERT INTO qa_entries_fts(rowid, question) SELECT rowid, question FROM qa_entries WHERE rowid = new.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_delete AFTER DELETE ON qa_entries BEGIN
+    INSERT INTO qa_entries_fts(qa_entries_fts, rowid, question) VALUES('delete', old.rowid, old.question);
+END;
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_update AFTER UPDATE ON qa_entries BEGIN
+    INSERT INTO qa_entries_fts(qa_entries_fts, rowid, question) VALUES('delete', old.rowid, old.question);
+    INSERT INTO qa_entries_fts(rowid, question) SELECT rowid, question FROM qa_entries WHERE rowid = new.rowid;
+END;
+`;
+
 function getDbPath(): string {
   const dir = process.env.OPENCODEWIKI_QA_DATA_DIR || path.join(os.homedir(), '.opencodewiki');
   return path.join(dir, 'qa.db');
@@ -155,6 +175,7 @@ function getDb(): DatabaseSync {
   _db.exec('PRAGMA journal_mode=WAL');
   // Create tables first (IF NOT EXISTS)
   _db.exec(SQL_CREATE_TABLES);
+  _db.exec(SQL_CREATE_FTS5);
   // Migrate: add domain column if missing (old db created before domain was introduced)
   const cols = _db.prepare("PRAGMA table_info('qa_entries')").all() as any[];
   if (!cols.some((c: any) => c.name === 'domain')) {
@@ -175,6 +196,10 @@ function getDb(): DatabaseSync {
     _db.exec("DROP TABLE qa_entries_old");
     console.log('[qa-store] migrated status constraint to allow pending');
   }
+  // Re-create FTS5 triggers (safe after migration which may have moved triggers to renamed table)
+  _db.exec(SQL_CREATE_FTS5);
+  // Rebuild FTS index for existing data (safe to call on first init or after migration)
+  try { _db.exec("INSERT INTO qa_entries_fts(qa_entries_fts) VALUES('rebuild')"); } catch {}
   return _db;
 }
 
@@ -183,6 +208,10 @@ export function closeDb(): void {
     _db.close();
     _db = null;
   }
+}
+
+export function getQaDb(): DatabaseSync {
+  return getDb();
 }
 
 // ── Helpers ────────────────────────────────────────────────────
