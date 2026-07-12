@@ -158,14 +158,16 @@ export async function linkAnswerToEntities(question: string, answer: string, qid
 
     const matchedSlugs = new Set<string>();
 
-    // 1. Fetch all entity names and check if they appear in question or answer text
-    const allEntities = db.prepare('SELECT slug, name FROM entities').all() as { slug: string; name: string }[];
+    // 1. Use SQL LIKE to find entities whose name or definition appears in question/answer text.
+    //    This replaces the previous full table scan (SELECT slug, name FROM entities) + JS iteration.
+    const rows = db.prepare(`
+      SELECT slug FROM entities
+      WHERE ? LIKE '%' || name || '%' OR ? LIKE '%' || name || '%'
+         OR ? LIKE '%' || definition || '%' OR ? LIKE '%' || definition || '%'
+    `).all(q, a, q, a) as { slug: string }[];
 
-    for (const entity of allEntities) {
-      const nameLower = entity.name.toLowerCase();
-      if (q.includes(nameLower) || a.includes(nameLower)) {
-        matchedSlugs.add(entity.slug);
-      }
+    for (const row of rows) {
+      matchedSlugs.add(row.slug);
     }
 
     // 2. Extract #slug annotations from answer

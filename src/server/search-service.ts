@@ -72,7 +72,7 @@ function searchEntities(query: string): SearchResultEntity[] {
   try {
     const rows = db
       .prepare(
-        `SELECT e.slug, e.name, e.definition
+        `SELECT e.slug, e.name, e.definition, fts.rank
          FROM entities e
          JOIN entities_fts fts ON e.rowid = fts.rowid
          WHERE entities_fts MATCH ?
@@ -82,11 +82,11 @@ function searchEntities(query: string): SearchResultEntity[] {
       .all(q) as any[];
 
     if (rows.length > 0) {
-      return rows.map((r, i) => ({
+      return rows.map((r) => ({
         slug: r.slug,
         name: r.name,
         definition: r.definition,
-        score: Math.max(0.5, 1.0 - i * 0.1),
+        score: 1.0 / (1.0 + Math.abs(r.rank)),
       }));
     }
   } catch {
