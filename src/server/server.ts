@@ -18,7 +18,7 @@ import {
   generateWiki, readWikiPage, loadModuleTree, wikiOutputDir,
 } from './wiki-integration.js';
 import { loadWikiMeta } from './wiki-meta.js';
-import { EntityStore } from './wiki-entity.js';
+import { getEntityService } from './wiki-entity.js';
 import { setupAuth } from './auth/index.js';
 import { CodegraphBridge, getBridge } from './codegraph-bridge.js';
 
@@ -1373,28 +1373,45 @@ app.get('/api/wiki/:repoName/:page', async (req, res) => {
 });
 
 // ── 实体系统 ────────────────────────────────────────────────
-let _entityStore: EntityStore | null = null;
-function getEntityStore(): EntityStore {
-  if (!_entityStore) _entityStore = new EntityStore();
-  return _entityStore;
-}
-
 app.get('/api/wiki/entities/search', async (req, res) => {
-  const q = (req.query.q as string || '').trim();
-  if (!q) { res.json({ results: [] }); return; }
-  const results = await getEntityStore().search(q);
-  res.json({ results });
+  const q = req.query.q as string;
+  if (!q) return res.json([]);
+  const results = getEntityService().search(q);
+  res.json(results);
 });
 
-app.get('/api/wiki/entities/hot', async (_req, res) => {
-  const results = await getEntityStore().hot(10);
-  res.json({ results });
+app.get('/api/wiki/entities/hot', (_req, res) => {
+  const results = getEntityService().hot(10);
+  res.json(results);
 });
 
-app.get('/api/wiki/entities/:slug', async (req, res) => {
-  const entity = await getEntityStore().get(req.params.slug);
-  if (!entity) { res.status(404).json({ error: 'Entity not found' }); return; }
-  await getEntityStore().bump(req.params.slug);
+// ── 实体关联 QA 查询 ────────────────────────────────────────
+app.get('/api/wiki/entities/:slug/qa', async (req, res) => {
+  const { slug } = req.params;
+  try {
+    const { getKnowledgeDb } = await import('./knowledge-db.js');
+    const db = getKnowledgeDb();
+    const qidRows = db.prepare('SELECT qid FROM entity_qa WHERE entity_slug = ?').all(slug) as any[];
+    if (qidRows.length === 0) { res.json({ qa: [] }); return; }
+    const qids = qidRows.map((r: any) => r.qid);
+    const { getQaDb } = await import('./qa-store.js');
+    const qaDb = getQaDb();
+    const placeholders = qids.map(() => '?').join(',');
+    const qaRows = qaDb.prepare(`
+      SELECT q.qid, q.question, (SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = q.id) AS calibrated_count
+      FROM qa_entries q WHERE q.qid IN (${placeholders})
+      ORDER BY q.visit_count DESC
+    `).all(...qids) as any[];
+    res.json({ qa: qaRows.map((r: any) => ({ qid: r.qid, question: r.question, isCalibrated: r.calibrated_count > 0 })) });
+  } catch (e) {
+    res.status(500).json({ error: 'failed to load QA data', details: String(e) });
+  }
+});
+
+app.get('/api/wiki/entities/:slug', (req, res) => {
+  const entity = getEntityService().get(req.params.slug);
+  if (!entity) { res.status(404).json({ error: 'entity not found' }); return; }
+  getEntityService().bump(req.params.slug);
   res.json(entity);
 });
 
