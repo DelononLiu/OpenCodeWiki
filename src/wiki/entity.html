@@ -1,182 +1,56 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title id="entityTitle">实体详情</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.65;color:#1e293b;background:#fff;padding:32px}
-.page-wrap{display:flex;gap:32px;max-width:1100px;margin:0 auto}
-.main-content{flex:1;max-width:800px}
-.back-link{display:inline-block;margin-bottom:16px;color:#2563eb;text-decoration:none;font-size:13px}
-.back-link:hover{text-decoration:underline}
-.entity-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.entity-header h1{font-size:24px}
-.status-badge{font-size:11px;padding:2px 8px;border-radius:12px;font-weight:500}
-.status-badge.draft{background:#f1f5f9;color:#64748b}
-.status-badge.reviewed{background:#ecfdf5;color:#059669}
-.status-badge.published{background:#eff6ff;color:#2563eb}
-.definition{color:#64748b;font-size:15px;margin-bottom:24px}
-section{margin-bottom:24px}
-section h3{font-size:14px;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
-#fileList{list-style:none}
-#fileList li{padding:6px 0;font-size:13px;border-bottom:1px solid #f1f5f9}
-#fileList code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px}
-#entityContent{font-size:14px;line-height:1.7;margin-top:24px}
-#entityContent h1,#entityContent h2,#entityContent h3{margin:16px 0 8px}
-#entityContent p{margin:8px 0}
-#entityContent code{background:#f1f5f9;padding:1px 4px;border-radius:3px}
-#entityContent pre{background:#f8f9fb;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px}
+<!-- Entity header -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+  <span style="font-size:24px;font-weight:700">{{NAME}}</span>
+  <span style="font-size:11px;padding:2px 10px;border-radius:10px;font-weight:500;background:{{STATUS_BG}};color:{{STATUS_COLOR}}">{{STATUS}}</span>
+</div>
+<p style="font-size:15px;color:var(--text-muted);margin-bottom:20px">{{DEFINITION}}</p>
 
-/* QA sidebar */
-.qa-sidebar{
-  position:fixed;
-  top:80px;
-  right:24px;
-  width:260px;
-  background:#f8f9fb;
-  border:1px solid #e5e7eb;
-  border-radius:8px;
-  padding:16px;
-  max-height:60vh;
-  overflow-y:auto;
-}
-.qa-sidebar h3{
-  font-size:13px;
-  color:#64748b;
-  margin-bottom:10px;
-  text-transform:uppercase;
-  letter-spacing:.05em;
-}
-.qa-sidebar .qa-item{
-  display:block;
-  padding:6px 8px;
-  font-size:13px;
-  color:#2563eb;
-  text-decoration:none;
-  border-radius:4px;
-  margin-bottom:4px;
-}
-.qa-sidebar .qa-item:hover{background:#eff6ff}
-.qa-sidebar .badge{
-  font-size:10px;
-  padding:1px 6px;
-  border-radius:8px;
-  background:#ecfdf5;
-  color:#059669;
-  margin-left:4px;
-  white-space:nowrap;
-}
-.qa-sidebar .empty-hint{color:#94a3b8;font-size:13px}
+{{FILES}}
 
-/* Mermaid relation graph */
-#relationGraph{background:#f8f9fb;border-radius:8px;padding:16px;overflow-x:auto}
+{{CONTENT}}
 
-@media(max-width:1100px){
-  .page-wrap{flex-direction:column}
-  .qa-sidebar{position:static;width:auto;max-height:none;margin-top:24px}
-}
-</style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-</head>
-<body>
-<a class="back-link" href="/">&larr; 返回首页</a>
-<div class="page-wrap">
-  <div class="main-content">
-    <div class="entity-header">
-      <h1 id="entityName"></h1>
-      <span class="status-badge" id="entityStatus"></span>
-    </div>
-    <p class="definition" id="entityDef"></p>
-
-    <section>
-      <h3>涉及代码</h3>
-      <ul id="fileList"></ul>
-    </section>
-
-    <section id="contentSection" style="display:none">
-      <h3>详情</h3>
-      <div id="entityContent"></div>
-    </section>
-
-    <section id="relationSection" style="display:none">
-      <h3>上下游关系</h3>
-      <div id="relationGraph"></div>
-    </section>
+<!-- QA section -->
+<div style="border-top:1px solid var(--border);padding-top:20px;margin-top:20px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <span style="font-size:15px;font-weight:600">💬 关联问答</span>
+    <span style="font-size:10px;padding:2px 8px;background:var(--primary-soft);color:var(--primary);border-radius:8px">{{QA_COUNT}} 个问题</span>
   </div>
-
-  <aside class="qa-sidebar" id="qaSidebar">
-    <h3>关联问题</h3>
-    <div id="qaList">加载中...</div>
-  </aside>
+  <div id="entityQaList">加载中...</div>
 </div>
 
 <script>
-const STATUS_LABELS = {draft:'草稿',reviewed:'已校准',published:'已发布'};
-const STATUS_CLASSES = {draft:'draft',reviewed:'reviewed',published:'published'};
-
-async function loadEntity() {
-  const slug = location.pathname.split('/').pop();
-  const r = await fetch('/api/wiki/entities/' + slug);
-  if (!r.ok) { document.body.innerHTML = '<p style="padding:32px;color:red">实体未找到</p>'; return; }
-  const e = await r.json();
-
-  document.title = e.name + ' — 实体详情';
-  document.getElementById('entityName').textContent = e.name;
-
-  const badge = document.getElementById('entityStatus');
-  badge.textContent = STATUS_LABELS[e.status] || e.status;
-  if (STATUS_CLASSES[e.status]) badge.classList.add(STATUS_CLASSES[e.status]);
-
-  document.getElementById('entityDef').textContent = e.definition;
-
-  if (e.files?.length) {
-    document.getElementById('fileList').innerHTML = e.files.map(function(f) {
-      return '<li><code>' + f.path + '</code>' +
-        (f.symbols?.length ? ' — ' + f.symbols.join(', ') : '') +
-        '</li>';
-    }).join('');
-  }
-
-  if (e.content) {
-    document.getElementById('contentSection').style.display = '';
-    document.getElementById('entityContent').innerHTML = e.content;
-  }
-
-  if (e.relations?.length) {
-    document.getElementById('relationSection').style.display = '';
-    var edges = e.relations.map(function(r) {
-      var src = e.slug.replace(/-/g, '_');
-      var tgt = r.target.replace(/-/g, '_');
-      var rel = r.type;
-      return '  ' + src + '-->|' + rel + '| ' + tgt;
-    }).join('\n');
-    document.getElementById('relationGraph').innerHTML =
-      '<pre class="mermaid">flowchart LR\n' + edges + '\n</pre>';
-    if (window.mermaid) {
-      mermaid.initialize({startOnLoad:false});
-      mermaid.run({querySelector:'.mermaid'});
+async function loadEntityQa() {
+  const slug = '{{SLUG}}';
+  try {
+    const r = await fetch('/api/wiki/entities/' + slug + '/qa');
+    const data = await r.json();
+    const list = document.getElementById('entityQaList');
+    if (!data.qa || data.qa.length === 0) {
+      list.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">暂无关联问题</span>';
+      return;
     }
+    list.innerHTML = data.qa.map(function(q) {
+      const badge = q.isCalibrated
+        ? '<span style="font-size:9px;padding:1px 8px;background:#ecfdf5;color:#059669;border-radius:8px;margin-left:auto">已校准 ✅</span>'
+        : '<span style="font-size:9px;padding:1px 8px;background:#fef3c7;color:#92400e;border-radius:8px;margin-left:auto">待校准 ⏳</span>';
+      const answer = q.answer || '';
+      const summary = answer.slice(0, 80);
+      const expandHtml = summary
+        ? '<div style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-top:4px">' + summary + '... <span style="color:var(--primary);cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=\'block\'">[点击展开]</span></div><div style="display:none;font-size:13px;color:#475569;line-height:1.7;margin-top:8px">' + answer + '</div>'
+        : '';
+      return '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+        '<span style="font-size:11px;font-weight:600;color:var(--primary)">#Q' + q.qid + '</span>' +
+        '<span style="font-size:13px;font-weight:500">' + q.question + '</span>' +
+        badge +
+        '</div>' + expandHtml + '</div>';
+    }).join('');
+    if (data.total > data.qa.length) {
+      list.innerHTML += '<div style="margin-top:8px"><a href="/qa?entity=' + slug + '" target="_blank" style="font-size:13px;color:var(--primary);text-decoration:none">→ 查看全部 ' + data.total + ' 条关联 #Q</a></div>';
+    }
+  } catch(e) {
+    document.getElementById('entityQaList').innerHTML = '<span style="font-size:13px;color:#ef4444">加载失败</span>';
   }
-
-  // Load associated QA entries via dedicated API
-  fetch('/api/wiki/entities/' + slug + '/qa')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var list = document.getElementById('qaList');
-      if (data.qa && data.qa.length) {
-        list.innerHTML = data.qa.map(function(q) {
-          var cal = q.isCalibrated ? '<span class="badge">已校准</span>' : '';
-          return '<a class="qa-item" href="/qa?qid=' + q.qid + '">#Q' + q.qid + ': ' + q.question + cal + '</a>';
-        }).join('');
-      } else {
-        list.innerHTML = '<span class="empty-hint">暂无关联问题</span>';
-      }
-    });
 }
-
-loadEntity();
+loadEntityQa();
 </script>
-</body>
-</html>

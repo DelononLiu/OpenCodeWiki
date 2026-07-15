@@ -1410,17 +1410,28 @@ app.get('/api/wiki/entities/:slug/qa', async (req, res) => {
     const { getKnowledgeDb } = await import('./knowledge-db.js');
     const db = getKnowledgeDb();
     const qidRows = db.prepare('SELECT qid FROM entity_qa WHERE entity_slug = ?').all(slug) as any[];
-    if (qidRows.length === 0) { res.json({ qa: [] }); return; }
-    const qids = qidRows.map((r: any) => r.qid);
+    const total = qidRows.length;
+    if (total === 0) { res.json({ qa: [], total: 0 }); return; }
+    // Limit to first 5
+    const qids = qidRows.slice(0, 5).map((r: any) => r.qid);
     const { getQaDb } = await import('./qa-store.js');
     const qaDb = getQaDb();
     const placeholders = qids.map(() => '?').join(',');
     const qaRows = qaDb.prepare(`
-      SELECT q.qid, q.question, (SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = q.id) AS calibrated_count
+      SELECT q.qid, q.question, q.answer,
+        (SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = q.id) AS calibrated_count
       FROM qa_entries q WHERE q.qid IN (${placeholders})
       ORDER BY q.visit_count DESC
     `).all(...qids) as any[];
-    res.json({ qa: qaRows.map((r: any) => ({ qid: r.qid, question: r.question, isCalibrated: r.calibrated_count > 0 })) });
+    res.json({
+      qa: qaRows.map((r: any) => ({
+        qid: r.qid,
+        question: r.question,
+        answer: r.answer || '',
+        isCalibrated: r.calibrated_count > 0,
+      })),
+      total,
+    });
   } catch (e) {
     res.status(500).json({ error: 'failed to load QA data', details: String(e) });
   }
