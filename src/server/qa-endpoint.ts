@@ -215,6 +215,7 @@ export function createQaEndpoint(
     let sessionId: string | undefined = req.body?.sessionId;
     const attachedFiles: { fileName: string; size: number }[] = req.body?.attachedFiles ?? [];
     const reqDomain: string | undefined = req.body?.questionType ?? req.body?.domain;
+    const context_entity_slug: string | undefined = req.body?.context_entity_slug;
 
     if (!question) { res.status(400).json({ error: 'Missing "question" in request body' }); return; }
     log('info', '【Q】' + (repoName ?? '(全部)') + ': ' + question.slice(0, 60));
@@ -263,6 +264,7 @@ export function createQaEndpoint(
     let searchContent = '';
     let flowsText = '';
     let repoBaseMap: Map<string, string> | undefined;
+    let entityContext = '';
     let pipelineContext = '';
     let pipelineIntent: string | undefined;
     let agentContext = '';
@@ -388,6 +390,18 @@ export function createQaEndpoint(
       (uploadedContext ? uploadedContext + '\n' : '') +
       (pipelineContext ? pipelineContext + '\n\n---\n注意：以上是 PIPELINE 分析结果。\n\n' :
       QA_MODE !== 'acp' ? '## SEARCH CONTEXT\n以下是搜索到的代码文件：\n\n- ' + sourceRefs + (flowsText ? '\n\n### Execution Flows\n' + flowsText.slice(0, 2000) : '') + '\n\n---\n' : '');
+
+    // ── Entity context from request body ──────────────────────────
+    if (context_entity_slug) {
+      try {
+        const { getEntityService } = await import('./wiki-entity.js');
+        const entity = getEntityService().get(context_entity_slug);
+        if (entity) {
+          entityContext = `[用户正在查看实体 "${entity.name}" (#${entity.slug})]\n定义: ${entity.definition}\n`;
+          systemPrompt = entityContext + '\n' + systemPrompt;
+        }
+      } catch {}
+    }
 
     // ── 双路路由：先检查校准 QA 命中 ──────────────────────────────
     if (QA_MODE !== 'acp') {
