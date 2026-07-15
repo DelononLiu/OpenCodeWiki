@@ -19,6 +19,7 @@ import {
 } from './wiki-integration.js';
 import { loadWikiMeta } from './wiki-meta.js';
 import { getEntityService } from './wiki-entity.js';
+import { renderPageShell } from './page-shell.js';
 import { setupAuth } from './auth/index.js';
 import { CodegraphBridge, getBridge } from './codegraph-bridge.js';
 
@@ -687,19 +688,37 @@ async function sendQaPage(_req: any, res: any) {
 
 async function sendHomePage(_req: any, res: any) {
   try {
-    let content = await fs.readFile(homeIndexFile, 'utf-8');
-    const HOME_VARS = { bgSurface: 'var(--surface)', bgSecondary: 'var(--tag-bg)', border: 'var(--border)', text: 'var(--text)', textMuted: 'var(--text3)', blue: 'var(--blue)' };
-    const HOME_IDS = { domainBar: 'homeDomainBar', domainInput: 'homeDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'qaAskBtn', qaInput: 'qaInput', qaHighlight: 'homeHighlight', suggestDropdown: 'homeSuggestDropdown' };
-    content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(HOME_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: HOME_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: HOME_IDS, suggestApi: 'api/qa/questions/suggest' }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: HOME_VARS, textarea: true, idMap: HOME_IDS, suggestApi: 'api/qa/questions/suggest' }));
-    content = content.replace('/* USER_BAR_CSS */', userBarStyles());
-    content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
-    content = content.replace('/* USER_BAR_JS */', userBarInitScript());
-    if (BASE_PATH) {
-      content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
-    }
-    res.type('html').send(content);
+    const repos = await loadRegistry();
+    // Build repo cards
+    const repoCards = repos.map(r => `
+      <a href="/${r.name}/wiki/overview" style="display:block;padding:14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text)">
+        <div style="font-weight:600;font-size:14px">${r.name}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${r.path}</div>
+      </a>
+    `).join('');
+
+    // Get hot entities
+    let hotHtml = '';
+    try {
+      const entities = getEntityService().hot(5);
+      hotHtml = entities.map(e =>
+        `<a href="/self/wiki/${e.slug}" style="display:inline-block;padding:4px 10px;background:var(--primary-soft);color:var(--primary);border-radius:6px;font-size:12px;text-decoration:none;margin:2px">${e.name}</a>`
+      ).join('');
+    } catch {}
+
+    const content = `
+      <h1 style="font-size:24px;font-weight:700;margin-bottom:4px">欢迎回来</h1>
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">已注册 ${repos.length} 个仓库</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:24px">${repoCards}</div>
+      ${hotHtml ? `<div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:8px">🔥 热门实体</div><div>${hotHtml}</div>` : ''}
+    `;
+
+    const html = renderPageShell(content, {
+      headerMode: 'light',
+      title: 'OpenCodeWiki',
+      bottomInput: { placeholder: '对代码库提问...' },
+    });
+    res.type('html').send(html);
   } catch {
     res.status(404).type('text').send('Home page not found');
   }

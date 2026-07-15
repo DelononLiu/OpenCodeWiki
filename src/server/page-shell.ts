@@ -5,7 +5,6 @@ export interface ShellOpts {
   repoName?: string;
   activeSection?: 'wiki' | 'entity' | 'qa' | 'admin';
   title?: string;
-  content: string;
   bottomInput?: {
     placeholder: string;
     contextEntitySlug?: string;
