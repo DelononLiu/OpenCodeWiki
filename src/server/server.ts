@@ -665,7 +665,7 @@ const _vendorMiddleware = async (req, res, next) => {
   } catch { next(); }
 };
 
-async function sendQaPage(_req: any, res: any) {
+async function sendQaPage(req: any, res: any) {
   try {
     let content = await fs.readFile(qaIndexFile, 'utf-8');
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
@@ -679,7 +679,15 @@ async function sendQaPage(_req: any, res: any) {
     if (BASE_PATH) {
       content = content.replace('</head>', `<script>window.BASE_PATH=${JSON.stringify(BASE_PATH)}</script></head>`);
     }
-    res.type('html').send(content);
+
+    const html = renderPageShell(content, {
+      headerMode: 'full',
+      repoName: req.params.repoName || 'self',
+      activeSection: 'qa',
+      title: '问答 — OpenCodeWiki',
+      bottomInput: { placeholder: '对代码库提问...' },
+    });
+    res.type('html').send(html);
   } catch {
     res.status(404).type('text').send('Q&A page not found');
   }
