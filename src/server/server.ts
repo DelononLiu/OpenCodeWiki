@@ -795,12 +795,72 @@ app.get('/qa/', sendQaPage);
 app.get('/qa/*', sendQaPage);
 app.get('/', sendHomePage);
 app.get('/admin', sendAdminPage);
-app.get('/wiki/entity/:slug', async (_req, res) => {
+app.get('/wiki/entity/:slug', async (req, res) => {
   try {
-    const content = await fs.readFile(entityViewFile, 'utf-8');
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(content);
-  } catch { res.status(404).send('Entity page not found'); }
+    const entity = getEntityService().get(req.params.slug);
+    if (!entity) { res.status(404).send('Entity not found'); return; }
+
+    let content = await fs.readFile(entityViewFile, 'utf-8');
+
+    // Status mapping
+    const STATUS_MAP: Record<string, {label: string, bg: string, color: string}> = {
+      draft: { label: '草稿', bg: '#f1f5f9', color: '#64748b' },
+      reviewed: { label: '已校准', bg: '#ecfdf5', color: '#059669' },
+      published: { label: '已发布', bg: '#eff6ff', color: '#2563eb' },
+    };
+    const st = STATUS_MAP[entity.status] || STATUS_MAP.draft;
+
+    // Replace placeholders
+    content = content
+      .replace(/\{\{NAME\}\}/g, entity.name)
+      .replace(/\{\{STATUS_LABEL\}\}/g, st.label)
+      .replace(/\{\{STATUS_BG\}\}/g, st.bg)
+      .replace(/\{\{STATUS_COLOR\}\}/g, st.color)
+      .replace(/\{\{DEFINITION\}\}/g, entity.definition || '')
+      .replace(/\{\{SLUG\}\}/g, entity.slug)
+      .replace(/\{\{QA_COUNT\}\}/g, '0'); // placeholder, updated by JS on load
+
+    // Files section
+    if (entity.files?.length) {
+      const filesHtml = entity.files.map(f =>
+        `<span style="font-size:12px;padding:3px 8px;background:var(--hover);border-radius:4px"><code>${f.path}</code></span>`
+      ).join('');
+      content = content.replace('{{FILES}}',
+        `<div style="margin-bottom:16px"><div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">涉及代码</div><div style="display:flex;flex-wrap:wrap;gap:4px">${filesHtml}</div></div>`
+      );
+    } else {
+      content = content.replace('{{FILES}}', '');
+    }
+
+    // Content section
+    if (entity.content) {
+      content = content.replace('{{CONTENT}}',
+        `<div style="font-size:14px;line-height:1.7;color:#334155;margin-bottom:24px">${entity.content}</div>`
+      );
+    } else {
+      content = content.replace('{{CONTENT}}', '');
+    }
+
+    // Gather entity list for sidebar
+    const sidebarEntities = getEntityService().all().map(e => ({
+      name: e.name,
+      slug: e.slug,
+      qaCount: 0,
+    }));
+
+    const html = renderPageShell(content, {
+      headerMode: 'full',
+      repoName: 'self',
+      activeSection: entity.slug,
+      title: `${entity.name} — OpenCodeWiki`,
+      bottomInput: { placeholder: `对「${entity.name}」提问...`, contextEntitySlug: entity.slug },
+      sidebar: { entities: sidebarEntities },
+    });
+
+    res.type('html').send(html);
+  } catch (e) {
+    res.status(500).send('Error rendering entity page');
+  }
 });
 app.get('/:repoName/qa', sendQaPage);
 

@@ -1,14 +1,21 @@
 // src/server/page-shell.ts — 统一页面骨架生成器
 
+export interface SidebarOptions {
+  wikiTree?: {name: string, slug: string, children?: {name: string, slug: string}[]}[];
+  entities?: {name: string, slug: string, qaCount?: number}[];
+  qaEntries?: {qid: number, question: string}[];
+}
+
 export interface ShellOpts {
   headerMode: 'light' | 'full';
   repoName?: string;
-  activeSection?: 'wiki' | 'entity' | 'qa' | 'admin';
+  activeSection?: string;
   title?: string;
   bottomInput?: {
     placeholder: string;
     contextEntitySlug?: string;
   };
+  sidebar?: SidebarOptions;
 }
 
 const STYLES = `
@@ -66,7 +73,7 @@ export function renderFullHeader(repoName: string): string {
   </div>`;
 }
 
-export function renderSidebar(repoName: string, activeSection: string, options?: {wikiTree?: {name:string,slug:string,children?:{name:string,slug:string}[]}[], entities?: {name:string,slug:string,qaCount?:number}[], qaEntries?: {qid:number,question:string}[]}): string {
+export function renderSidebar(repoName: string, activeSection: string, options?: SidebarOptions): string {
   let html = '<div class="sidebar"><div class="sidebar-nav">';
 
   // Wiki pages
@@ -128,7 +135,7 @@ export function renderBottomInput(placeholder: string, contextEntitySlug?: strin
 
 export function renderPageShell(content: string, opts: ShellOpts): string {
   const header = opts.headerMode === 'light' ? renderLightHeader() : renderFullHeader(opts.repoName || '');
-  const sidebar = opts.headerMode === 'full' ? renderSidebar(opts.repoName || '', opts.activeSection || '') : '';
+  const sidebar = opts.headerMode === 'full' ? renderSidebar(opts.repoName || '', opts.activeSection || '', opts.sidebar) : '';
   const bottom = opts.bottomInput ? renderBottomInput(opts.bottomInput.placeholder, opts.bottomInput.contextEntitySlug) : '';
 
   const layout = opts.headerMode === 'full'
