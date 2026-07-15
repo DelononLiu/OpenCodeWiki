@@ -280,7 +280,45 @@ git commit -m "feat: home page with unified shell (light header, no sidebar)"
 - Rewrite: `src/wiki/entity.html` — 去掉独立骨架，改为内容片段
 - Modify: `src/server/server.ts` — 实体页渲染走 shell + 内容片段
 
-- [ ] **Step 1: 重写 `src/wiki/entity.html` 为内容片段**
+#### Step 1.5: 更新实体-QA API 返回 answer 和 total
+
+In `server.ts`, modify `GET /api/wiki/entities/:slug/qa` to return answer text and total count, limited to 5:
+
+```typescript
+// Replace the existing handler body (around line 1389)
+app.get('/api/wiki/entities/:slug/qa', async (req, res) => {
+  const { slug } = req.params;
+  try {
+    const { getKnowledgeDb } = await import('./knowledge-db.js');
+    const db = getKnowledgeDb();
+    const qidRows = db.prepare('SELECT qid FROM entity_qa WHERE entity_slug = ?').all(slug) as any[];
+    const total = qidRows.length;
+    if (total === 0) { res.json({ qa: [], total: 0 }); return; }
+    // Limit to first 5
+    const qids = qidRows.slice(0, 5).map((r: any) => r.qid);
+    const { getQaDb } = await import('./qa-store.js');
+    const qaDb = getQaDb();
+    const placeholders = qids.map(() => '?').join(',');
+    const qaRows = qaDb.prepare(`
+      SELECT q.qid, q.question, q.answer,
+        (SELECT COUNT(*) FROM calibrated_answers ca WHERE ca.qa_entry_id = q.id) AS calibrated_count
+      FROM qa_entries q WHERE q.qid IN (${placeholders})
+      ORDER BY q.visit_count DESC
+    `).all(...qids) as any[];
+    res.json({
+      qa: qaRows.map((r: any) => ({
+        qid: r.qid,
+        question: r.question,
+        answer: r.calibrated_count > 0 ? (r.answer || '') : '',
+        isCalibrated: r.calibrated_count > 0,
+      })),
+      total,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'failed to load QA data', details: String(e) });
+  }
+});
+```
 
 去掉原来的完整 HTML 结构（`<!DOCTYPE>`、`<html>`、`<head>`、`<style>`、`<body>`），只保留渲染逻辑的内容模板。使用 `{{SLUG}}`、`{{NAME}}` 等模板占位符，由服务端替换：
 
@@ -316,14 +354,20 @@ async function loadEntityQa() {
     list.innerHTML = data.qa.map(function(q) {
       const cal = q.isCalibrated;
       const statusBadge = cal ? '<span style="font-size:9px;padding:1px 8px;background:#ecfdf5;color:#059669;border-radius:8px;margin-left:auto">已校准 ✅</span>' : '<span style="font-size:9px;padding:1px 8px;background:#fef3c7;color:#92400e;border-radius:8px;margin-left:auto">待校准 ⏳</span>';
-      const answerHtml = cal && q.answer ? '<div style="font-size:13px;color:#475569;line-height:1.7;margin-top:6px">' + q.answer + '</div>' : '';
+      const summary = (q.answer || '').slice(0, 80);
+      const answerHtml = summary ? '<div style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-top:4px">' + summary + '... <span style="color:var(--primary);cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=\'block\'">[点击展开]</span></div><div style="display:none;font-size:13px;color:#475569;line-height:1.7;margin-top:8px">' + (q.answer || '') + '</div>' : '';
       return '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px">' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
         '<span style="font-size:11px;font-weight:600;color:var(--primary)">#Q' + q.qid + '</span>' +
         '<span style="font-size:13px;font-weight:500">' + q.question + '</span>' +
         statusBadge +
         '</div>' + answerHtml + '</div>';
     }).join('');
+    // If more than 5, show "view all" link
+    if (data.total > data.qa.length) {
+      list.innerHTML += '<a href="/qa?entity=' + slug + '" target="_blank" style="display:inline-block;margin-top:4px;font-size:13px;color:var(--primary);text-decoration:none">→ 查看全部 ' + data.total + ' 条关联 #Q</a>';
+    }
+  }
   } catch(e) { document.getElementById('entityQaList').innerHTML = '<span style="font-size:13px;color:#ef4444">加载失败</span>'; }
 }
 loadEntityQa();

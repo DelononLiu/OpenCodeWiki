@@ -1,0 +1,98 @@
+<h2>统一底部悬浮输入框 · 设计方案</h2>
+<p class="subtitle">所有页面共享同一个底部 QA 输入栏，位置固定、样式统一</p>
+
+<div class="section">
+  <div class="mockup" style="max-width: 750px; margin: 0 auto;">
+    <!-- Browser window frame -->
+    <div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.08);">
+      <!-- URL bar -->
+      <div style="padding:8px 12px;background:#f8f9fb;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;">
+        <div style="display:flex;gap:4px;"><div style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></div><div style="width:10px;height:10px;border-radius:50%;background:#eab308;"></div><div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div></div>
+        <div style="flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:4px 8px;font-size:11px;color:#64748b;">localhost:4747/repo/wiki/qa-engine</div>
+      </div>
+      <!-- Page content area -->
+      <div style="padding:16px 20px 80px 20px;min-height:300px;position:relative;">
+        <!-- Entity header -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#059669;"></div>
+          <span style="font-size:18px;font-weight:600;">问答引擎</span>
+          <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#ecfdf5;color:#059669;">已校准</span>
+        </div>
+        <div style="color:#64748b;font-size:14px;margin-bottom:16px;">统一处理用户问题的入口，支持多路路由和标准答案匹配</div>
+
+        <!-- Content -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:12px;color:#64748b;margin-bottom:6px;">关联问答</div>
+          <div style="background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;">
+            <div style="font-weight:500;color:#2563eb;font-size:13px;margin-bottom:4px;">#Q3: 如何处理大规模并发请求？</div>
+            <div style="font-size:13px;color:#475569;line-height:1.6;">使用连接池 + 异步队列，通过事件循环分发任务...</div>
+          </div>
+          <div style="background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
+            <div style="font-weight:500;color:#2563eb;font-size:13px;margin-bottom:4px;">#Q7: 性能瓶颈在哪？</div>
+            <div style="font-size:13px;color:#475569;line-height:1.6;">主要在 I/O 等待...</div>
+          </div>
+        </div>
+      </div>
+      <!-- Floating bottom input bar -->
+      <div style="position:sticky;bottom:0;padding:10px 20px;background:linear-gradient(transparent, #f8f9fb 20%);">
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d1d5db;border-radius:12px;padding:8px 12px;box-shadow:0 -2px 8px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.1);max-width:680px;margin:0 auto;">
+          <div class="placeholder" style="width:100%;min-width:0;">
+            <span style="font-size:14px;color:#94a3b8;">对「问答引擎」提问...</span>
+            <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#eff6ff;color:#2563eb;font-size:10px;margin-left:6px;">#qa-engine</span>
+          </div>
+          <div style="display:flex;gap:2px;font-size:11px;color:#94a3b8;">
+            <span style="padding:2px 6px;border:1px solid #e5e7eb;border-radius:4px;">/bug</span>
+            <span style="padding:2px 6px;border:1px solid #e5e7eb;border-radius:4px;">/log</span>
+          </div>
+          <div style="background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">发送</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>核心设计原则</h3>
+</div>
+
+<div class="cards">
+  <div class="card" style="border-left: 4px solid #3b82f6;" data-choice="principle1">
+    <div class="card-body">
+      <h3>📍 位置固定</h3>
+      <p>所有页面底部同一位置，半透明渐变过渡。滚动时输入框始终可见。尺寸固定，不影响页面滚动。</p>
+    </div>
+  </div>
+  <div class="card" style="border-left: 4px solid #10b981;" data-choice="principle2">
+    <div class="card-body">
+      <h3>🧠 上下文感知</h3>
+      <p>在实体页时，placeholder 显示"对「实体名」提问..."，自动附加 <code>#slug</code> 到问题上下文。在普通页面时，显示"对代码库提问..."，不带实体上下文。</p>
+    </div>
+  </div>
+  <div class="card" style="border-left: 4px solid #8b5cf6;" data-choice="principle3">
+    <div class="card-body">
+      <h3>🔗 共享组件</h3>
+      <p>所有页面共用同一个 qa-input.ts 组件，服务器端注入。不需要每个页面自己维护一份。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>需要你确认的</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="inline-qa" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>关联 #Q 展开在正文内 + 底部悬浮输入框</h3>
+      <p>关联问答直接渲染在正文下方（如上图），底部悬浮条是唯一的提问入口。页面干净，统一。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="sidebar+float" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>取消侧边栏，QA 全部移到底部区域</h3>
+      <p>当前实体页的右侧 #Q 面板取消，整个页面变全宽。关联问答在正文底部，悬浮输入在页面底部。</p>
+    </div>
+  </div>
+</div>

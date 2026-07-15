@@ -1,0 +1,90 @@
+<h2>方案 B 细化 · 实体页底部问答区</h2>
+<p class="subtitle">确认几个交互细节</p>
+
+<div class="section">
+  <div class="mockup" style="max-width: 700px; margin: 0 auto;">
+    <!-- 实体页结构示意 -->
+    <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+      <!-- Entity Header -->
+      <div style="padding:16px;border-bottom:1px solid #e5e7eb;">
+        <div style="background:#f1f5f9;height:24px;width:40%;border-radius:4px;margin-bottom:8px;"></div>
+        <div style="background:#e2e8f0;height:14px;width:80%;border-radius:4px;"></div>
+      </div>
+      <!-- Entity Content -->
+      <div style="padding:16px;border-bottom:1px solid #e5e7eb;">
+        <div style="background:#e2e8f0;height:14px;width:100%;border-radius:4px;margin-bottom:4px;"></div>
+        <div style="background:#e2e8f0;height:14px;width:60%;border-radius:4px;"></div>
+      </div>
+      <!-- QA Section -->
+      <div style="padding:16px;background:#f8f9fb;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="font-size:14px;font-weight:600;">💬 关联问答</span>
+          <span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#dbeafe;color:#2563eb;font-size:10px;">3 个问题</span>
+        </div>
+
+        <!-- QA Item 1 (calibrated) -->
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div><span style="font-size:12px;font-weight:600;color:#2563eb;">#Q3</span> <span style="font-size:13px;font-weight:500;">如何处理大规模并发请求？</span></div>
+            <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#ecfdf5;color:#059669;">已校准 ✅</span>
+          </div>
+          <div style="font-size:13px;color:#475569;line-height:1.6;">使用连接池 + 异步队列，通过事件循环分发任务，避免线程阻塞...</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:6px;">#database #concurrency · 3天前</div>
+        </div>
+
+        <!-- QA Item 2 (pending) -->
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div><span style="font-size:12px;font-weight:600;color:#2563eb;">#Q7</span> <span style="font-size:13px;font-weight:500;">性能瓶颈在哪里？</span></div>
+            <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#fef3c7;color:#92400e;">待校准 ⏳</span>
+          </div>
+          <div style="font-size:13px;color:#475569;line-height:1.6;">主要在 I/O 等待，建议使用缓存层优化读路径...</div>
+        </div>
+
+        <!-- Divider -->
+        <div style="border-top:1px dashed #d1d5db;margin:12px 0;"></div>
+
+        <!-- QA Input -->
+        <div style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;display:flex;gap:8px;align-items:center;">
+          <div style="flex:1;font-size:13px;color:#94a3b8;">问一个关于「问答引擎」的问题...</div>
+          <div style="display:flex;gap:4px;">
+            <div style="font-size:10px;color:#94a3b8;padding:4px 0;">#qa-engine</div>
+            <div style="background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">提问</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>需要确认的细节</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="inline-expand" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>直接在实体页展开答案</h3>
+      <p>如上图所示，关联 #Q 的答案直接渲染在实体页下方，可读完整答案，不需要跳转到 QA 页面。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="sidebar-expand" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>实体页只显示摘要，点击展开</h3>
+      <p>默认只显示问题标题 + 前两行摘要，点击后展开完整答案。节省空间。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合模式：已校准展开，待校准折叠</h3>
+      <p>已校准的答案直接展开可读。待校准（无标准答案）只显示问题标题和前两行 LLM 回答摘要。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">点一个选项，或者终端告诉我你的想法。</p>
+</div>

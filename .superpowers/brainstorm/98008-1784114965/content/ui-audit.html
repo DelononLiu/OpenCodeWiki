@@ -1,0 +1,62 @@
+<h2>UI 风格一致性审计结果</h2>
+<p class="subtitle">当前 5 个页面的 CSS 变量、布局、配色、组件对比</p>
+
+<div class="section">
+  <div class="options" style="grid-template-columns: 1fr;">
+    <div class="option" style="cursor:default;border-left:4px solid #ef4444;">
+      <div class="content">
+        <h3>1. CSS 变量名 3 套互不兼容</h3>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;">
+          <tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #e5e7eb;">页面</th><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #e5e7eb;">背景色变量</th><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #e5e7eb;">边框变量</th><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #e5e7eb;">文本色变量</th></tr>
+          <tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;">Wiki Viewer</td><td style="padding:4px 8px;"><code>--bg</code></td><td style="padding:4px 8px;"><code>--border</code></td><td style="padding:4px 8px;"><code>--text</code></td></tr>
+          <tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;">首页 (Home)</td><td style="padding:4px 8px;"><code>var(--surface)</code></td><td style="padding:4px 8px;"><code>var(--border)</code></td><td style="padding:4px 8px;"><code>var(--text)</code></td></tr>
+          <tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;">QA 页面</td><td style="padding:4px 8px;"><code>var(--bg-component)</code></td><td style="padding:4px 8px;"><code>var(--color-border)</code></td><td style="padding:4px 8px;"><code>var(--color-text-primary)</code></td></tr>
+          <tr><td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;">实体页 (entity.html)</td><td style="padding:4px 8px;">硬编码 <code>#fff</code></td><td style="padding:4px 8px;">硬编码 <code>#e5e7eb</code></td><td style="padding:4px 8px;">硬编码 <code>#1e293b</code></td></tr>
+          <tr><td style="padding:4px 8px;">管理端 (Admin)</td><td style="padding:4px 8px;">硬编码 <code>#fff</code></td><td style="padding:4px 8px;">硬编码 <code>#e5e7eb</code></td><td style="padding:4px 8px;">硬编码 <code>#1e293b</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="option" style="cursor:default;border-left:4px solid #eab308;">
+      <div class="content">
+        <h3>2. QA 输入框位置不一致</h3>
+        <p>Wiki Viewer 已经用 <code>position:fixed;bottom:20px;left:50%</code> 实现了底部悬浮。但首页和 QA 页面是内嵌在正文里的，实体页根本没有 QA 输入框。</p>
+      </div>
+    </div>
+
+    <div class="option" style="cursor:default;border-left:4px solid #eab308;">
+      <div class="content">
+        <h3>3. 头部导航不一致</h3>
+        <p>Wiki Viewer 有 sticky header（OpenCodeWiki logo + repo 名称）+ 左侧边栏。实体页只有一个「返回首页」链接。首页和 QA 页各有不同的顶栏组件（user-bar）。</p>
+      </div>
+    </div>
+
+    <div class="option" style="cursor:default;border-left:4px solid #3b82f6;">
+      <div class="content">
+        <h3>4. 内容区域宽度不一致</h3>
+        <p>Wiki Viewer 正文 <code>max-width:960px</code>（+ 280px 侧边栏），实体页 <code>max-width:800px</code>，管理页 <code>max-width:960px</code>。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>建议：统一为 Wiki Viewer 的 CSS 变量体系</h3>
+  <p class="subtitle">因为 Wiki Viewer 是用户交互最多的页面，且变量体系最完整</p>
+</div>
+
+<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px;">
+  <tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">语义</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">统一变量</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">默认值</th></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">背景色</td><td style="padding:6px 8px;"><code>--bg</code></td><td style="padding:6px 8px;"><code>#ffffff</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">次要背景</td><td style="padding:6px 8px;"><code>--bg-secondary</code></td><td style="padding:6px 8px;"><code>#f8f9fb</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">边框</td><td style="padding:6px 8px;"><code>--border</code></td><td style="padding:6px 8px;"><code>#e5e7eb</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">正文色</td><td style="padding:6px 8px;"><code>--text</code></td><td style="padding:6px 8px;"><code>#1e293b</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">次要文本</td><td style="padding:6px 8px;"><code>--text-muted</code></td><td style="padding:6px 8px;"><code>#64748b</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">主题色</td><td style="padding:6px 8px;"><code>--primary</code></td><td style="padding:6px 8px;"><code>#2563eb</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">圆角</td><td style="padding:6px 8px;"><code>--radius</code></td><td style="padding:6px 8px;"><code>8px</code></td></tr>
+  <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">代码背景</td><td style="padding:6px 8px;"><code>--code-bg</code></td><td style="padding:6px 8px;"><code>#f1f5f9</code></td></tr>
+</table>
+
+<div class="section">
+  <p class="subtitle">这样统一后，entity.html、admin 页面都能复用同一套变量，不再有"这个页面的蓝色不一样"的问题。</p>
+</div>

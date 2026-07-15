@@ -377,6 +377,10 @@ function safeName(name: string): string {
   return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 // TTL cleanup: remove uploads older than 24h
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 setInterval(() => cleanupStaleUploads(UPLOAD_BASE, UPLOAD_TTL_MS).catch(() => {}), 30 * 60 * 1000);
@@ -670,9 +674,9 @@ async function sendQaPage(req: any, res: any) {
     let content = await fs.readFile(qaIndexFile, 'utf-8');
     const QA_VARS = { bgSurface: 'var(--bg-component)', bgSecondary: 'var(--bg-secondary)', border: 'var(--color-border)', text: 'var(--color-text-primary)', textMuted: 'var(--color-text-secondary)', blue: 'var(--color-blue)' };
     const QA_IDS = { domainBar: 'qaDomainBar', domainInput: 'qaDomainInput', attachBtn: 'attachBtn', fileInput: 'fileInput', sendBtn: 'sendBtn', qaInput: 'qaInput', qaHighlight: 'qaHighlight', suggestDropdown: 'qaSuggestDropdown' };
-    content = content.replace('/* QA_INPUT_CSS */', qaInputStyles(QA_VARS));
-    content = content.replace('<!-- QA_INPUT_HTML -->', qaInputHtml({ vars: QA_VARS, textarea: true, placeholder: '输入代码库相关问题...', idMap: QA_IDS, suggestApi: 'api/qa/questions/suggest' }));
-    content = content.replace('/* QA_INPUT_JS */', qaInputInitScript({ vars: QA_VARS, textarea: true, idMap: QA_IDS, suggestApi: 'api/qa/questions/suggest' }));
+    content = content.replace('/* QA_INPUT_CSS */', '');
+    content = content.replace('<!-- QA_INPUT_HTML -->', '');
+    content = content.replace('/* QA_INPUT_JS */', '');
     content = content.replace('/* USER_BAR_CSS */', userBarStyles({ text: 'var(--color-text-primary)', text2: 'var(--color-text-secondary)', text3: 'var(--color-text-secondary)', blue: 'var(--color-blue)', border: 'var(--color-border)', surface: 'var(--bg-surface)', tagBg: 'var(--bg-secondary)' }));
     content = content.replace('<!-- USER_BAR_HTML -->', userBarHtml());
     content = content.replace('/* USER_BAR_JS */', userBarInitScript());
@@ -749,8 +753,12 @@ async function sendAdminPage(_req: any, res: any) {
           <span style="font-size:14px;font-weight:500">${e.question.replace(/</g,'&lt;')}</span>
           <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${(e.createdAt||'').slice(0,10)}</span>
         </div>
-        <div style="display:flex;gap:6px;margin-top:8px">
+        <div style="margin-top:8px">
+          <textarea id="calAnswer_${e.qid}" rows="3" style="width:100%;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:6px;resize:vertical;font-family:inherit" placeholder="输入校准答案..."></textarea>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
           <button onclick="window.location.href='/qa?qid=${e.qid}'" style="padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">查看</button>
+          <button onclick="calibrateEntry(${e.qid})" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">校准</button>
         </div>
       </div>`;
     }
@@ -760,6 +768,23 @@ async function sendAdminPage(_req: any, res: any) {
   const content = `
     <h1 style="font-size:22px;font-weight:700;margin-bottom:16px">⏳ 待审区</h1>
     ${hasAny ? pendingHtml : '<div style="color:var(--text-muted);text-align:center;padding:40px;font-size:14px">✅ 暂无待审核条目</div>'}
+    <script>
+    async function calibrateEntry(qid) {
+      var ta=document.getElementById('calAnswer_'+qid);
+      if(!ta||!ta.value.trim())return alert('请输入校准答案');
+      var btn=ta.parentElement.nextElementSibling.querySelector('button:last-child');
+      btn.disabled=true;btn.textContent='校准中...';
+      try {
+        var r=await fetch('/api/qa/entry/'+qid+'/calibrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answer:ta.value.trim(),calibrator:'admin'})});
+        if(!r.ok)throw new Error((await r.json()).error||'校准失败');
+        btn.textContent='✅ 已校准';btn.style.background='#16a34a';
+        ta.disabled=true;ta.style.opacity='0.6';
+      }catch(e){
+        btn.disabled=false;btn.textContent='校准失败';
+        alert(e.message);
+      }
+    }
+    </script>
   `;
 
   const html = renderPageShell(content, {
@@ -792,13 +817,13 @@ app.get('/wiki/entity/:slug', async (req, res) => {
     };
     const st = STATUS_MAP[entity.status] || STATUS_MAP.draft;
 
-    // Replace placeholders
+    // Replace placeholders (with HTML escaping)
     content = content
-      .replace(/\{\{NAME\}\}/g, entity.name)
+      .replace(/\{\{NAME\}\}/g, escapeHtml(entity.name))
       .replace(/\{\{STATUS_LABEL\}\}/g, st.label)
       .replace(/\{\{STATUS_BG\}\}/g, st.bg)
       .replace(/\{\{STATUS_COLOR\}\}/g, st.color)
-      .replace(/\{\{DEFINITION\}\}/g, entity.definition || '')
+      .replace(/\{\{DEFINITION\}\}/g, escapeHtml(entity.definition || ''))
       .replace(/\{\{SLUG\}\}/g, entity.slug)
       .replace(/\{\{QA_COUNT\}\}/g, '0'); // placeholder, updated by JS on load
 
@@ -817,7 +842,7 @@ app.get('/wiki/entity/:slug', async (req, res) => {
     // Content section
     if (entity.content) {
       content = content.replace('{{CONTENT}}',
-        `<div style="font-size:14px;line-height:1.7;color:#334155;margin-bottom:24px">${entity.content}</div>`
+        `<div style="font-size:14px;line-height:1.7;color:#334155;margin-bottom:24px">${escapeHtml(entity.content)}</div>`
       );
     } else {
       content = content.replace('{{CONTENT}}', '');
@@ -830,13 +855,34 @@ app.get('/wiki/entity/:slug', async (req, res) => {
       qaCount: 0,
     }));
 
+    // Load wiki module tree for sidebar
+    let wikiTree: {name: string; slug: string}[] = [];
+    try {
+      const wikiDir = wikiOutputDir(rootDir);
+      wikiTree = await loadModuleTree(wikiDir);
+    } catch {}
+
+    // Load recent QA entries related to this entity for sidebar
+    let qaEntries: {qid: number; question: string}[] = [];
+    try {
+      const { getKnowledgeDb } = await import('./knowledge-db.js');
+      const kdb = getKnowledgeDb();
+      const qidRows = kdb.prepare('SELECT qid FROM entity_qa WHERE entity_slug = ? ORDER BY rowid DESC LIMIT 5').all(entity.slug) as any[];
+      if (qidRows.length > 0) {
+        const { getQaDb } = await import('./qa-store.js');
+        const qadb = getQaDb();
+        const placeholders = qidRows.map(() => '?').join(',');
+        qaEntries = qadb.prepare(`SELECT qid, question FROM qa_entries WHERE qid IN (${placeholders}) ORDER BY visit_count DESC LIMIT 5`).all(...qidRows.map((r: any) => r.qid)) as any[];
+      }
+    } catch {}
+
     const html = renderPageShell(content, {
       headerMode: 'full',
       repoName: 'self',
       activeSection: entity.slug,
       title: `${entity.name} — OpenCodeWiki`,
       bottomInput: { placeholder: `对「${entity.name}」提问...`, contextEntitySlug: entity.slug },
-      sidebar: { entities: sidebarEntities },
+      sidebar: { entities: sidebarEntities, wikiTree, qaEntries },
     });
 
     res.type('html').send(html);

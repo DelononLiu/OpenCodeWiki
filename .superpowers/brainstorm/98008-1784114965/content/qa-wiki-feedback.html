@@ -1,0 +1,127 @@
+<h2>QA → Wiki 反馈回路 · UI 设计</h2>
+<p class="subtitle">当前 UI 的 3 个断点 + 改进方案</p>
+
+<div class="section">
+  <h3>📌 场景：用户在实体页查看问答</h3>
+</div>
+
+<div class="cards">
+  <!-- Current -->
+  <div class="card" style="border-left: 4px solid #3b82f6;" data-choice="current">
+    <div class="card-body">
+      <h3>当前：已有关联 #Q 面板</h3>
+      <div class="mockup" style="margin-top: 8px;">
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1">
+            <div style="background:#f1f5f9;height:20px;width:60%;border-radius:4px;margin-bottom:8px;"></div>
+            <div style="background:#e2e8f0;height:14px;width:90%;border-radius:4px;margin-bottom:4px;"></div>
+            <div style="background:#e2e8f0;height:14px;width:70%;border-radius:4px;"></div>
+          </div>
+          <div style="width:180px;background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:8px;">📌 关联问题</div>
+            <div style="font-size:12px;color:#2563eb;margin-bottom:6px;">#Q3: 如何处理…</div>
+            <div style="font-size:12px;color:#2563eb;">#Q7: 性能瓶颈…</div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px;">✅ 关联 #Q 面板已存在<br>❌ 面板上没有「提问」入口<br>❌ 面板上的 #Q 不可预览</p>
+    </div>
+  </div>
+
+  <!-- Proposal A -->
+  <div class="card" style="border-left: 4px solid #10b981;" data-choice="proposal-a">
+    <div class="card-body">
+      <h3>方案 A：内联 #Q 预览 + 快速提问</h3>
+      <div class="mockup" style="margin-top:8px;">
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1">
+            <div style="background:#f1f5f9;height:20px;width:60%;border-radius:4px;margin-bottom:8px;"></div>
+            <div style="background:#e2e8f0;height:14px;width:90%;border-radius:4px;margin-bottom:4px;"></div>
+            <div style="background:#e2e8f0;height:14px;width:70%;border-radius:4px;"></div>
+          </div>
+          <div style="width:220px;background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:6px;">📌 关联问题</div>
+            <div style="font-size:12px;padding:4px 6px;background:#eff6ff;border-radius:4px;margin-bottom:4px;cursor:pointer;">
+              #Q3: 如何处理… <span style="font-size:10px;color:#64748b;">点此预览</span>
+            </div>
+            <div style="font-size:12px;padding:4px 6px;border-radius:4px;margin-bottom:8px;cursor:pointer;">
+              #Q7: 性能瓶颈… <span style="font-size:10px;color:#64748b;">点此预览</span>
+            </div>
+            <div style="border-top:1px solid #e5e7eb;padding-top:8px;">
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px;">对此实体提问</div>
+              <div style="display:flex;gap:4px;">
+                <div style="flex:1;border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;font-size:12px;color:#94a3b8;">输入问题...</div>
+                <div style="background:#2563eb;color:#fff;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer;">发送</div>
+              </div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:4px;">自动附加实体上下文</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px;">✅ #Q 可展开预览答案<br>✅ 面板底部直接提问<br>✅ 自动带入 `#slug` 上下文</p>
+    </div>
+  </div>
+
+  <!-- Proposal B -->
+  <div class="card" style="border-left: 4px solid #8b5cf6;" data-choice="proposal-b">
+    <div class="card-body">
+      <h3>方案 B：实体页底部的全局问答区</h3>
+      <div class="mockup" style="margin-top:8px;">
+        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">💬 对此实体的问答</div>
+          <!-- Existing Q&A entries inline -->
+          <div style="background:#f8f9fb;border-radius:6px;padding:8px;margin-bottom:8px;">
+            <div style="font-size:12px;color:#2563eb;margin-bottom:4px;">#Q3: 如何处理大规模并发请求？</div>
+            <div style="font-size:12px;color:#1e293b;line-height:1.5;">使用连接池 + 异步队列，详见...</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:4px;">已校准 ✅</div>
+          </div>
+          <div style="background:#f8f9fb;border-radius:6px;padding:8px;margin-bottom:8px;">
+            <div style="font-size:12px;color:#2563eb;margin-bottom:4px;">#Q7: 性能瓶颈在哪？</div>
+            <div style="font-size:12px;color:#1e293b;line-height:1.5;">主要在 I/O 等待，建议...</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:4px;">待校准 ⏳</div>
+          </div>
+          <!-- Input -->
+          <div style="display:flex;gap:4px;">
+            <div style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:8px;font-size:13px;color:#94a3b8;">问一个关于「问答引擎」的问题...</div>
+            <div style="background:#2563eb;color:#fff;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;">提问</div>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">#slug=qa-engine 将自动附加到问题上下文</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px;">✅ 相关问答直接嵌入实体页<br>✅ 答案可读，不跳转<br>✅ 提问自动绑定实体</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>另一个方向：QA 校准后自动回流到 Wiki</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="auto-md" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>校准即发布</h3>
+      <p>点「校准」按钮时，自动用 wiki-page-service 生成 .md 页面到 ~/.opencodewiki/pages/qa-archives/，同时更新 entity_qa 关联。不需要手动点「归档」。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="manual" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>保留手动归档</h3>
+      <p>校准只是打标，归档走现有 POST /api/wiki/archive 流程，但改写到新路径（wiki-page-service）。用户有控制权，什么值得归档自己决定。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="auto-suggest" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>半自动：校准后提示归档</h3>
+      <p>校准成功后弹一个 toast "校准成功，要归档为 Wiki 页面吗？[归档] [稍后]"</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">浏览器里选一个你倾向的方案，或者直接在终端告诉我你的想法。</p>
+  <p class="subtitle">URL: <a href="http://localhost:64871/?key=05f530fbc6d8b4a75f88272470d731f1b1e83e390858dc7137010bbd7e9407f1" target="_blank">http://localhost:64871/?key=05f530fbc6d8b4a75f88272470d731f1b1e83e390858dc7137010bbd7e9407f1</a></p>
+</div>

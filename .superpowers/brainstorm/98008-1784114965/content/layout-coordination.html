@@ -1,0 +1,136 @@
+<h2>整体设计协调性分析</h2>
+<p class="subtitle">问题不在颜色，在于每个页面的「骨架」都不同</p>
+
+<div class="section">
+  <h3>当前：5 页 5 套骨架</h3>
+</div>
+
+<div class="cards">
+  <div class="card" style="border-left:4px solid #10b981;">
+    <div class="card-body">
+      <h3>Wiki Viewer ← 骨架最完整</h3>
+      <div style="display:flex;gap:2px;height:80px;margin-top:8px;">
+        <div style="width:50px;background:#e2e8f0;border-radius:4px;"></div>
+        <div style="flex:1;background:#f8f9fb;border-radius:4px;position:relative;">
+          <div style="position:absolute;bottom:4px;left:10%;right:10%;height:16px;background:#fff;border:1px solid #d1d5db;border-radius:6px;"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:4px;">
+        <span style="font-size:10px;padding:2px 6px;background:#dbeafe;border-radius:4px;">sticky header</span>
+        <span style="font-size:10px;padding:2px 6px;background:#dbeafe;border-radius:4px;">左侧边栏导航</span>
+        <span style="font-size:10px;padding:2px 6px;background:#dbeafe;border-radius:4px;">底部悬浮输入框</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #eab308;">
+    <div class="card-body">
+      <h3>实体页 ← 独立的「孤岛」</h3>
+      <div style="display:flex;gap:2px;height:80px;margin-top:8px;">
+        <div style="flex:1;background:#f8f9fb;border-radius:4px;"></div>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:2px 6px;background:#fef3c7;border-radius:4px;">只有返回链接</span>
+        <span style="font-size:10px;padding:2px 6px;background:#fef3c7;border-radius:4px;">没有侧边栏</span>
+        <span style="font-size:10px;padding:2px 6px;background:#fef3c7;border-radius:4px;">没有输入框</span>
+        <span style="font-size:10px;padding:2px 6px;background:#fef3c7;border-radius:4px;">自成一体的 HTML</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #ef4444;">
+    <div class="card-body">
+      <h3>首页 / QA 页 / 管理端 ← 各一套</h3>
+      <div style="display:flex;gap:2px;height:80px;margin-top:8px;align-items:center;">
+        <div style="flex:1;background:#f8f9fb;border-radius:4px;height:60px;"></div>
+        <div style="flex:1;background:#f1f5f9;border-radius:4px;height:60px;"></div>
+        <div style="flex:1;background:#f1f5f9;border-radius:4px;height:60px;"></div>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">三个页面三个不同的顶栏，两个不同的 user-bar 配置</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案：统一页面骨架</h3>
+  <p class="subtitle">所有页面共用同一个 shell（header + 侧边栏 + 底部输入框），只有中间内容区不同</p>
+</div>
+
+<div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-top:12px;">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;padding:8px 16px;background:#f8f9fb;border-bottom:1px solid #e5e7eb;gap:8px;">
+    <div style="font-size:13px;font-weight:700;">OpenCodeWiki</div>
+    <div style="font-size:10px;padding:2px 6px;background:#e2e8f0;border-radius:4px;color:#64748b;">my-project</div>
+    <div style="flex:1;"></div>
+    <div style="font-size:12px;color:#64748b;">⚙️ 管理</div>
+  </div>
+  <div style="display:flex;">
+    <!-- Sidebar -->
+    <div style="width:220px;background:#f8f9fb;border-right:1px solid #e5e7eb;padding:12px;min-height:300px;">
+      <div style="font-size:11px;color:#64748b;margin-bottom:8px;">导航</div>
+      <div style="padding:6px 10px;font-size:13px;color:#1e293b;border-radius:6px;background:#eff6ff;font-weight:600;">📖 Wiki 页面</div>
+      <div style="padding:6px 10px;font-size:13px;color:#1e293b;border-radius:6px;">🏷️ 实体</div>
+      <div style="padding:6px 10px;font-size:13px;color:#1e293b;border-radius:6px;">💬 #Q 问答</div>
+      <div style="border-top:1px solid #e5e7eb;margin:8px 0;"></div>
+      <div style="padding:6px 10px;font-size:12px;color:#64748b;">问答引擎</div>
+      <div style="padding:6px 10px;font-size:12px;color:#64748b;padding-left:20px;">双路路由</div>
+      <div style="padding:6px 10px;font-size:12px;color:#64748b;padding-left:20px;">标准答案匹配</div>
+    </div>
+    <!-- Content -->
+    <div style="flex:1;padding:20px;max-width:800px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#059669;"></span>
+        <span style="font-size:20px;font-weight:600;">问答引擎</span>
+        <span style="font-size:10px;padding:2px 8px;background:#ecfdf5;color:#059669;border-radius:8px;">已校准</span>
+      </div>
+      <div style="font-size:14px;color:#64748b;margin-bottom:16px;">统一处理用户问题的入口</div>
+      <!-- Inline QA -->
+      <div style="background:#f8f9fb;border-radius:8px;padding:12px;margin-bottom:8px;border:1px solid #e5e7eb;">
+        <div style="font-weight:600;font-size:13px;color:#2563eb;margin-bottom:4px;">#Q3: 如何处理大规模并发请求？</div>
+        <div style="font-size:13px;color:#475569;">使用连接池 + 异步队列...</div>
+      </div>
+      <div style="background:#f8f9fb;border-radius:8px;padding:12px;border:1px solid #e5e7eb;">
+        <div style="font-weight:600;font-size:13px;color:#2563eb;margin-bottom:4px;">#Q7: 性能瓶颈在哪？</div>
+        <div style="font-size:13px;color:#475569;">主要在 I/O 等待...</div>
+      </div>
+    </div>
+  </div>
+  <!-- Floating QA input -->
+  <div style="padding:8px 16px;position:sticky;bottom:0;">
+    <div style="background:#fff;border:1px solid #d1d5db;border-radius:10px;padding:8px 12px;box-shadow:0 -2px 8px rgba(0,0,0,.06);max-width:600px;margin:0 auto;display:flex;">
+      <div style="flex:1;font-size:14px;color:#94a3b8;">对「问答引擎」提问...</div>
+      <div style="background:#2563eb;color:#fff;border-radius:6px;padding:4px 12px;font-size:12px;">发送</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>具体要做的事</h3>
+</div>
+
+<div class="options" style="grid-template-columns: 1fr;">
+  <div class="option" style="cursor:default;border-left:4px solid #10b981;">
+    <div class="content">
+      <h3>① 统一页面 Shell</h3>
+      <p>把 header + 侧边栏 + 底部输入框抽成共享布局。所有页面（Wiki、实体、管理、QA）共用。SSR 注入时先渲染 shell，再填内容区。</p>
+    </div>
+  </div>
+  <div class="option" style="cursor:default;border-left:4px solid #10b981;">
+    <div class="content">
+      <h3>② 实体页融入 Wiki 查看器</h3>
+      <p>实体页不再是自己打开一个独立 HTML，而是 Wiki Viewer 的一个视图。访问实体时，Wiki Viewer 的内容区渲染实体详情。</p>
+    </div>
+  </div>
+  <div class="option" style="cursor:default;border-left:4px solid #10b981;">
+    <div class="content">
+      <h3>③ 侧边栏统一导航</h3>
+      <p>侧边栏同时展示 Wiki 模块树 + 实体列表 + #Q 存档入口。用户在 Wiki 和实体之间无缝跳转。</p>
+    </div>
+  </div>
+  <div class="option" style="cursor:default;border-left:4px solid #10b981;">
+    <div class="content">
+      <h3>④ 底部输入框统一</h3>
+      <p>所有页面同一个位置、同一套逻辑。在实体页时自动带 slug，在其他页面时是通用提问。</p>
+    </div>
+  </div>
+</div>

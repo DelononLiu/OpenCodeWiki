@@ -129,9 +129,10 @@ export function renderSidebar(repoName: string, activeSection: string, options?:
 
 export function renderBottomInput(placeholder: string, contextEntitySlug?: string): string {
   const tag = contextEntitySlug ? `<span class="entity-tag">#${contextEntitySlug}</span>` : '';
+  const dataAttr = `data-entity-slug="${contextEntitySlug || ''}"`;
   return `<div class="bottom-input-wrap">
     <div class="bottom-input">
-      <input type="text" placeholder="${placeholder}" id="globalQaInput">
+      <input type="text" placeholder="${placeholder}" id="globalQaInput" ${dataAttr}>
       ${tag}
       <div style="display:flex;gap:2px;margin-left:auto;align-items:center">
         <span class="cmd-hint">/bug</span>
@@ -162,7 +163,7 @@ ${header}
 ${layout}
 ${bottom}
 <script>
-async function sendGlobalQa(){var i=document.getElementById('globalQaInput');if(!i.value.trim())return;var q=i.value;window.location.href='/qa?q='+encodeURIComponent(q)}
+async function sendGlobalQa(){var i=document.getElementById('globalQaInput');if(!i||!i.value.trim())return;var q=i.value;var slug=i.getAttribute('data-entity-slug')||'';var url='/qa?q='+encodeURIComponent(q);if(slug)url+='&context_entity_slug='+encodeURIComponent(slug);window.location.href=url}
 document.getElementById('globalQaInput')?.addEventListener('keydown',function(e){if(e.key==='Enter')sendGlobalQa()});
 </script>
 </body></html>`;
