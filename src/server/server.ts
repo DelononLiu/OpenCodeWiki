@@ -103,7 +103,6 @@ const rootDir = path.resolve(__dirname, '..', '..');
 
 const vendorDir = path.resolve(rootDir, 'vendor');
 const qaIndexFile = path.resolve(rootDir, 'src', 'qa', 'index.html');
-const homeIndexFile = path.resolve(rootDir, 'src', 'home', 'index.html');
 const entityViewFile = path.resolve(rootDir, 'src', 'wiki', 'entity.html');
 
 const handler = await initHandler();
