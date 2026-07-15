@@ -76,6 +76,15 @@ export function renderFullHeader(repoName: string): string {
 export function renderSidebar(repoName: string, activeSection: string, options?: SidebarOptions): string {
   let html = '<div class="sidebar"><div class="sidebar-nav">';
 
+  // Admin page sidebar
+  if (activeSection === 'admin') {
+    html += '<div class="sidebar-section">⚙️ 管理</div>';
+    html += '<a class="sidebar-item active" href="/admin">⏳ 待审区</a>';
+    html += '<a class="sidebar-item" href="/admin/entities">🏷️ 实体管理</a>';
+    html += '</div></div>';
+    return html;
+  }
+
   // Wiki pages
   html += '<div class="sidebar-section">📖 Wiki 页面</div>';
   if (options?.wikiTree) {
