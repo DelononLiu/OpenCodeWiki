@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-[#F8F9FA] text-[#1E293B]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCodeWiki - 自进化知识工作台</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入现代化字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        cyber: {
+                            blue: '#4F46E5',    // 经典靛蓝
+                            blueDark: '#4338CA',
+                            green: '#10B981',   // 归档翠绿
+                            bg: '#F8F9FA',
+                            card: '#FFFFFF'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- 引入 Lucide 图标 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .modern-shadow { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.03); }
+        .cyber-gradient-bg { background: linear-gradient(to top, #F8F9FA 40%, rgba(248, 249, 250, 0) 100%); }
+    </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden font-sans antialiased bg-[#F8F9FA]">
+
+    <!-- ================= HEADER (顶栏) ================= -->
+    <header id="app-header" class="bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-3 flex items-center justify-between z-30 shrink-0">
+        <!-- 动态渲染 -->
+    </header>
+
+    <!-- ================= MAIN CONTAINER ================= -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- ================= 🪐 DYNAMIC LEFT SIDEBAR (动态左侧栏) ================= -->
+        <aside id="app-sidebar" class="w-64 border-r border-gray-200/50 bg-[#FBFBFC] flex flex-col overflow-y-auto no-scrollbar shrink-0 transition-all">
+            <!-- 根据当前页面，由 JS 动态注入专属的侧边栏结构 -->
+        </aside>
+
+        <!-- ================= 📄 MIDDLE MAIN AREA (中栏核心内容区) ================= -->
+        <main class="flex-1 flex flex-col overflow-y-auto no-scrollbar relative">
+            <div id="main-content-layout" class="flex-1 flex justify-center py-8 px-6">
+                <!-- 白色卡片纸张容器 -->
+                <div id="content-container" class="w-full max-w-3xl bg-white border border-gray-200/50 modern-shadow rounded-xl p-8 md:p-10 pb-32 transition-all">
+                    <!-- 动态渲染页面核心内容 -->
+                </div>
+            </div>
+
+            <!-- ================= 💬 FLOAT INPUT (浮动提问框：仅在需要时亮起) ================= -->
+            <div id="sticky-input-wrapper" class="absolute bottom-0 left-0 right-0 h-36 cyber-gradient-bg flex items-end justify-center pointer-events-none z-20 hidden">
+                <div class="w-full max-w-2xl px-6 pb-8 pointer-events-auto">
+                    <div class="bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-lg p-3 transition-all duration-200 focus-within:border-cyber-blue focus-within:ring-2 focus-within:ring-cyber-blue/10">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="terminal" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                            <input type="text" id="main-qa-input" class="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1" placeholder="提出新疑问...">
+                            <span id="input-context-tag" class="hidden items-center gap-1 px-2 py-0.5 bg-gray-100 border border-gray-200 text-gray-600 text-[10px] font-mono rounded whitespace-nowrap"></span>
+                            <button onclick="handleSendQuestion()" class="bg-cyber-blue hover:bg-cyber-blueDark text-white rounded-lg p-2 transition shrink-0">
+                                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ================= 📑 RIGHT SIDEBAR (右侧栏：随动边注 / 对照面板) ================= -->
+        <aside id="app-right-sidebar" class="w-80 border-l border-gray-200/50 bg-[#FBFBFC] flex flex-col overflow-y-auto no-scrollbar shrink-0 transition-all">
+            <!-- 动态渲染 -->
+        </aside>
+
+    </div>
+
+    <!-- ================= 🧠 DATA STATE & JAVASCRIPT ================= -->
+    <script>
+        const state = {
+            currentPage: 'home', // 'home' | 'wiki' | 'topic' | 'qa' | 'admin'
+            currentWikiDoc: 'qa-engine',
+            currentTopic: 'qa-engine',
+            activeAnchor: null,  // 物理文档中被点击的高亮段落锚点
+            qaFilterTopic: null, // QA页面当前激活的主题过滤器
+
+            // 原始物理文档内容模拟
+            physicsDocs: {
+                'philosophy': {
+                    title: '系统设计哲学与自进化体系',
+                    category: 'DOCS / ARCHIVE-01',
+                    content: `
+                        <p class="font-bold text-gray-900 mb-3">为什么我们需要物理与逻辑的双轴心？</p>
+                        <p class="text-gray-600 mb-4">编写代码与文档在物理上天然隔离。我们提出通过日常问答中的<b>#主题标签</b>作为引流机制，在不破坏物理文档严谨性的前提下，实现文档的自活化与自动丰富。</p>
+                    `
+                },
+                'qa-engine': {
+                    title: '双路分流路由算法系统',
+                    category: 'DOCS / MODULE-02',
+                    blocks: [
+                        {
+                            id: 'route-rule',
+                            title: '核心分流路由规则 (Threshold $P$)',
+                            topic: 'qa-engine',
+                            text: '分流模块起着大门把守的作用。在进行语义比对时，若计算出的相关置信度评分 $P \\ge 0.85$，路由机制将直接从静态问答中返回已被开发者人工校准的标准定义，从而避免调用大模型。'
+                        },
+                        {
+                            id: 'concurrency',
+                            title: '高并发防抖连接池设计',
+                            topic: 'concurrency',
+                            text: '为了保障在并发场景下的吞吐，针对高频读取场景，底层加载了一个以 Redis 为基础的二级内存缓存。连接池参数在底层配置中进行了硬性保护，以防高频回调引发本地连接泄漏与雪崩。'
+                        }
+                    ]
+                }
+            },
+
+            // 动态流动的问答池（包含已被核准归档的、以及临时生成的草稿）
+            qaHistory: [
+                { id: 'QA-101', topic: 'qa-engine', anchor: 'route-rule', text: '双路路由如何决定调用大模型？具体置信度标准是多少？', author: '校准人: @Shawn', answer: '我们在代码中约束了置信阈值 $P = 0.85$。匹配概率高于此值将直接调取静态说明书，低于则触发大模型自动求值并产生草稿。', type: 'calibrated' },
+                { id: 'QA-102', topic: 'concurrency', anchor: 'concurrency', text: 'Redis 连接池高并发下如何防止突发性崩溃？', author: '校准人: @System', answer: '在策略配置中连接数上限约束为 $maxPool = 20$，并引入了指数退避自动重连机制。', type: 'calibrated' },
+                { id: 'QA-103', topic: 'qa-engine', anchor: 'route-rule', text: '并发 200 以上冷启动偶发 300ms 卡死可能是什么原因？', author: 'AI 协同草稿', answer: '由于本地 LSH 索引库在冷启动初始化时进行了同步反序列化阻塞了主线程，建议将其改写成异步读取（使用 promises.readFile）。', type: 'draft' }
+            ],
+
+            // 临时草稿待审列表（模拟 LLM 提炼出的、等待人工审核持久化至物理 MD 的数据）
+            approvalQueue: [
+                {
+                    id: 'APP-01',
+                    topic: 'qa-engine',
+                    targetDoc: '02-qa-engine.md',
+                    rawChat: '高并发 200 的时候，本地 LSH 索引加载用 readFileSync 把主线程卡了 300ms。',
+                    llmRefined: `### ⚠️ 高并发冷启动下的主线程卡顿\n* **现象描述**：并发量突增时，冷启动阶段可能出现约 $300\\text{ms}$ 的瞬时卡顿。\n* **根因分析**：由于 LSH 索引初始化使用同步 I/O 操作（\`readFileSync\`）阻塞了事件循环。\n* **避坑指南**：建议将初始化逻辑改写为异步非阻塞读取（使用 \`promises.readFile\`），或将初始化时机提前至服务启动阶段。`
+                }
+            ],
+
+            // QA 聊天室当前的活动对话
+            activeChats: [
+                { role: 'user', content: '我正在排查冷启动偶发 300ms 停顿的问题，有相关记录吗？' },
+                { role: 'assistant', content: '有的，检测到您的项目中存在未归档的 AI 协同草稿 **#QA-103**（关于冷启动期间索引序列化卡住主线程的诊断）。您可以查阅右侧面板关联的代码，并一键核准同步。' }
+            ],
+
+            // 侧边栏历史会话列表
+            chatHistory: [
+                { id: 'chat-1', title: '关于 LSH 内存卡顿的调试', date: '10分钟前' },
+                { id: 'chat-2', title: 'Redis 200并发连接泄露诊断', date: '昨天' },
+                { id: 'chat-3', title: '路由置信阈值调优备忘', date: '3天前' }
+            ]
+        };
+
+        // ================= 🧭 核心页面切换路由 =================
+        function switchPage(pageId, extra = null) {
+            state.currentPage = pageId;
+            
+            // 数据重置与对齐
+            if (pageId === 'wiki' && extra) {
+                state.currentWikiDoc = extra;
+                state.activeAnchor = null;
+            } else if (pageId === 'topic' && extra) {
+                state.currentTopic = extra;
+            }
+
+            const sidebarLeft = document.getElementById('app-sidebar');
+            const sidebarRight = document.getElementById('app-right-sidebar');
+            const inputWrapper = document.getElementById('sticky-input-wrapper');
+            const mainContentLayout = document.getElementById('main-content-layout');
+
+            // 1. 控制侧边栏与主布局的外观
+            if (pageId === 'home') {
+                sidebarLeft.classList.add('hidden');
+                sidebarRight.classList.add('hidden');
+                inputWrapper.classList.add('hidden');
+                mainContentLayout.className = "flex-1 flex justify-center py-8 px-6";
+                renderHeaderHome();
+            } else {
+                sidebarLeft.classList.remove('hidden');
+                sidebarRight.classList.remove('hidden');
+                inputWrapper.classList.add('hidden'); // 默认隐藏，需要时由具体页面开启
+                mainContentLayout.className = "flex-1 flex justify-between gap-6 py-8 px-6 max-w-7xl mx-auto w-full";
+                renderHeaderGlobal();
+            }
+
+            // 💡 特殊页面控制提问栏显隐
+            if (pageId === 'wiki' || pageId === 'topic' || pageId === 'qa') {
+                inputWrapper.classList.remove('hidden');
+            }
+
+            // 2. 核心模块重绘
+            renderLeftSidebar();
+            renderMainContent();
+            renderRightSidebar();
+            updateFloatInput();
+            lucide.createIcons();
+        }
+
+        // ================= 顶栏渲染 =================
+        function renderHeaderHome() {
+            document.getElementById('app-header').innerHTML = `
+                <div class="flex items-center gap-2 cursor-pointer" onclick="switchPage('home')">
+                    <div class="w-6 h-6 bg-cyber-blue rounded flex items-center justify-center text-white font-black text-xs font-mono">W</div>
+                    <span class="font-sans font-bold text-base tracking-tight text-gray-900">OpenCodeWiki</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <button onclick="switchPage('wiki', 'philosophy')" class="text-gray-500 hover:text-gray-900 font-semibold transition flex items-center gap-1">
+                        进入工作台 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderHeaderGlobal() {
+            document.getElementById('app-header').innerHTML = `
+                <div class="flex items-center gap-4">
+                    <span onclick="switchPage('home')" class="font-sans font-bold text-sm tracking-tight text-gray-900 cursor-pointer">OpenCodeWiki</span>
+                    <span class="text-gray-300">/</span>
+                    <div class="flex items-center gap-1.5 font-mono text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                        <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> docs-main
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="switchPage('wiki', 'qa-engine')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${state.currentPage === 'wiki' || state.currentPage === 'topic' ? 'bg-cyber-blue text-white' : 'text-gray-600 hover:bg-gray-100'}" title="物理架构与逻辑主题">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> 文档与主题
+                    </button>
+                    <button onclick="switchPage('qa')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${state.currentPage === 'qa' ? 'bg-cyber-blue text-white' : 'text-gray-600 hover:bg-gray-100'}" title="问答沙箱">
+                        <i data-lucide="messages-square" class="w-4 h-4"></i> 智能问答
+                    </button>
+                    <button onclick="switchPage('admin')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${state.currentPage === 'admin' ? 'bg-cyber-blue text-white' : 'text-gray-600 hover:bg-gray-100'}" title="审批控制台">
+                        <i data-lucide="sliders" class="w-4 h-4"></i> 审批控制台
+                    </button>
+                </div>
+            `;
+        }
+
+        // ================= 🪐 核心：根据页面类型，渲染截然不同的左边栏 =================
+        function renderLeftSidebar() {
+            const sidebar = document.getElementById('app-sidebar');
+            
+            // 1. WIKI & TOPIC 页：标准物理+逻辑双视角
+            if (state.currentPage === 'wiki' || state.currentPage === 'topic') {
+                sidebar.innerHTML = `
+                    <div class="p-4 space-y-6 text-xs font-medium">
+                        <!-- 物理视角 (树状骨架) -->
+                        <div>
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
+                                <i data-lucide="folder-git" class="w-3.5 h-3.5 text-gray-400"></i> 物理视角 (静态说明书)
+                            </h3>
+                            <ul class="space-y-1 text-gray-600">
+                                <li>
+                                    <a href="#" onclick="switchPage('wiki', 'philosophy')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition ${state.currentWikiDoc === 'philosophy' && state.currentPage === 'wiki' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}">
+                                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-gray-400"></i> 01. 设计哲学与愿景
+                                    </a>
+                                </li>
+                                <li>
+                                    <div class="flex items-center gap-2 px-3 py-2 text-gray-800 font-semibold">
+                                        <i data-lucide="book-open" class="w-3.5 h-3.5 text-gray-400"></i> 02. 系统核心模块
+                                    </div>
+                                    <ul class="pl-3 border-l border-gray-200 ml-4 space-y-1 text-[11px]">
+                                        <li>
+                                            <a href="#" onclick="switchPage('wiki', 'qa-engine')" class="block px-2.5 py-1.5 rounded-md hover:bg-gray-100 transition ${state.currentWikiDoc === 'qa-engine' && state.currentPage === 'wiki' ? 'text-cyber-blue font-bold' : ''}">
+                                                ├─ 双路路由算法
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="#" class="block px-2.5 py-1.5 text-gray-300 cursor-not-allowed">
+                                                └─ 缓存映射矩阵
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- 逻辑视角 (主题血肉) -->
+                        <div class="pt-2 border-t border-gray-200/50">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
+                                <i data-lucide="hash" class="w-3.5 h-3.5 text-cyber-blue"></i> 逻辑视角 (主题聚合)
+                            </h3>
+                            <ul class="space-y-1 text-gray-600">
+                                <li>
+                                    <a href="#" onclick="switchPage('topic', 'qa-engine')" class="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 transition ${state.currentTopic === 'qa-engine' && state.currentPage === 'topic' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}">
+                                        <span class="font-mono text-[11px]">#qa-engine</span>
+                                        <span class="text-[9px] bg-cyber-blue/10 text-cyber-blue font-sans px-1.5 py-0.5 rounded-full font-bold">3 聚合</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" onclick="switchPage('topic', 'concurrency')" class="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 transition ${state.currentTopic === 'concurrency' && state.currentPage === 'topic' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}">
+                                        <span class="font-mono text-[11px]">#concurrency</span>
+                                        <span class="text-[9px] bg-gray-100 text-gray-500 font-sans px-1.5 py-0.5 rounded-full font-bold">1 聚合</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 2. QA 对话页：主题过滤器 + 会话历史
+            else if (state.currentPage === 'qa') {
+                sidebar.innerHTML = `
+                    <div class="p-4 space-y-6 text-xs font-medium flex flex-col h-full">
+                        <!-- 活跃主题过滤雷达 -->
+                        <div>
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
+                                <i data-lucide="target" class="w-3.5 h-3.5 text-rose-500"></i> 主题快捷过滤
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button onclick="filterQATopic(null)" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left ${!state.qaFilterTopic ? 'bg-cyber-blue text-white font-bold' : 'text-gray-600 hover:bg-gray-100'}">
+                                        <span>🌐 显示全部问答</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button onclick="filterQATopic('qa-engine')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left ${state.qaFilterTopic === 'qa-engine' ? 'bg-cyber-blue text-white font-bold' : 'text-gray-600 hover:bg-gray-100'}">
+                                        <span class="font-mono">#qa-engine</span>
+                                        <span class="text-[9px] opacity-80 font-mono">x2</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button onclick="filterQATopic('concurrency')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left ${state.qaFilterTopic === 'concurrency' ? 'bg-cyber-blue text-white font-bold' : 'text-gray-600 hover:bg-gray-100'}">
+                                        <span class="font-mono">#concurrency</span>
+                                        <span class="text-[9px] opacity-80 font-mono">x1</span>
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- 历史会话切片 -->
+                        <div class="pt-4 border-t border-gray-200/50 flex-1 flex flex-col min-h-0">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 text-gray-400"></i> 历史排障会话
+                            </h3>
+                            <ul class="space-y-1 overflow-y-auto no-scrollbar flex-1">
+                                ${state.chatHistory.map(ch => `
+                                    <li class="group relative">
+                                        <a href="#" class="block px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600 transition">
+                                            <div class="font-semibold text-gray-800 truncate">${ch.title}</div>
+                                            <div class="text-[10px] text-gray-400 mt-0.5">${ch.date}</div>
+                                        </a>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. 审批控制台：待办队列与映射管理
+            else if (state.currentPage === 'admin') {
+                sidebar.innerHTML = `
+                    <div class="p-4 space-y-6 text-xs font-medium">
+                        <div>
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
+                                <i data-lucide="activity" class="w-3.5 h-3.5 text-amber-500"></i> 审批控制塔
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none">
+                                        <span class="flex items-center gap-2"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> 待审草稿</span>
+                                        <span class="bg-amber-500 text-white text-[10px] font-sans font-bold px-1.5 py-0.5 rounded-full">${state.approvalQueue.length}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 cursor-not-allowed">
+                                        <i data-lucide="map" class="w-3.5 h-3.5"></i> 主题-物理映射规则
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 cursor-not-allowed">
+                                        <i data-lucide="history" class="w-3.5 h-3.5"></i> 已归档历史
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // ================= 中栏具体内容区渲染 =================
+        function renderMainContent() {
+            const container = document.getElementById('content-container');
+
+            // 1. WIKI (物理长文视角)
+            if (state.currentPage === 'wiki') {
+                const doc = state.physicsDocs[state.currentWikiDoc];
+                
+                if (state.currentWikiDoc === 'philosophy') {
+                    container.innerHTML = `
+                        <div class="space-y-6">
+                            <div class="pb-4 border-b border-gray-100">
+                                <span class="text-[9px] font-mono text-gray-400 uppercase">${doc.category}</span>
+                                <h1 class="text-2xl font-bold text-gray-900 mt-1">${doc.title}</h1>
+                            </div>
+                            <article class="text-gray-600 text-xs md:text-sm leading-relaxed font-sans">
+                                ${doc.content}
+                            </article>
+                        </div>
+                    `;
+                } else if (state.currentWikiDoc === 'qa-engine') {
+                    container.innerHTML = `
+                        <div class="space-y-6 font-sans">
+                            <div class="pb-4 border-b border-gray-100">
+                                <span class="text-[9px] font-mono text-gray-400 uppercase">${doc.category}</span>
+                                <h1 class="text-2xl font-bold text-gray-900 mt-1">${doc.title}</h1>
+                                <p class="text-gray-400 text-xs mt-1">物理文件：位于代码仓库的 <code>docs/02-qa-engine.md</code></p>
+                            </div>
+
+                            <div class="space-y-4">
+                                ${doc.blocks.map(block => {
+                                    const isActive = state.activeAnchor === block.id ? 'border-l-2 border-cyber-blue bg-slate-50/50 shadow-sm' : 'border-l border-gray-100';
+                                    return `
+                                        <div id="block-${block.id}" onclick="highlightAnchor('${block.id}')" class="p-4 rounded-r-lg cursor-pointer transition-all ${isActive}">
+                                            <div class="flex justify-between items-center mb-1.5">
+                                                <h3 class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-cyber-blue"></span> ${block.title}
+                                                </h3>
+                                                <span class="text-[10px] bg-cyber-blue/10 text-cyber-blue px-2 py-0.5 rounded font-mono font-bold">#${block.topic}</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600 leading-relaxed pl-3">${block.text}</p>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            // 2. TOPIC (逻辑主题视角聚合看板)
+            else if (state.currentPage === 'topic') {
+                const topic = state.currentTopic;
+                const matches = state.qaHistory.filter(q => q.topic === topic);
+
+                // 物理内容智能片段剪贴
+                let matchedPhysText = '';
+                if (topic === 'qa-engine') {
+                    matchedPhysText = state.physicsDocs['qa-engine'].blocks[0].text;
+                } else {
+                    matchedPhysText = state.physicsDocs['qa-engine'].blocks[1].text;
+                }
+
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="pb-4 border-b border-gray-100">
+                            <span class="text-[9px] font-mono bg-cyber-blue/10 text-cyber-blue px-2 py-0.5 rounded font-bold">THEMATIC VIEW</span>
+                            <h1 class="text-2xl font-bold text-gray-900 mt-1.5">主题聚合看板: #${topic}</h1>
+                            <p class="text-gray-400 text-xs mt-1">跨物理文件，将所有的<b>官方规范段落</b>和<b>动态开发者问答</b>融汇在此视角下。</p>
+                        </div>
+
+                        <!-- 官方物理文档锚定 -->
+                        <div class="space-y-2.5">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
+                                <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 1. 物理规范摘录 (静态官方)
+                            </h3>
+                            <div class="border border-gray-200/60 rounded-xl p-4 bg-gray-50/50 text-xs text-gray-600 leading-relaxed">
+                                <span class="font-bold text-gray-800 block mb-1">摘自物理大纲对应的文档片段:</span>
+                                “${matchedPhysText}”
+                            </div>
+                        </div>
+
+                        <!-- 动态问答与避坑指南 -->
+                        <div class="space-y-2.5 pt-2">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
+                                <i data-lucide="messages-square" class="w-3.5 h-3.5"></i> 2. 关联流动问答与排障 (日常动态)
+                            </h3>
+                            <div class="space-y-3">
+                                ${matches.map(qa => `
+                                    <div class="border rounded-xl p-4 bg-white space-y-2 text-xs shadow-sm ${qa.type === 'draft' ? 'border-amber-200 bg-amber-500/[0.02]' : 'border-gray-200/80'}">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-[9px] px-2 py-0.5 rounded font-bold ${qa.type === 'draft' ? 'bg-amber-100 text-amber-800' : 'bg-cyber-green/10 text-cyber-green'}">
+                                                ${qa.type === 'draft' ? '待核准草稿' : '已归档物理文档'}
+                                            </span>
+                                            <span class="text-[10px] text-gray-400 font-mono">${qa.author}</span>
+                                        </div>
+                                        <h4 class="font-bold text-gray-900">${qa.text}</h4>
+                                        <p class="text-gray-500 leading-relaxed font-mono text-[11px] border-t border-dashed border-gray-100 pt-2">${qa.answer}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. QA (智能问答讨论大厅)
+            else if (state.currentPage === 'qa') {
+                // 根据左边栏选择的主题过滤器进行过滤
+                let filteredChats = state.qaHistory;
+                if (state.qaFilterTopic) {
+                    filteredChats = state.qaHistory.filter(q => q.topic === state.qaFilterTopic);
+                }
+
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="pb-4 border-b border-gray-100">
+                            <h1 class="text-2xl font-bold text-gray-900">💬 开发者智能问答沙箱</h1>
+                            <p class="text-gray-400 text-xs mt-1">这里正在流动开发者讨论。日常对话打标 #主题，便可轻松打包进控制台提炼进化。</p>
+                        </div>
+
+                        <!-- 问答流 -->
+                        <div class="space-y-4">
+                            <!-- 历史沉淀的问答(在此页作为知识卡片平铺) -->
+                            <div class="space-y-3">
+                                ${filteredChats.map(qa => `
+                                    <div class="border border-gray-200 bg-[#FCFDFE] rounded-xl p-4 text-xs space-y-2">
+                                        <div class="flex justify-between">
+                                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyber-blue/10 text-cyber-blue font-mono font-bold">#${qa.topic}</span>
+                                            <span class="text-[10px] text-gray-400 font-mono">${qa.author}</span>
+                                        </div>
+                                        <h4 class="font-bold text-gray-800 flex gap-2">
+                                            <span class="text-cyber-blue font-black font-mono">Q:</span> ${qa.text}
+                                        </h4>
+                                        <p class="text-gray-600 font-mono text-[11px] bg-white border border-gray-100 p-2.5 rounded leading-relaxed">
+                                            <span class="text-cyber-green font-bold mr-1">A:</span>${qa.answer}
+                                        </p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 4. ADMIN (管理审批页)
+            else if (state.currentPage === 'admin') {
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="pb-4 border-b border-gray-100">
+                            <h1 class="text-2xl font-bold text-gray-900">⚙️ 审批控制台</h1>
+                            <p class="text-gray-400 text-xs mt-1">在此执行核心飞跃：审核 LLM 提炼好的结构化知识，一键将“口语化对话”归档入物理文档。</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            ${state.approvalQueue.length === 0 ? `
+                                <div class="border border-dashed border-gray-200 p-12 text-center text-xs text-gray-400 rounded-xl bg-white">
+                                    暂无待审知识草稿。日常问答打标签后会自动汇聚于此。
+                                </div>
+                            ` : state.approvalQueue.map((item, idx) => `
+                                <div class="border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm text-xs">
+                                    <!-- 卡片头部信息 -->
+                                    <div class="bg-gray-50 border-b border-gray-100 p-3.5 flex justify-between items-center flex-wrap gap-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[9px] font-mono bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">待审草稿 ${item.id}</span>
+                                            <span class="text-gray-400">➔</span>
+                                            <span class="text-[10px] font-mono font-bold text-cyber-blue bg-cyber-blue/10 px-2 py-0.5 rounded">#${item.topic}</span>
+                                        </div>
+                                        <div class="text-[10px] text-gray-400 flex items-center gap-1">
+                                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> 目标写入物理文件: <code class="font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded">${item.targetDoc}</code>
+                                        </div>
+                                    </div>
+
+                                    <!-- 核心对照视窗 -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100 p-4 gap-4">
+                                        <!-- 左：液态原始对话 -->
+                                        <div class="space-y-2">
+                                            <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 bg-gray-400 rounded-full"></span> 原始口语问答对话 (液态)
+                                            </h4>
+                                            <blockquote class="bg-slate-50 border-l-2 border-slate-300 p-3 text-gray-500 italic leading-relaxed text-[11px]">
+                                                “${item.rawChat}”
+                                            </blockquote>
+                                        </div>
+
+                                        <!-- 右：固态 LLM 提炼拟稿 (符合标准规范) -->
+                                        <div class="space-y-2 md:pl-2">
+                                            <h4 class="text-[10px] font-bold text-cyber-blue uppercase tracking-wider flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 bg-cyber-blue rounded-full"></span> LLM 提炼规范拟稿 (固态)
+                                            </h4>
+                                            <div class="bg-cyber-blue/[0.02] border border-cyber-blue/20 p-3 rounded-lg text-gray-700 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">${item.llmRefined}</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 底部决策按钮 -->
+                                    <div class="bg-gray-50 border-t border-gray-100 p-3.5 flex justify-end gap-2.5">
+                                        <button onclick="rejectDraft(${idx})" class="px-3 py-1.5 border border-gray-200 text-gray-500 hover:bg-gray-100 font-semibold rounded-lg transition">拒绝草稿</button>
+                                        <button onclick="approveDraft(${idx})" class="px-4 py-1.5 bg-cyber-blue hover:bg-cyber-blueDark text-white font-semibold rounded-lg transition flex items-center gap-1.5">
+                                            <i data-lucide="check" class="w-4 h-4"></i> 同意并持久化写入
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // ================= 右侧栏渲染 =================
+        function renderRightSidebar() {
+            const sidebar = document.getElementById('app-right-sidebar');
+
+            // 1. WIKI 物理视图下：右侧充当物理文档的“随动眉批/历史边注”
+            if (state.currentPage === 'wiki') {
+                let list = state.qaHistory;
+                if (state.activeAnchor) {
+                    list = state.qaHistory.filter(q => q.anchor === state.activeAnchor);
+                }
+
+                sidebar.innerHTML = `
+                    <div class="p-5 space-y-4 flex flex-col h-full bg-[#FBFBFC]">
+                        <div class="flex items-center justify-between pb-3 border-b border-gray-200/50">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="bookmark-check" class="w-3.5 h-3.5 text-cyber-blue"></i>
+                                ${state.activeAnchor ? `段落边注 (#${state.activeAnchor})` : '文档历史眉批'}
+                            </h3>
+                            ${state.activeAnchor ? `<button onclick="clearAnchor(event)" class="text-[10px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5 transition">显示全部 <i data-lucide="x" class="w-3 h-3"></i></button>` : ''}
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-12">
+                            ${list.map(qa => `
+                                <div id="right-card-${qa.anchor}" class="border rounded-xl p-3 bg-white text-xs space-y-2 shadow-sm ${qa.type === 'calibrated' ? 'border-gray-200/80 hover:border-cyber-blue/30' : 'border-amber-200 bg-amber-500/[0.02]'}">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[9px] px-1.5 py-0.5 rounded-full font-bold ${qa.type === 'calibrated' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-100 text-amber-800'}">${qa.type === 'calibrated' ? '已归档' : '草稿'}</span>
+                                        <span class="text-[9px] text-gray-400 font-mono">${qa.author}</span>
+                                    </div>
+                                    <h4 class="font-bold text-gray-800 leading-snug">${qa.text}</h4>
+                                    <p class="text-gray-500 font-mono text-[11px] leading-relaxed border-t border-dashed border-gray-100 pt-2">${qa.answer}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 2. TOPIC 逻辑主题视图下：右侧展示跟该主题强绑定的物理信息元数据
+            else if (state.currentPage === 'topic') {
+                let targetFile = 'docs/02-qa-engine.md';
+                if (state.currentTopic === 'concurrency') {
+                    targetFile = 'docs/05-concurrency-guide.md';
+                }
+
+                sidebar.innerHTML = `
+                    <div class="p-5 space-y-4 flex flex-col h-full bg-[#FBFBFC]">
+                        <div class="pb-3 border-b border-gray-200/50">
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="database" class="w-3.5 h-3.5 text-cyber-blue"></i> 主题物理信息卡
+                            </h3>
+                        </div>
+                        <div class="space-y-4 flex-1 text-xs text-gray-500 leading-relaxed">
+                            <div class="bg-white border border-gray-200/80 rounded-xl p-4 space-y-3 shadow-sm">
+                                <div>
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">物理映射指向:</span>
+                                    <code class="text-cyber-blue font-mono font-bold block mt-1">${targetFile}</code>
+                                </div>
+                                <div class="border-t border-gray-100 pt-2.5">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">归档所有人:</span>
+                                    <span class="text-gray-700 font-semibold block mt-0.5">@Shawn (架构组)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. QA 对话与 ADMIN 页面：极简提示
+            else {
+                sidebar.innerHTML = `
+                    <div class="p-5 flex flex-col justify-center items-center text-center h-full text-xs text-gray-400 space-y-3">
+                        <i data-lucide="compass" class="w-8 h-8 text-gray-300"></i>
+                        <p>请点击左侧过滤雷达或处理中部控制台待办事项。</p>
+                    </div>
+                `;
+            }
+            lucide.createIcons();
+        }
+
+        // ================= 🧠 行为交互控制 =================
+
+        // 物理文档锚点联动高亮
+        function highlightAnchor(anchorId) {
+            state.activeAnchor = anchorId;
+            
+            // 重置所有块高亮
+            document.querySelectorAll('.wiki-block').forEach(el => {
+                el.classList.remove('border-l-2', 'border-cyber-blue', 'bg-slate-50/50');
+            });
+            // 激活当前块
+            const activeBlock = document.getElementById(`block-${anchorId}`);
+            if (activeBlock) {
+                activeBlock.classList.add('border-l-2', 'border-cyber-blue', 'bg-slate-50/50');
+            }
+
+            renderRightSidebar();
+            updateFloatInput();
+            
+            // 右栏随动卡片滚入视野
+            const rightCard = document.getElementById(`right-card-${anchorId}`);
+            if (rightCard) {
+                rightCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                rightCard.classList.add('highlight-active');
+                setTimeout(() => { rightCard.classList.remove('highlight-active'); }, 1500);
+            }
+        }
+
+        function clearAnchor(e) {
+            e.stopPropagation();
+            state.activeAnchor = null;
+            renderMainContent();
+            renderRightSidebar();
+            updateFloatInput();
+        }
+
+        // QA页面的主题快捷过滤器
+        function filterQATopic(topic) {
+            state.qaFilterTopic = topic;
+            renderLeftSidebar();
+            renderMainContent();
+            lucide.createIcons();
+        }
+
+        // 更新提问框占位语
+        function updateFloatInput() {
+            const input = document.getElementById('main-qa-input');
+            const tag = document.getElementById('input-context-tag');
+            
+            if (state.currentPage === 'wiki') {
+                input.placeholder = `为当前文档提出新问题或记录边注...`;
+                if (state.activeAnchor) {
+                    tag.innerHTML = `#${state.activeAnchor} <i data-lucide="x" class="w-2.5 h-2.5 ml-1 hover:text-red-500 cursor-pointer" onclick="clearAnchor(event)"></i>`;
+                    tag.classList.remove('hidden');
+                    tag.classList.add('flex');
+                } else {
+                    tag.classList.add('hidden');
+                }
+            } else if (state.currentPage === 'topic') {
+                input.placeholder = `追加新的对话讨论到主题 #${state.currentTopic}...`;
+                tag.classList.add('hidden');
+            } else if (state.currentPage === 'qa') {
+                input.placeholder = `在智能问答沙箱中输入您遇到的技术困惑...`;
+                tag.classList.add('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        // 模拟一键持久化（通过审批并将提炼后的知识真正写入物理 md 结构中）
+        function approveDraft(idx) {
+            const approved = state.approvalQueue[idx];
+            
+            // 1. 将数据正式写入物理模拟树
+            if (state.physicsDocs['qa-engine']) {
+                state.physicsDocs['qa-engine'].blocks.push({
+                    id: `block-auto-${Date.now()}`,
+                    title: `💡 持久化归档: 关于 #${approved.topic} 的高频实践`,
+                    topic: approved.topic,
+                    text: approved.llmRefined.replace(/###/g, '').replace(/\*/g, '•') // 简化渲染
+                });
+            }
+
+            // 2. 将其在动态问答流里标记为“已归档物理文档”
+            state.qaHistory.push({
+                id: `QA-AUTO-${Date.now()}`,
+                topic: approved.topic,
+                anchor: 'route-rule',
+                text: '【LLM 自动提炼】高并发冷启动下的主线程卡顿排查',
+                author: '校准人: @Shawn (审批归档)',
+                answer: '已根据原始会话提炼，正式持久化写入 physics-docs/02-qa-engine.md。',
+                type: 'calibrated'
+            });
+
+            // 3. 从待审批队列中移除
+            state.approvalQueue.splice(idx, 1);
+            alert('🎉 审批通过！LLM 提炼内容已一键写入目标物理 .md 文件。物理文档自进化已完成。');
+
+            // 4. 重绘
+            switchPage('wiki', 'qa-engine');
+        }
+
+        function rejectDraft(idx) {
+            state.approvalQueue.splice(idx, 1);
+            alert('已退回该草稿。');
+            renderMainContent();
+            renderLeftSidebar();
+        }
+
+        // 发送提问
+        function handleSendQuestion() {
+            const input = document.getElementById('main-qa-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            alert(`问题“${val}”已成功录入，并自动关联主题。您可在管理审批页查看提炼草稿！`);
+            input.value = '';
+        }
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            switchPage('home');
+        });
+    </script>
+</body>
+</html>
