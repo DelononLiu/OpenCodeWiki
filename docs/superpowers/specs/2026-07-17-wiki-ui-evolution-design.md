@@ -2,11 +2,114 @@
 
 ## 概述
 
-将 `docs/DocAgent-ui2.html` 的设计理念落地到当前 OpenCodeWiki 代码库中，实现两个阶段的改造：
-- **第一波（视觉改造）**：统一配色、重构页面骨架、首页重做、浮动输入框美化、搜索联想
-- **第二波（增长循环）**：引入 Topic 聚合层实现 QA → Topic → Wiki 自进化闭环，Admin 审批台重做
+将 `docs/DocAgent-ui2.html` 的设计理念落地为全新的 OpenCodeWiki 系统，采用双阶段改造。
+
+## 技术栈
+
+### 后端：Python + LangGraph（全栈）
+| 组件 | 选型 |
+|------|------|
+| Web 框架 | FastAPI |
+| Agent 框架 | LangGraph (langgraph) |
+| LLM 调用 | langchain-openai / langchain-anthropic |
+| 数据库 | SQLite (内置 sqlite3) |
+| CLI 桥接 | subprocess → codebase-memory-mcp |
+| 评测 | pytest (复用 eval/) |
+
+### 前端：TypeScript + React SPA
+| 组件 | 选型 |
+|------|------|
+| 框架 | React 18 |
+| 构建 | Vite 5 |
+| 组件库 | shadcn/ui |
+| 样式 | Tailwind CSS 3 |
+| 图表 | Recharts |
+| 测试 | Vitest |
+| 渲染 | marked + mermaid + highlight.js (npm 包) |
+
+### 架构变更（Node.js 移除）
+```
+旧架构：
+  Node.js (Express) :4747 ← 主服务器：页面渲染 + REST API + 文件服务
+    └── 代理 → Python (FastAPI) :8000 ← 仅 QA 流式回答
+
+新架构：
+  Python (FastAPI + LangGraph) :8000 ← 全栈：API + 静态文件 + Agent
+    └── React SPA (Vite 构建) ← 纯 UI 层，调 API
+```
+
+所有 `src/server/`（Node.js，~6000 行）、`src/home/`、`src/qa/`、`src/wiki/`、`src/shared/` 全部移除。
+Python `src/python-agent/` 已有代码（~800 行）保留并扩展为全栈后端。
+
+## 审计结论：冗余代码清理清单
+
+### 🗑️ P0 - 直接删除（无迁移成本）
+| 路径 | 原因 |
+|------|------|
+| `src/server/` 全部 | Node.js 后端，由 Python 替代 |
+| `src/server/acp/` | ACP 协议客户端（700 行），不再需要 |
+| `src/server/auth/` | 认证模块，由 Python 替代 |
+| `src/server/log-analyzer.ts` | 日志分析器（165 行），前端从未消费 |
+| `src/server/migrate-entities.ts` | 一次性迁移脚本 |
+| `src/server/*.test.ts` | 全部 7 个测试文件，由 pytest 替代 |
+| `src/home/index.html` | → React HomePage |
+| `src/qa/index.html` | → React QAPage |
+| `src/wiki/entity.html` | → React EntityPage |
+| `src/shared/qa-input.ts` | → shadcn/ui Input |
+| `src/shared/user-bar.ts` | → shadcn/ui 组件 |
+| `vendor/marked.min.js` | → npm marked |
+| `vendor/mermaid.min.js` | → npm mermaid |
+| `vendor/highlight.min.js` | → npm highlight.js |
+| `test-acp-client.ts` | 测试文件遗留在根目录 |
+
+### ✅ 保留（Python 侧，无需改动）
+| 路径 | 说明 |
+|------|------|
+| `src/python-agent/agent.py` | Agent 核心定义 |
+| `src/python-agent/config.py` | LLM 配置读取 |
+| `src/python-agent/tools.py` | 12 个 codegraph 工具 |
+| `src/python-agent/wiki_entity_builder.py` | Entity 骨架生成 |
+| `src/python-agent/test_agent.py` | Agent 测试 |
+| `scripts/crg-wiki.py` | Wiki 生成脚本 |
+| `eval/` | QA 评测套件 |
+
+### 🔧 扩展（Python 侧，改造现有代码）
+| 文件 | 改什么 |
+|------|--------|
+| `main.py` | `/agent/qa` 单路由 → 全栈 FastAPI：静态文件 + REST API + SSE |
+| `graph.py` | 增加 `refine_topic` 子图（QA → 提炼 → 结构化 markdown） |
+
+### 🆕 新增
+| 目录/文件 | 说明 |
+|-----------|------|
+| `frontend/` | React SPA |
+| `frontend/src/pages/` | Home, Wiki, QA, Topic, Admin |
+| `frontend/src/components/` | shadcn/ui + 自定义组件 |
+| `frontend/src/api/` | API 客户端 |
+| `frontend/src/types/` | TypeScript 类型 |
+| Python `topic_store.py` | Topic 数据模型 + SQLite |
+| Python `wiki_store.py` | Wiki 页面 CRUD |
 
 ---
+
+## 实施步骤：两个阶段
+
+### 阶段 0：基础设施
+1. 清理：删除所有 Node.js / HTML 代码
+2. Python：`main.py` 扩展为全栈 FastAPI
+3. 前端：初始化 Vite + React + shadcn/ui + Tailwind
+
+### 阶段 1：UI 层（对应第一波：视觉改造）
+4. React 实现页面骨架（Header + Sidebar + 路由）
+5. HomePage（搜索框 + 4 板块）
+6. QAPage（流式对话）
+7. WikiPage（文档渲染）
+
+### 阶段 2：自进化增长循环（对应第二波）
+8. Python：Topic 数据模型 + API
+9. AdminPage（审批 + Topic 管理）
+10. TopicPage（聚合看板）
+11. 晋升写入 wiki 闭环
 
 ## 第一部分：配色体系
 
