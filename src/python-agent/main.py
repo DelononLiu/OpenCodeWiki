@@ -195,7 +195,7 @@ WIKI_BASE = ROOT / ".codegraph" / "wiki"
 @app.get("/api/wiki/{slug}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
-    # Try physical wiki document
+    # Try physical wiki document in .codegraph/wiki/
     if WIKI_BASE.exists():
         for md_path in WIKI_BASE.rglob(f"{slug}.md"):
             content = md_path.read_text(encoding="utf-8")
@@ -208,6 +208,21 @@ async def api_wiki_page(slug: str):
             return _ok({"type": "wiki", "slug": slug, "content": stored})
     except ImportError:
         pass
+    # Try topic
+    try:
+        from store_topics import get_topic as get_topic_data
+        topic = get_topic_data(slug)
+        if topic:
+            qa_list = topic.get("qa_entries", [])
+            lines = [f"# {topic['name']}\n", f"", f"{topic['description']}\n", f""]
+            for qa in qa_list:
+                lines.append(f"## #Q{qa['qid']}: {qa['question']}\n")
+                if qa.get("answer"):
+                    lines.append(f"{qa['answer']}\n")
+            content = "\n".join(lines)
+            return _ok({"type": "topic", "slug": slug, "content": content})
+    except ImportError:
+        pass
     raise HTTPException(404, f"Page '{slug}' not found")
 
 
@@ -216,6 +231,7 @@ async def api_wiki_page(slug: str):
 try:
     from store_topics import (
         list_topics, get_topic, create_topic, get_draft,
+        save_draft, link_qa, update_draft_content, promote as promote_topic,
     )
 
     @app.get("/api/topics")
@@ -242,6 +258,90 @@ try:
     async def api_topic_draft(slug: str):
         draft = get_draft(slug)
         return _ok(draft)
+
+    @app.post("/api/topics/{slug}/draft")
+    async def api_save_draft(slug: str, body: dict):
+        content = body.get("content", "").strip()
+        if not content:
+            return _err("Missing content")
+        result = save_draft(slug, content)
+        return _ok(result)
+
+    @app.put("/api/topics/{slug}/draft")
+    async def api_edit_draft(slug: str, body: dict):
+        content = body.get("content", "").strip()
+        if not content:
+            return _err("Missing content")
+        update_draft_content(slug, content)
+        return _ok({"updated": True})
+
+    @app.post("/api/topics/analyze")
+    async def api_analyze_topics():
+        """分析 QA 池，按 domain/tag 聚类生成 topic 建议"""
+        from store_qa import list_entries
+
+        result = list_entries({"status": "active", "limit": 100})
+        entries = result.get("entries", [])
+
+        # 按 domain 分组
+        groups: dict = {}
+        for e in entries:
+            dom = e.get("domain", "general")
+            if dom not in groups:
+                groups[dom] = []
+            groups[dom].append(e)
+
+        suggestions = []
+        for domain, items in groups.items():
+            if len(items) < 2:
+                continue
+            slug = domain.replace("_", "-").replace(" ", "-")
+            name = {"general": "通用实践", "bug-analysis": "缺陷分析",
+                    "log-analysis": "日志分析", "stack-analysis": "堆栈分析",
+                    "build-issue": "编译构建", "program-analysis": "程序分析"}.get(domain, domain)
+            # 创建或更新 topic
+            topic = create_topic(slug, name, f"从 {len(items)} 条 {name} QA 自动聚合")
+            for item in items:
+                link_qa(slug, item["qid"])
+            suggestions.append(topic)
+
+        return _ok({"suggestions": suggestions, "total": len(suggestions)})
+
+    @app.post("/api/topics/{slug}/promote")
+    async def api_promote_topic(slug: str, body: dict):
+        """晋升 topic：写入 wiki 文件"""
+        wiki_module = body.get("wiki_module", "").strip()
+        if not wiki_module:
+            return _err("Missing wiki_module")
+
+        topic = get_topic(slug)
+        if not topic:
+            raise HTTPException(404, f"Topic '{slug}' not found")
+
+        # 获取提炼稿内容，优先用编辑过的版本
+        draft = get_draft(slug)
+        content = None
+        if draft:
+            content = draft.get("edited_content") or draft.get("raw_content")
+
+        if not content:
+            # 从关联 QA 自动生成 markdown
+            qa_list = topic.get("qa_entries", [])
+            lines = [f"# {topic['name']}\n", f"", f"{topic['description']}\n", f""]
+            for qa in qa_list:
+                lines.append(f"## #Q{qa['qid']}: {qa['question']}\n")
+                if qa.get("answer"):
+                    lines.append(f"{qa['answer']}\n")
+            content = "\n".join(lines)
+
+        # 写入 wiki 目录
+        from store_wiki import write_page
+        write_page(slug, "entity", content)
+
+        # 更新 topic 状态
+        promote_topic(slug, wiki_module)
+
+        return _ok({"slug": slug, "wiki_module": wiki_module, "promoted": True})
 
 except ImportError:
     pass

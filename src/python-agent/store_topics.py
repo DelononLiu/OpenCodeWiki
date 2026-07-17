@@ -84,6 +84,17 @@ def approve_draft(topic_slug: str, reviewer: str = "admin") -> bool:
     return True
 
 
+def update_draft_content(topic_slug: str, edited_content: str) -> bool:
+    db = get_knowledge_db()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "UPDATE topic_drafts SET edited_content = ?, updated_at = ? WHERE topic_slug = ?",
+        (edited_content, now, topic_slug),
+    )
+    db.commit()
+    return True
+
+
 def promote(topic_slug: str, wiki_module: str) -> bool:
     db = get_knowledge_db()
     now = datetime.now(timezone.utc).isoformat()
