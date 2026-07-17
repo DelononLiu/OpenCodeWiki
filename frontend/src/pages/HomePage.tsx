@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { fetchRepos, fetchQaEntries, fetchTopics } from '@/api/client'
 import type { Repo, QaEntry, Topic } from '@/types'
-import { Search, GitFork, FileText, MessageCircle, Flame } from 'lucide-react'
+import { Search, GitFork, FileText, MessageCircle, Flame, Hash, BookOpen, ArrowRight } from 'lucide-react'
 
 interface SearchItem {
   type: 'wiki' | 'topic' | 'qa'
@@ -30,21 +32,14 @@ export function HomePage() {
   // 动态构建搜索联想池
   const searchPool = useMemo<SearchItem[]>(() => {
     const pool: SearchItem[] = []
-
-    // wiki 文档
     pool.push({ type: 'wiki', label: '📖 物理文档: 双路分流路由算法', key: '02-qa-engine' })
     pool.push({ type: 'wiki', label: '📖 物理文档: 系统设计哲学与愿景', key: 'philosophy' })
-
-    // topic 聚合
     for (const t of topics) {
       pool.push({ type: 'topic', label: `🏷️ 核心主题: #${t.slug}`, key: t.slug })
     }
-
-    // 热门 QA
     for (const qa of hotQa) {
       pool.push({ type: 'qa', label: `💬 常见问答: ${qa.question.slice(0, 40)}`, key: String(qa.qid) })
     }
-
     return pool
   }, [topics, hotQa])
 
@@ -111,73 +106,104 @@ export function HomePage() {
           </div>
 
           {/* 4 Grid Sections */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Repo */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm space-y-3 hover:border-gray-300 transition">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <GitFork className="w-4 h-4 text-gray-400" /> 关联物理仓库
-              </h3>
-              {repos.slice(0, 3).map(r => (
-                <div key={r.name} className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 flex justify-between items-center">
-                  <div>
-                    <span className="font-mono text-xs font-bold text-gray-800 block">{r.name}</span>
-                    <span className="text-[10px] text-gray-400 font-mono">{r.path}</span>
+            <Card className="hover:shadow-md transition-shadow duration-200 group">
+              <CardHeader>
+                <CardTitle><GitFork className="w-3.5 h-3.5 mr-1.5 inline text-gray-400" /> 关联物理仓库</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {repos.length > 0 ? repos.slice(0, 3).map(r => (
+                  <div key={r.name} className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 flex justify-between items-center group-hover:bg-gray-50 transition">
+                    <div className="min-w-0">
+                      <span className="font-mono text-xs font-bold text-gray-800 block truncate">{r.name}</span>
+                      <span className="text-[10px] text-gray-400 font-mono truncate block">{r.path}</span>
+                    </div>
+                    <span className="shrink-0 text-[10px] text-cyber-green bg-cyber-green/10 px-2 py-0.5 rounded font-bold ml-2">已同步</span>
                   </div>
-                  <span className="text-[10px] text-cyber-green bg-cyber-green/10 px-2 py-0.5 rounded font-bold">已同步</span>
-                </div>
-              ))}
-              {repos.length === 0 && <div className="text-xs text-gray-400">暂无仓库</div>}
-            </div>
+                )) : (
+                  <div className="text-center py-6">
+                    <GitFork className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-xs text-gray-400">暂无关联仓库</p>
+                  </div>
+                )}
+                <button onClick={() => navigate('/admin')} className="w-full text-[10px] text-gray-400 hover:text-cyber-blue transition flex items-center justify-center gap-1 pt-1">
+                  管理仓库 <ArrowRight className="w-3 h-3" />
+                </button>
+              </CardContent>
+            </Card>
 
             {/* Latest Docs */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm space-y-3 hover:border-gray-300 transition flex flex-col justify-between">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-cyber-blue" /> 最新物理文档
-              </h3>
-              <ul className="space-y-2 text-xs">
-                <li>
-                  <button onClick={() => navigate(`/${repos[0]?.name ?? 'self'}#02-qa-engine`)}
-                    className="w-full flex justify-between items-center text-gray-700 hover:text-cyber-blue">
-                    <span className="font-semibold">双路分流路由算法系统</span>
-                    <span className="text-[10px] text-gray-400">3分钟前更新</span>
-                  </button>
-                </li>
-              </ul>
-            </div>
+            <Card className="hover:shadow-md transition-shadow duration-200 group">
+              <CardHeader>
+                <CardTitle><FileText className="w-3.5 h-3.5 mr-1.5 inline text-cyber-blue" /> 最新物理文档</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <button onClick={() => navigate(`/${repos[0]?.name ?? 'self'}#02-qa-engine`)}
+                  className="w-full border border-gray-100 rounded-lg p-3 text-left hover:bg-gray-50 transition flex justify-between items-center">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-800 block">双路分流路由算法系统</span>
+                    <span className="text-[10px] text-gray-400">系统核心模块</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0 ml-2">3 分钟前</span>
+                </button>
+                <button onClick={() => navigate(`/${repos[0]?.name ?? 'self'}#philosophy`)}
+                  className="w-full border border-gray-100 rounded-lg p-3 text-left hover:bg-gray-50 transition flex justify-between items-center opacity-60">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-800 block">系统设计哲学与愿景</span>
+                    <span className="text-[10px] text-gray-400">设计理念</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0 ml-2">2 天前</span>
+                </button>
+              </CardContent>
+            </Card>
 
             {/* Latest QA */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm space-y-3 hover:border-gray-300 transition">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-amber-500" /> 最新流动 Q&A
-              </h3>
-              <div className="space-y-2.5">
-                {draftQa.map(qa => (
+            <Card className="hover:shadow-md transition-shadow duration-200 group">
+              <CardHeader>
+                <CardTitle><MessageCircle className="w-3.5 h-3.5 mr-1.5 inline text-amber-500" /> 最新流动 Q&A</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {draftQa.length > 0 ? draftQa.slice(0, 3).map(qa => (
                   <div key={qa.qid} onClick={() => navigate('/qa')}
-                    className="cursor-pointer border-l-2 border-amber-400 pl-2.5 py-0.5 text-xs group">
-                    <div className="font-bold text-gray-800 group-hover:text-cyber-blue transition truncate">{qa.question}</div>
-                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">状态: 待审草稿</div>
+                    className="cursor-pointer border-l-2 border-amber-400 pl-3 py-1.5 text-xs group/item hover:bg-amber-50/50 rounded-r-lg transition">
+                    <div className="font-semibold text-gray-800 group-hover/item:text-cyber-blue transition truncate">{qa.question}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">#{qa.tags?.[0] || '待分类'} · 待审草稿</div>
                   </div>
-                ))}
-                {draftQa.length === 0 && <div className="text-xs text-gray-400">暂无最新问答</div>}
-              </div>
-            </div>
+                )) : (
+                  <div className="text-center py-6">
+                    <MessageCircle className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-xs text-gray-400">暂无流动问答</p>
+                    <button onClick={() => navigate('/qa')} className="text-[10px] text-cyber-blue hover:underline mt-1">去提问 →</button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Hot QA */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm space-y-3 hover:border-gray-300 transition">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-red-500" /> 沉淀最热 Q&A
-              </h3>
-              <div className="space-y-2.5">
-                {hotQa.map(qa => (
+            <Card className="hover:shadow-md transition-shadow duration-200 group">
+              <CardHeader>
+                <CardTitle><Flame className="w-3.5 h-3.5 mr-1.5 inline text-red-500" /> 沉淀最热 Q&A</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {hotQa.length > 0 ? hotQa.slice(0, 3).map(qa => (
                   <div key={qa.qid} onClick={() => navigate('/qa')}
-                    className="cursor-pointer border-l-2 border-cyber-green pl-2.5 py-0.5 text-xs group">
-                    <div className="font-bold text-gray-800 group-hover:text-cyber-blue transition truncate">{qa.question}</div>
-                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">已持久化 • {qa.visit_count} 次访问</div>
+                    className="cursor-pointer border-l-2 border-cyber-green pl-3 py-1.5 text-xs group/item hover:bg-cyber-green/5 rounded-r-lg transition">
+                    <div className="font-semibold text-gray-800 group-hover/item:text-cyber-blue transition truncate">{qa.question}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-2">
+                      <span className="flex items-center gap-0.5"><Flame className="w-3 h-3 text-red-400" />{qa.visit_count}</span>
+                      <span>已校准</span>
+                    </div>
                   </div>
-                ))}
-                {hotQa.length === 0 && <div className="text-xs text-gray-400">暂无热门问答</div>}
-              </div>
-            </div>
+                )) : (
+                  <div className="text-center py-6">
+                    <Flame className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-xs text-gray-400">暂无热门问答</p>
+                    <button onClick={() => navigate('/qa')} className="text-[10px] text-cyber-blue hover:underline mt-1">去提问 →</button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>

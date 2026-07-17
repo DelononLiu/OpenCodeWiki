@@ -5,7 +5,7 @@ import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { BottomInput } from '@/components/layout/BottomInput'
 import { fetchWikiPage } from '@/api/client'
 import { marked } from 'marked'
-import { Hash } from 'lucide-react'
+import { Hash, BookOpen, FileText, Search } from 'lucide-react'
 
 export function WikiPage() {
   const { repo } = useParams<{ repo: string }>()
@@ -88,6 +88,26 @@ export function WikiPage() {
         <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar relative bg-[#FBFBFC]">
           <div className="flex-1 flex justify-center py-8 px-6">
             <div className="w-full max-w-4xl transition-all">
+              {!currentHash && !currentSlug && (
+                <div className="text-center py-16 space-y-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-cyber-blue/10 to-cyber-blue/5 rounded-2xl flex items-center justify-center mx-auto">
+                    <BookOpen className="w-8 h-8 text-cyber-blue" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800">{repo} 知识库</h2>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">
+                      从左侧选择文档开始阅读，或点击 #topic 查看关联问答聚合
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> 物理文档</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="flex items-center gap-1"><Hash className="w-3.5 h-3.5" /> Topic 聚合</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="flex items-center gap-1"><Search className="w-3.5 h-3.5" /> 全文检索</span>
+                  </div>
+                </div>
+              )}
               {renderedHtml ? (
                 <div className="bg-white border border-gray-200/50 rounded-xl p-8 md:p-10 pb-32 shadow-sm">
                   {pageType === 'topic' && (
