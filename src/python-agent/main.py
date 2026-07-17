@@ -226,6 +226,28 @@ async def api_wiki_page(slug: str):
     raise HTTPException(404, f"Page '{slug}' not found")
 
 
+@app.get("/api/wiki/modules")
+async def api_wiki_modules():
+    """返回 wiki 模块目录列表（供 Admin 选择晋升位置）"""
+    modules = []
+    if WIKI_BASE.exists():
+        for child in sorted(WIKI_BASE.iterdir()):
+            if child.is_dir():
+                modules.append({"slug": child.name, "name": child.name, "type": "directory"})
+            elif child.name.endswith(".md"):
+                modules.append({"slug": child.stem, "name": child.stem, "type": "page"})
+    # Also list stored pages
+    try:
+        from store_wiki import list_pages
+        stored = list_pages()
+        for p in stored:
+            if not any(m["slug"] == p["slug"] for m in modules):
+                modules.append({"slug": p["slug"], "name": p["slug"], "type": p["page_type"]})
+    except ImportError:
+        pass
+    return _ok(modules)
+
+
 # ── Topics ──────────────────────────────────────────────────────
 
 try:

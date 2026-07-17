@@ -57,6 +57,12 @@ export function fetchWikiPage(slug: string): Promise<{ type: string; slug: strin
   return request(`/wiki/${encodeURIComponent(slug)}`)
 }
 
+// ── Wiki Modules ──
+
+export function fetchWikiModules(): Promise<{ slug: string; name: string; type: string }[]> {
+  return request('/wiki/modules')
+}
+
 // ── Topics ──
 
 export function fetchTopics(): Promise<Topic[]> {
@@ -73,6 +79,13 @@ export function fetchTopicDraft(slug: string): Promise<TopicDraft | null> {
 
 export function analyzeTopics(): Promise<{ suggestions: Topic[] }> {
   return request('/topics/analyze', { method: 'POST' })
+}
+
+export function updateTopicDraft(slug: string, content: string): Promise<{ updated: boolean }> {
+  return request(`/topics/${encodeURIComponent(slug)}/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
 }
 
 export function promoteTopic(slug: string, wikiModule: string): Promise<{ slug: string }> {
