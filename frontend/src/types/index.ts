@@ -1,0 +1,43 @@
+export interface Repo {
+  name: string
+  path: string
+}
+
+export interface QaEntry {
+  qid: number
+  question: string
+  answer: string | null
+  repo: string
+  domain: string
+  status: 'active' | 'pending' | 'archived'
+  is_calibrated: boolean
+  calibrated_answer?: { answer: string; calibrator: string } | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+  visit_count: number
+}
+
+export interface Topic {
+  slug: string
+  name: string
+  description: string
+  status: 'pool' | 'promoted'
+  wiki_module: string | null
+  qa_count?: number
+  created_at: string
+  promoted_at: string | null
+}
+
+export interface TopicDraft {
+  topic_slug: string
+  raw_content: string
+  edited_content: string | null
+  status: 'pending' | 'approved' | 'rejected'
+}
+
+export interface ApiResponse<T> {
+  ok: boolean
+  data?: T
+  error?: string
+}
