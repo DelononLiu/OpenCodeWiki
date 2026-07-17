@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { LeftSidebar } from '@/components/layout/LeftSidebar'
@@ -17,6 +17,7 @@ export function QAPage() {
   const [input, setInput] = useState(searchParams.get('q') ?? '')
   const [currentAnswer, setCurrentAnswer] = useState('')
   const { stream, isLoading } = useSSE()
+  const contextSlug = searchParams.get('context_entity_slug') || ''
 
   const handleSend = useCallback(() => {
     const q = input.trim()
@@ -26,7 +27,10 @@ export function QAPage() {
     setCurrentAnswer('')
     setInput('')
 
-    stream('/api/qa', { question: q }, (msg) => {
+    const body: Record<string, unknown> = { question: q }
+    if (contextSlug) body.context_entity_slug = contextSlug
+
+    stream('/api/qa', body, (msg) => {
       if (msg.type === 'token') {
         setCurrentAnswer(prev => prev + (msg.content as string))
       } else if (msg.type === 'error') {
@@ -76,12 +80,17 @@ export function QAPage() {
           <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-[#F8F9FA] via-[#F8F9FA]/80 to-transparent py-6 px-6">
             <div className="max-w-3xl mx-auto">
               <div className="flex items-center gap-2 bg-white border border-gray-200/80 rounded-xl shadow-lg p-3 focus-within:border-cyber-blue focus-within:ring-2 focus-within:ring-cyber-blue/10 transition-all">
+                {contextSlug && (
+                  <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-cyber-blue/10 text-cyber-blue text-[10px] font-mono rounded whitespace-nowrap font-bold">
+                    #{contextSlug}
+                  </span>
+                )}
                 <input
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
-                  placeholder="对代码库提问..."
+                  placeholder={contextSlug ? `对 #${contextSlug} 提问...` : "对代码库提问..."}
                   className="flex-1 bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none py-1"
                 />
                 <Button size="icon" className="h-8 w-8 shrink-0" onClick={handleSend} disabled={isLoading}>
