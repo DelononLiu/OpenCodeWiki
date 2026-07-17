@@ -152,9 +152,16 @@ def _init_knowledge_db(db: sqlite3.Connection):
                           CHECK(status IN ('pending','approved','rejected')),
             reviewer      TEXT DEFAULT '',
             created_at    TEXT DEFAULT (datetime('now')),
+            updated_at    TEXT DEFAULT (datetime('now')),
             reviewed_at   TEXT DEFAULT NULL
         );
     """)
+
+    # Migration: add updated_at column to topic_drafts if missing
+    try:
+        db.execute("ALTER TABLE topic_drafts ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))")
+    except Exception:
+        pass
 
 
 def close_knowledge_db():

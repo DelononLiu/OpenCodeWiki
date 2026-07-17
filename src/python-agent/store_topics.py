@@ -27,13 +27,19 @@ def get_topic(slug: str) -> dict | None:
     if not row:
         return None
     topic = dict(row)
-    qa_rows = db.execute(
-        """SELECT q.qid, q.question, q.answer, q.created_at
-           FROM topic_qa tq JOIN qa_entries q ON q.qid = tq.qid
-           WHERE tq.topic_slug = ? ORDER BY q.created_at DESC""",
-        (slug,),
-    ).fetchall()
-    topic["qa_entries"] = [dict(r) for r in qa_rows]
+    # Try to load QA entries — may fail if qa.db not initialized
+    try:
+        from database import get_qa_db
+        qa_db = get_qa_db()
+        qa_rows = db.execute(
+            """SELECT q.qid, q.question, q.answer, q.created_at
+               FROM topic_qa tq JOIN qa_entries q ON q.qid = tq.qid
+               WHERE tq.topic_slug = ? ORDER BY q.created_at DESC""",
+            (slug,),
+        ).fetchall()
+        topic["qa_entries"] = [dict(r) for r in qa_rows]
+    except Exception:
+        topic["qa_entries"] = []
     return topic
 
 
