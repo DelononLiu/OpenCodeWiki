@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
-import { fetchRepos, fetchQaEntries } from '@/api/client'
-import type { Repo, QaEntry } from '@/types'
+import { fetchRepos, fetchQaEntries, fetchTopics } from '@/api/client'
+import type { Repo, QaEntry, Topic } from '@/types'
 import { Search, GitFork, FileText, MessageCircle, Flame } from 'lucide-react'
 
 interface SearchItem {
@@ -11,15 +11,10 @@ interface SearchItem {
   key: string
 }
 
-const SEARCH_POOL: SearchItem[] = [
-  { type: 'wiki', label: '📖 物理文档: 双路分流路由算法', key: '02-qa-engine' },
-  { type: 'topic', label: '🏷️ 核心主题: #qa-engine', key: 'qa-engine' },
-  { type: 'topic', label: '🏷️ 核心主题: #concurrency', key: 'concurrency' },
-]
-
 export function HomePage() {
   const navigate = useNavigate()
   const [repos, setRepos] = useState<Repo[]>([])
+  const [topics, setTopics] = useState<Topic[]>([])
   const [draftQa, setDraftQa] = useState<QaEntry[]>([])
   const [hotQa, setHotQa] = useState<QaEntry[]>([])
   const [searchVal, setSearchVal] = useState('')
@@ -27,12 +22,34 @@ export function HomePage() {
 
   useEffect(() => {
     fetchRepos().then(setRepos).catch(() => {})
+    fetchTopics().then(setTopics).catch(() => {})
     fetchQaEntries({ status: 'pending', limit: 3 }).then(d => setDraftQa(d.entries)).catch(() => {})
     fetchQaEntries({ sort: 'visit', limit: 3 }).then(d => setHotQa(d.entries)).catch(() => {})
   }, [])
 
+  // 动态构建搜索联想池
+  const searchPool = useMemo<SearchItem[]>(() => {
+    const pool: SearchItem[] = []
+
+    // wiki 文档
+    pool.push({ type: 'wiki', label: '📖 物理文档: 双路分流路由算法', key: '02-qa-engine' })
+    pool.push({ type: 'wiki', label: '📖 物理文档: 系统设计哲学与愿景', key: 'philosophy' })
+
+    // topic 聚合
+    for (const t of topics) {
+      pool.push({ type: 'topic', label: `🏷️ 核心主题: #${t.slug}`, key: t.slug })
+    }
+
+    // 热门 QA
+    for (const qa of hotQa) {
+      pool.push({ type: 'qa', label: `💬 常见问答: ${qa.question.slice(0, 40)}`, key: String(qa.qid) })
+    }
+
+    return pool
+  }, [topics, hotQa])
+
   const filteredSuggest = searchVal.trim()
-    ? SEARCH_POOL.filter(i => i.label.toLowerCase().includes(searchVal.toLowerCase()))
+    ? searchPool.filter(i => i.label.toLowerCase().includes(searchVal.toLowerCase())).slice(0, 8)
     : []
 
   const handleSuggestClick = (item: SearchItem) => {
