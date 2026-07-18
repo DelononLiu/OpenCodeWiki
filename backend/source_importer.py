@@ -92,8 +92,9 @@ async def import_code_git(name: str, url: str) -> dict:
         await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
 
         wiki_dir = dest / "openwiki"
-        wiki_dir.mkdir(parents=True, exist_ok=True)
-        await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+        if not wiki_dir.exists():
+            wiki_dir.mkdir(parents=True, exist_ok=True)
+            await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
 
         return create_source({"name": name, "type": "code", "url": url})
     except Exception:
@@ -114,8 +115,9 @@ async def import_code_zip(name: str, zip_path: Path) -> dict:
         await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
 
         wiki_dir = dest / "openwiki"
-        wiki_dir.mkdir(parents=True, exist_ok=True)
-        await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+        if not wiki_dir.exists():
+            wiki_dir.mkdir(parents=True, exist_ok=True)
+            await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
 
         return create_source({"name": name, "type": "code"})
     except Exception:
