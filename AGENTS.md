@@ -80,12 +80,11 @@ cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
 cd frontend && npx vite --port 5180
 
 # 重启后端（先杀旧进程再启）
-pkill -f "uvicorn main:app" 2>/dev/null
+kill $(lsof -ti:8100) 2>/dev/null; sleep 1
 cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
 
 # 全部重启
-pkill -f "uvicorn main:app" 2>/dev/null; pkill -f "vite" 2>/dev/null
-sleep 1
+kill $(lsof -ti:8100) 2>/dev/null; kill $(lsof -ti:5180) 2>/dev/null; sleep 1
 cd /home/long2015/Code/OpenCodeWiki/backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload &
 sleep 2
 cd /home/long2015/Code/OpenCodeWiki/frontend && npx vite --port 5180 &
