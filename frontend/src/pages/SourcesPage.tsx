@@ -28,12 +28,12 @@ export function SourcesPage() {
       <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
         <div className="max-w-4xl mx-auto space-y-4">
           {pageSuccess && (
-            <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg animate-in slide-in-from-bottom-2">
+            <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg">
               {pageSuccess}
             </div>
           )}
           {pageError && (
-            <div className="fixed bottom-6 right-6 z-50 bg-red-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg animate-in slide-in-from-bottom-2">
+            <div className="fixed bottom-6 right-6 z-50 bg-red-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg">
               {pageError}
             </div>
           )}
