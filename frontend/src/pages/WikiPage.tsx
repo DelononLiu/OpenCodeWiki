@@ -91,7 +91,7 @@ export function WikiPage() {
                   </div>
                 </div>
               )}
-              {renderedHtml && (
+              {renderedHtml ? (
                 <div className="bg-white border border-gray-200/50 rounded-xl p-8 md:p-10 pb-32 shadow-sm">
                   {pageType === 'topic' && (
                     <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
@@ -104,7 +104,9 @@ export function WikiPage() {
                   <article ref={articleRef} className="prose prose-slate max-w-none text-sm leading-relaxed font-sans [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_pre]:bg-[#1e293b] [&_pre]:text-[#e2e8f0] [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_a]:text-cyber-blue [&_blockquote]:border-l-4 [&_blockquote]:border-cyber-blue [&_blockquote]:pl-4 [&_blockquote]:bg-gray-50 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_th]:border [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:px-3 [&_td]:py-2"
                     dangerouslySetInnerHTML={{ __html: renderedHtml }} />
                 </div>
-              )}
+              ) : currentSlug ? (
+                <div className="text-center text-gray-400 py-20">加载中或页面不存在</div>
+              ) : null}
             </div>
           </div>
           <BottomInput visible placeholder="对当前文档提问..." contextTag={currentSlug} />

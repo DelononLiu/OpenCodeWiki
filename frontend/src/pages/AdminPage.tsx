@@ -7,14 +7,15 @@ import { Loader2, CheckCircle, Eye, ArrowUpCircle, BookOpen, Shield } from 'luci
 export function AdminPage() {
   const [pendingQa, setPendingQa] = useState<QaEntry[]>([])
   const [poolTopics, setPoolTopics] = useState<Topic[]>([])
-  const [pendingCounts, setPendingCounts] = useState({ qa: 0, topic: 0 })
+  const [pendingCounts, setPendingCounts] = useState({ qa: 0, topic: 0, wiki: 0, repo: 0 })
 
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null)
   const [selectedDraft, setSelectedDraft] = useState<TopicDraft | null>(null)
   const [modules, setModules] = useState<{ slug: string; name: string; type: string }[]>([])
   const [selectedModule, setSelectedModule] = useState('')
 
-  const [currentView, setCurrentView] = useState<'qa' | 'topic'>('qa')
+  const [currentView, setCurrentView] = useState<'qa' | 'topic' | 'wiki' | 'repo'>('qa')
+  const [previewMode, setPreviewMode] = useState(false)
   const [editableContent, setEditableContent] = useState('')
   const [calAnswers, setCalAnswers] = useState<Record<number, string>>({})
   const [publishing, setPublishing] = useState(false)
@@ -90,6 +91,24 @@ export function AdminPage() {
                     {pendingCounts.topic > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.topic}</span>}
                   </button>
                 </li>
+                <li>
+                  <button onClick={() => setCurrentView('wiki')}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition ${
+                      currentView === 'wiki' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
+                    }`}>
+                    <span>📖 Wiki 变动</span>
+                    {pendingCounts.wiki > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.wiki}</span>}
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => setCurrentView('repo')}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition ${
+                      currentView === 'repo' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
+                    }`}>
+                    <span>🗃️ 代码库提交</span>
+                    {pendingCounts.repo > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.repo}</span>}
+                  </button>
+                </li>
               </ul>
             </div>
           </div>
@@ -121,6 +140,11 @@ export function AdminPage() {
                     placeholder="编辑提炼稿..." />
                 </div>
               </div>
+              {previewMode && editableContent && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4 text-sm prose prose-slate max-w-none whitespace-pre-wrap mt-3">
+                  {editableContent}
+                </div>
+              )}
               <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-gray-400" />
@@ -135,6 +159,10 @@ export function AdminPage() {
                     {publishResult}
                   </div>
                 )}
+                <button onClick={() => setPreviewMode(!previewMode)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">
+                  {previewMode ? '关闭预览' : '预览效果'}
+                </button>
                 <button onClick={handlePublish} disabled={!selectedModule || publishing}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-cyber-blue text-white text-sm rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
                   {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
@@ -168,7 +196,7 @@ export function AdminPage() {
               ))}
               {pendingQa.length === 0 && <div className="text-center text-gray-400 py-8 text-sm">✅ 暂无待审核条目</div>}
             </div>
-          ) : (
+          ) : currentView === 'topic' ? (
             <div className="max-w-4xl mx-auto space-y-4">
               <h2 className="text-lg font-bold text-gray-900">📝 Topic 聚合</h2>
               {poolTopics.map(t => (
@@ -183,6 +211,16 @@ export function AdminPage() {
                 </button>
               ))}
               {poolTopics.length === 0 && <div className="text-center text-gray-400 py-8 text-sm">暂无聚合中的 Topic</div>}
+            </div>
+          ) : currentView === 'wiki' ? (
+            <div className="max-w-4xl mx-auto space-y-4">
+              <h2 className="text-lg font-bold text-gray-900">📖 Wiki 变动</h2>
+              <div className="text-center text-gray-400 py-8 text-sm">暂无待审核的 Wiki 变动</div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-4">
+              <h2 className="text-lg font-bold text-gray-900">🗃️ 代码库提交</h2>
+              <div className="text-center text-gray-400 py-8 text-sm">暂无待审核的代码库提交</div>
             </div>
           )}
         </main>
