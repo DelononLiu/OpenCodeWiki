@@ -24,6 +24,13 @@ from stores.topics import (
     publish,
     search_topics,
 )
+from stores.sources import (
+    list_sources,
+    get_source,
+    create_source,
+    delete_source,
+    update_source,
+)
 from stores.wiki import (
     read_page,
     write_page,
@@ -41,6 +48,11 @@ __all__ = [
     "search_questions",
     "bump_visit",
     "update_domain",
+    "list_sources",
+    "get_source",
+    "create_source",
+    "delete_source",
+    "update_source",
     "list_topics",
     "get_topic",
     "create_topic",
