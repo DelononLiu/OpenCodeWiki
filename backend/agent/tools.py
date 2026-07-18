@@ -13,6 +13,8 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
+from stores.sources import REPOS_DIR
+
 # ── 配置 ─────────────────────────────────────────────────────
 
 REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
@@ -340,17 +342,19 @@ async def code_grep(pattern: str, project: str = "") -> str:
 @tool
 async def code_read_wiki(project: str = "") -> str:
     """
-    读取项目的 wiki 文档（由 openwiki 生成）。
+    读取项目的 wiki 文档（由 opencodewiki 生成）。
+    从 ~/.opencodewiki/repos/{project_name}/opencodewiki/ 目录读取。
     用于：回答前了解项目背景、架构、工作流，使回答更准确。
     """
     registry = _load_registry()
-    wiki_base = None
-    if project:
-        for entry in registry:
-            if entry.get("name") == project:
-                wiki_base = Path(entry["path"]) / ".codegraph" / "wiki"
-                break
-    if not wiki_base or not wiki_base.exists():
+    if not project:
+        return "wiki not found"
+    # 验证项目在注册表中
+    found = any(entry.get("name") == project for entry in registry)
+    if not found:
+        return "wiki not found"
+    wiki_base = REPOS_DIR / project / "opencodewiki"
+    if not wiki_base.exists():
         return "wiki not found"
     qs = wiki_base / "quickstart.md"
     if qs.exists():
@@ -358,6 +362,15 @@ async def code_read_wiki(project: str = "") -> str:
         if len(text) > 4000:
             text = text[:4000] + "\n...(truncated)"
         return text
+    # Try reading all .md files and concatenate them
+    parts = []
+    for md_path in sorted(wiki_base.glob("*.md")):
+        text = md_path.read_text()
+        if len(text) > 4000:
+            text = text[:4000] + "\n...(truncated)"
+        parts.append(text)
+    if parts:
+        return "\n\n---\n\n".join(parts)
     return "wiki not found"
 
 

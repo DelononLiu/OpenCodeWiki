@@ -375,17 +375,10 @@ async def api_qa(request: Request):
 
 # ── Wiki ────────────────────────────────────────────────────────
 
-WIKI_BASE = ROOT / ".codegraph" / "wiki"
-
 
 @app.get("/api/wiki/{slug}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
-    # Try physical wiki document in .codegraph/wiki/
-    if WIKI_BASE.exists():
-        for md_path in WIKI_BASE.rglob(f"{slug}.md"):
-            content = md_path.read_text(encoding="utf-8")
-            return _ok({"type": "wiki", "slug": slug, "content": content})
     # Try stored page
     try:
         from stores.wiki import read_page as read_wiki_file
@@ -437,13 +430,7 @@ async def api_wiki_page(slug: str):
 async def api_wiki_modules():
     """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
     modules = []
-    if WIKI_BASE.exists():
-        for child in sorted(WIKI_BASE.iterdir()):
-            if child.is_dir():
-                modules.append({"slug": child.name, "name": child.name, "type": "directory"})
-            elif child.name.endswith(".md"):
-                modules.append({"slug": child.stem, "name": child.stem, "type": "page"})
-    # Also list stored pages
+    # List stored pages
     try:
         from stores.wiki import list_pages
         stored = list_pages()
@@ -623,25 +610,10 @@ async def api_search(q: str = "", limit: int = 10):
     if len(q.strip()) < 2:
         return _ok({"wiki": [], "topic": [], "qa": []})
 
-    # 搜 wiki
+    # 搜 wiki + 上传文档目录
     wiki_results = []
-    if WIKI_BASE.exists():
-        for md_path in WIKI_BASE.rglob("*.md"):
-            if len(wiki_results) >= 3:
-                break
-            try:
-                content = md_path.read_text(encoding="utf-8")[:500]
-                title = md_path.stem
-            except Exception:
-                continue
-            if q.lower() in title.lower() or q.lower() in content.lower():
-                wiki_results.append({
-                    "slug": title,
-                    "title": title,
-                    "snippet": content[:120],
-                })
 
-    # 也搜上传文档目录
+    # 搜上传文档目录
     if UPLOAD_DIR.exists():
         for md_path in UPLOAD_DIR.rglob("*.md"):
             if len(wiki_results) >= 3:

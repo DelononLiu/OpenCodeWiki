@@ -71,7 +71,10 @@ def delete_source(name: str) -> bool:
 
 
 def update_source(name: str, data: dict) -> dict | None:
-    """更新来源条目，返回更新后的条目，不存在返回 None。"""
+    """更新来源条目（仅允许更新 mutable 字段），返回更新后的条目，不存在返回 None。"""
+    # 保护不可变字段不被误覆盖
+    data.pop("name", None)
+    data.pop("created_at", None)
     sources = _read()
     for s in sources:
         if s["name"] == name:

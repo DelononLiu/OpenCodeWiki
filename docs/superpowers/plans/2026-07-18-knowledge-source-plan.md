@@ -1,251 +1,448 @@
-# 知识源管理 Implementation Plan
+# 统一知识源管理系统 — 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+> For agentic workers: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement task-by-task.
 
-**Goal:** 审核台新增文档上传入口，上传 md/txt/pdf 后解析文本纳入 wiki（不保留原始文件）。
+**Goal:** 实现统一知识源管理系统后端，支持代码源和文档源的注册、导入、同步、删除
 
-**Architecture:** 后端 `POST /api/documents/upload` 接收文件、校验类型和大小、提取文本写入 `pages/uploaded/` 目录。`GET /api/search` 扩展搜索该目录。前端 AdminPage 左侧栏加"上传文档"按钮 + 上传对话框。
+**Architecture:** 新增 `stores/sources.py` 集中管理 registry，`source_importer.py` 处理导入流程，`main.py` 新增 6 个 API 端点
 
-**Tech Stack:** Python 3.11+, FastAPI, React 18, TypeScript, Tailwind CSS 3
+**Tech Stack:** Python FastAPI, sqlite3, asyncio.subprocess, git CLI, zipfile
 
 ## Global Constraints
 
-- 文件类型：`.md` `.txt` `.pdf`
-- 最大大小：10MB
-- 存储路径：`~/.opencodewiki/pages/uploaded/`
-- 不保留原始文件，只存提取文本
-- 中文 commit message
+- 遵循现有 `stores/*.py` 的数据访问层模式
+- API 响应格式一致：`{ok: bool, data?: any, error?: string}`
+- 所有文件路径操作使用 `pathlib.Path`
+- registry 存储在 `~/.opencodewiki/registry.json`
+- openwiki CLI 通过 subprocess 调用
+- 旧 registry 清空重建，不兼容历史
 
 ---
 
-### Task 1: 后端 — POST /api/documents/upload + 搜索扩展
+### Task 1: 新增 stores/sources.py
 
 **Files:**
-- Modify: `src/python-agent/main.py`
+- Create: `backend/stores/sources.py`
+- Test: `backend/tests/test_stores/test_sources.py`
 
-- [ ] **Step 1: 添加文档上传路由**
+**Interfaces:**
+- Produces: `list_sources(type)`, `get_source(name)`, `create_source(data)`, `delete_source(name)`, `update_source(name, data)`
 
-在 `src/python-agent/main.py` 中（settings 路由附近）添加：
+- [ ] **Step 1: 写测试**
 
 ```python
-# ── Documents ──────────────────────────────────────────────────
+# tests/test_stores/test_sources.py
+def test_list_empty(tmp_path):
+    reg = tmp_path / "registry.json"
+    reg.write_text("[]")
+    with patch("stores.sources.REGISTRY_PATH", reg):
+        from stores.sources import list_sources
+        assert list_sources() == []
 
-UPLOAD_DIR = Path.home() / ".opencodewiki" / "pages" / "uploaded"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+def test_create_and_list(tmp_path):
+    reg = tmp_path / "registry.json"
+    reg.write_text("[]")
+    with patch("stores.sources.REGISTRY_PATH", reg):
+        from stores.sources import create_source, list_sources, get_source
+        result = create_source({"name": "test", "type": "code", "url": "git@..."})
+        assert result["name"] == "test"
+        assert len(list_sources()) == 1
+        assert get_source("test")["type"] == "code"
+
+def test_get_nonexistent(tmp_path):
+    reg = tmp_path / "registry.json"
+    reg.write_text("[]")
+    with patch("stores.sources.REGISTRY_PATH", reg):
+        from stores.sources import get_source
+        assert get_source("nope") is None
+
+def test_delete_source(tmp_path):
+    reg = tmp_path / "registry.json"
+    reg.write_text("[]")
+    with patch("stores.sources.REGISTRY_PATH", reg):
+        from stores.sources import create_source, delete_source, list_sources
+        create_source({"name": "del-me", "type": "code"})
+        assert delete_source("del-me") is True
+        assert len(list_sources()) == 0
+        assert delete_source("nope") is False
+
+def test_list_by_type(tmp_path):
+    reg = tmp_path / "registry.json"
+    reg.write_text("[]")
+    with patch("stores.sources.REGISTRY_PATH", reg):
+        from stores.sources import create_source, list_sources
+        create_source({"name": "code-a", "type": "code"})
+        create_source({"name": "docs-b", "type": "docs"})
+        assert len(list_sources("code")) == 1
+        assert len(list_sources("docs")) == 1
+        assert len(list_sources()) == 2
+```
+
+- [ ] **Step 2: 运行测试确认失败**
+
+```bash
+cd backend && source .venv/bin/activate && python -m pytest tests/test_stores/test_sources.py -v
+```
+
+- [ ] **Step 3: 写实现**
+
+```python
+# stores/sources.py
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
+OPENER_CODE_DIR = Path.home() / ".opencodewiki" / "repos"
+OPENER_PAGES_SOURCES = Path.home() / ".opencodewiki" / "pages" / "sources"
+OPENER_VECTORS_DIR = Path.home() / ".opencodewiki" / "vectors"
 
 
-def _extract_text(filename: str, content: bytes) -> str:
-    ext = Path(filename).suffix.lower()
-    if ext == ".pdf":
-        try:
-            import io
-            from PyPDF2 import PdfReader
-            reader = PdfReader(io.BytesIO(content))
-            return "\n".join(page.extract_text() or "" for page in reader.pages)
-        except ImportError:
-            return "[PDF解析需要安装PyPDF2: pip install PyPDF2]"
-        except Exception as e:
-            return f"[PDF解析失败: {e}]"
-    elif ext in (".md", ".txt"):
-        return content.decode("utf-8", errors="replace")
-    return ""
+def _read() -> list[dict]:
+    try:
+        return json.loads(REGISTRY_PATH.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
 
 
-@app.post("/api/documents/upload")
-async def api_document_upload(
-    file: UploadFile = File(...),
-    tags: str = Form(""),
-):
-    filename = file.filename or "unknown"
-    ext = Path(filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        return _err(f"不支持的文件类型: {ext}，仅支持 {', '.join(ALLOWED_EXTENSIONS)}")
+def _write(data: list[dict]):
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRY_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        return _err(f"文件过大，最大 10MB")
 
-    text = _extract_text(filename, content)
-    slug = Path(filename).stem
+def list_sources(type: str | None = None) -> list[dict]:
+    sources = _read()
+    if type:
+        return [s for s in sources if s.get("type") == type]
+    return sources
 
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
 
-    # 写入 markdown
-    from datetime import datetime, timezone
+def get_source(name: str) -> dict | None:
+    for s in _read():
+        if s["name"] == name:
+            return s
+    return None
+
+
+def create_source(data: dict) -> dict:
+    sources = _read()
     now = datetime.now(timezone.utc).isoformat()
-    header = f"---\nsource: upload\noriginal_filename: {filename}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
-    md_path = UPLOAD_DIR / f"{slug}.md"
-    md_path.write_text(header + text, encoding="utf-8")
+    entry = {"name": data["name"], "type": data.get("type", "code")}
+    if data.get("url"):
+        entry["url"] = data["url"]
+    entry["created_at"] = now
+    entry["updated_at"] = now
+    sources.append(entry)
+    _write(sources)
+    return entry
 
-    return _ok({
-        "slug": slug,
-        "title": slug,
-        "page_type": "uploaded",
-        "size": len(content),
-        "tags": tag_list,
-    })
+
+def delete_source(name: str) -> bool:
+    sources = _read()
+    for i, s in enumerate(sources):
+        if s["name"] == name:
+            sources.pop(i)
+            _write(sources)
+            return True
+    return False
+
+
+def update_source(name: str, data: dict) -> dict | None:
+    sources = _read()
+    for s in sources:
+        if s["name"] == name:
+            s.update(data)
+            _write(sources)
+            return s
+    return None
 ```
 
-> 注意：需要在 `main.py` 顶部添加 `from fastapi import File, UploadFile, Form`
+- [ ] **Step 4: 运行测试确认通过**
 
-- [ ] **Step 2: 扩展 GET /api/search 搜索 uploaded 目录**
-
-在 `api_search()` 函数的 wiki 搜索部分后，追加：
-
-```python
-    # 也搜上传文档目录
-    if UPLOAD_DIR.exists():
-        for md_path in UPLOAD_DIR.rglob("*.md"):
-            if len(wiki_results) >= 3:
-                break
-            try:
-                content = md_path.read_text(encoding="utf-8")[:500]
-                title = md_path.stem
-            except Exception:
-                continue
-            if q.lower() in title.lower() or q.lower() in content.lower():
-                wiki_results.append({
-                    "slug": title,
-                    "title": f"📤 {title}",
-                    "snippet": content[:120],
-                })
-```
-
-- [ ] **Step 3: 验证**
-
-```bash
-cd src/python-agent && python3 -c "from main import app; print('OK')"
-```
-Expected: `OK`
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/python-agent/main.py
-git commit -m "feat: POST /api/documents/upload + 搜索扩展上传文档
-
-支持 md/txt/pdf 上传，解析文本纳入 wiki 搜索
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-```
+- [ ] **Step 5: 提交**
 
 ---
 
-### Task 2: 前端 — AdminPage 上传对话框
+### Task 2: 导入流程核心模块 source_importer.py
 
 **Files:**
-- Modify: `frontend/src/pages/AdminPage.tsx`
+- Create: `backend/source_importer.py`
 
-- [ ] **Step 1: 添加上传入口和对话框**
+- [ ] **Step 1: 写实现**
 
-在 AdminPage 左侧栏"审核队列"下方添加"📤 上传文档"按钮：
+```python
+# source_importer.py
+import asyncio
+import json
+import shutil
+import tempfile
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
 
-```typescript
-// In the sidebar, after the 4 queue items:
+from stores.sources import (
+    OPENER_CODE_DIR, OPENER_PAGES_SOURCES, OPENER_VECTORS_DIR,
+    create_source, delete_source as delete_registry_entry,
+    get_source, update_source,
+)
 
-<li className="pt-2 border-t border-gray-100 mt-2">
-  <button onClick={() => setShowUpload(true)}
-    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition text-xs">
-    📤 上传文档
-  </button>
-</li>
+OPENWIKI_CLI = "openwiki"
+
+
+async def _run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, cwd=cwd,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    return proc.returncode or 0, (stdout or b"").decode() + (stderr or b"").decode()
+
+
+async def _git_clone(url: str, dest: Path):
+    code, log = await _run_cmd(["git", "clone", url, str(dest)])
+    if code != 0:
+        raise RuntimeError(f"git clone 失败: {log[:200]}")
+
+
+async def _unzip(zip_path: Path, dest: Path):
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(dest)
+
+
+def _scan_md(root: Path) -> list[Path]:
+    return sorted(root.rglob("*.md"))
+
+
+async def _copy_md_files(src: Path, dest: Path):
+    dest.mkdir(parents=True, exist_ok=True)
+    for md in _scan_md(src):
+        rel = md.relative_to(src)
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(md.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+async def import_code_git(name: str, url: str) -> dict:
+    dest = OPENER_CODE_DIR / name
+    await _git_clone(url, dest)
+    from agent.tools import BINARY
+    await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
+    wiki_dir = dest / "opencodewiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+    return create_source({"name": name, "type": "code", "url": url})
+
+
+async def import_code_zip(name: str, zip_path: Path) -> dict:
+    dest = OPENER_CODE_DIR / name
+    dest.mkdir(parents=True, exist_ok=True)
+    await _unzip(zip_path, dest)
+    wiki_dir = dest / "opencodewiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+    return create_source({"name": name, "type": "code"})
+
+
+async def import_docs_git(name: str, url: str) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        clone_dir = Path(tmp) / name
+        await _git_clone(url, clone_dir)
+        await _copy_md_files(clone_dir, OPENER_PAGES_SOURCES / name)
+    return create_source({"name": name, "type": "docs", "url": url})
+
+
+async def import_docs_zip(name: str, zip_path: Path) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        extract_dir = Path(tmp) / name
+        await _unzip(zip_path, extract_dir)
+        await _copy_md_files(extract_dir, OPENER_PAGES_SOURCES / name)
+    return create_source({"name": name, "type": "docs"})
+
+
+async def sync_source(name: str) -> dict:
+    source = get_source(name)
+    if not source:
+        raise ValueError(f"Source '{name}' not found")
+    now = datetime.now(timezone.utc).isoformat()
+    if source["type"] == "code":
+        repo_path = OPENER_CODE_DIR / name
+        await _run_cmd(["git", "pull"], cwd=repo_path)
+        await _run_cmd([OPENWIKI_CLI, str(repo_path)], cwd=repo_path)
+    elif source["type"] == "docs":
+        with tempfile.TemporaryDirectory() as tmp:
+            clone_dir = Path(tmp) / name
+            await _git_clone(source["url"], clone_dir)
+            dest = OPENER_PAGES_SOURCES / name
+            if dest.exists():
+                shutil.rmtree(dest)
+            await _copy_md_files(clone_dir, dest)
+    update_source(name, {"updated_at": now})
+    return get_source(name)
+
+
+async def remove_source(name: str) -> bool:
+    source = get_source(name)
+    if not source:
+        return False
+    if source["type"] == "code":
+        repo_path = OPENER_CODE_DIR / name
+        if repo_path.exists():
+            shutil.rmtree(repo_path)
+    elif source["type"] == "docs":
+        pages_path = OPENER_PAGES_SOURCES / name
+        if pages_path.exists():
+            shutil.rmtree(pages_path)
+    for vec_file in OPENER_VECTORS_DIR.glob(f"{name}.vec.db*"):
+        vec_file.unlink(missing_ok=True)
+    return delete_registry_entry(name)
 ```
 
-新增 state：
-```typescript
-const [showUpload, setShowUpload] = useState(false)
-const [uploadFile, setUploadFile] = useState<File | null>(null)
-const [uploadTags, setUploadTags] = useState('')
-const [uploading, setUploading] = useState(false)
-const [uploadResult, setUploadResult] = useState<string | null>(null)
-```
-
-上传对话框（在 `</main>` 前添加）：
-```typescript
-{showUpload && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowUpload(false)}>
-    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-gray-900">上传文档</h2>
-        <button onClick={() => setShowUpload(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-      </div>
-
-      <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-        <input type="file" accept=".md,.txt,.pdf" onChange={e => setUploadFile(e.target.files?.[0] || null)}
-          className="text-sm" />
-        <p className="text-[10px] text-gray-400 mt-2">支持 .md .txt .pdf，最大 10MB</p>
-      </div>
-
-      <div>
-        <label className="text-xs text-gray-500 mb-1 block">标签（逗号分隔，可选）</label>
-        <input value={uploadTags} onChange={e => setUploadTags(e.target.value)}
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-          placeholder="architecture, design" />
-      </div>
-
-      {uploadResult && (
-        <div className={`text-xs px-3 py-2 rounded-lg ${uploadResult.startsWith('✅') ? 'bg-cyber-green/10 text-cyber-green' : 'bg-red-50 text-red-600'}`}>
-          {uploadResult}
-        </div>
-      )}
-
-      <div className="flex gap-2 justify-end">
-        <button onClick={() => { setShowUpload(false); setUploadFile(null); setUploadTags(''); setUploadResult(null) }}
-          className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
-        <button onClick={async () => {
-          if (!uploadFile) return
-          setUploading(true); setUploadResult(null)
-          try {
-            const formData = new FormData()
-            formData.append('file', uploadFile)
-            formData.append('tags', uploadTags)
-            const res = await fetch('/api/documents/upload', { method: 'POST', body: formData })
-            const body = await res.json()
-            if (body.ok) setUploadResult(`✅ 上传成功: ${body.data.slug}`)
-            else setUploadResult(`❌ ${body.error}`)
-          } catch (e: any) { setUploadResult(`❌ ${e.message}`) }
-          setUploading(false)
-        }} disabled={!uploadFile || uploading}
-          className="px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark disabled:opacity-50">
-          {uploading ? '上传中...' : '上传'}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-```
-
-- [ ] **Step 2: 验证 TypeScript 编译**
-
-```bash
-cd frontend && npx tsc --noEmit
-```
-Expected: No errors
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add frontend/src/pages/AdminPage.tsx
-git commit -m "feat: AdminPage 审核台文档上传对话框
-
-支持 md/txt/pdf 上传，可选标签
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-```
+- [ ] **Step 2: 提交**
 
 ---
 
-## Self-Review
+### Task 3: main.py 新增 API 端点
 
-**1. Spec coverage:**
-- ✅ 上传入口在审核台：Task 2
-- ✅ md/txt/pdf 校验 + 10MB 限制：Task 1
-- ✅ 文本提取 + 写入 wiki：Task 1
-- ✅ 搜索扩展：Task 1
-- ✅ 标签可选：Task 2
+**Files:**
+- Modify: `backend/main.py`
 
-**2. Placeholder scan:** 无
+- [ ] **Step 1: 追加导入和路由**
 
-**3. Type consistency:** `UploadFile` 来自 FastAPI，前端 `FormData` 标准 API。
+在顶部 import 追加：
+
+```python
+from stores.sources import (
+    list_sources as get_sources,
+    get_source as get_source_entry,
+)
+from source_importer import (
+    import_code_git, import_code_zip,
+    import_docs_git, import_docs_zip,
+    sync_source, remove_source,
+)
+```
+
+替换 `/api/repos` 路由和第 40-44 行的 `_load_registry` 函数。在 `/api/repos` 路由之后追加新端点：
+
+```python
+@app.get("/api/sources")
+async def api_sources(type: str | None = None):
+    return _ok(get_sources(type))
+
+@app.get("/api/sources/{name}")
+async def api_source(name: str):
+    src = get_source_entry(name)
+    if not src:
+        raise HTTPException(404, f"Source '{name}' not found")
+    return _ok(src)
+
+@app.post("/api/sources")
+async def api_create_source(body: dict):
+    name = (body.get("name") or "").strip()
+    url = (body.get("url") or "").strip()
+    source_type = body.get("type", "code")
+    if not name:
+        return _err("Missing name")
+    if get_source_entry(name):
+        return _err(f"Source '{name}' already exists")
+    try:
+        if source_type == "code":
+            result = await import_code_git(name, url)
+        elif source_type == "docs":
+            result = await import_docs_git(name, url)
+        else:
+            return _err(f"Invalid type: {source_type}")
+        return _ok(result)
+    except RuntimeError as e:
+        return _err(str(e), 500)
+
+@app.post("/api/sources/upload")
+async def api_upload_source(name: str = Form(...), type: str = Form("code"), file: UploadFile = File(...)):
+    if not name:
+        return _err("Missing name")
+    if get_source_entry(name):
+        return _err(f"Source '{name}' already exists")
+    zip_path = Path.home() / ".opencodewiki" / "tmp" / f"{name}.zip"
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    zip_path.write_bytes(content)
+    try:
+        if type == "code":
+            result = await import_code_zip(name, zip_path)
+        elif type == "docs":
+            result = await import_docs_zip(name, zip_path)
+        else:
+            return _err(f"Invalid type: {type}")
+        return _ok(result)
+    except Exception as e:
+        return _err(str(e), 500)
+    finally:
+        zip_path.unlink(missing_ok=True)
+
+@app.post("/api/sources/{name}/sync")
+async def api_sync_source(name: str):
+    try:
+        result = await sync_source(name)
+        return _ok(result)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except RuntimeError as e:
+        return _err(str(e), 500)
+
+@app.delete("/api/sources/{name}")
+async def api_delete_source(name: str):
+    ok = await remove_source(name)
+    if not ok:
+        raise HTTPException(404, f"Source '{name}' not found")
+    return _ok({"deleted": True})
+```
+
+保留旧的 `/api/repos` 向后兼容：
+
+```python
+@app.get("/api/repos")
+async def api_repos():
+    return _ok(get_sources("code"))
+```
+
+- [ ] **Step 2: 提交**
+
+---
+
+### Task 4: 测试导入流程
+
+**Files:**
+- Create: `backend/tests/test_source_importer.py`
+
+- [ ] **Step 1: 写测试**
+
+```python
+@pytest.fixture
+def mock_env(tmp_path):
+    with patch("stores.sources.REGISTRY_PATH", tmp_path / "registry.json"):
+        with patch("source_importer.OPENER_CODE_DIR", tmp_path / "repos"):
+            with patch("source_importer.OPENER_PAGES_SOURCES", tmp_path / "sources"):
+                with patch("source_importer.OPENER_VECTORS_DIR", tmp_path / "vectors"):
+                    (tmp_path / "vectors").mkdir()
+                    yield
+
+def test_import_code_git(mock_env):
+    from source_importer import import_code_git, OPENER_CODE_DIR
+    ...
+```
+
+- [ ] **Step 2: 提交**
+
+---
+
+### Task 5: 全量测试验证
+
+- [ ] **Step 1: 运行全部后端测试**
+
+```bash
+cd backend && source .venv/bin/activate && python -m pytest tests/ -v
+```
+
+- [ ] **Step 2: 修复失败**
+
+- [ ] **Step 3: 最终提交**

@@ -1,30 +1,53 @@
-# Task 3 Report: QAPage 自动保存 + HomePage 全局搜索
+# Task 3 Report: main.py 新增 API 端点
 
-## Summary
+## Status
 
-Modified 2 frontend files to add auto-save on SSE done and backend-powered grouped search results.
+Completed.
+
+## Commits
+
+```
+e40ef1b feat: main.py 新增 6 个 sources API 端点 + 路由测试
+```
 
 ## Changes
 
-### QAPage.tsx
-- Added `POST /api/qa/save` call in the `done` event handler (lines 82-95)
-- Captures `lastUserMsg` from messages array, sends question/answer/repo/session_id/sources/mode
-- On success, refreshes QA entries list via `fetchQaEntries({ limit: 100 })`
+### `backend/main.py`
+- **Imports**: Added `stores.sources` (aliased `get_sources`, `get_source_entry`) and `source_importer` (6 async functions) imports.
+- **`_load_registry()`**: Replaced direct JSON file read with delegation to `stores.sources.list_sources()`. Preserves `REGISTRY_PATH` constant for `agent/tools.py` compat.
+- **`/api/repos`**: Changed from `_load_registry()` to `get_sources("code")` for backward compatibility (returns only code-type sources).
+- **6 new endpoints** added after `/api/repos`:
+  - `GET /api/sources` -- list sources, optional `?type=` filter
+  - `GET /api/sources/{name}` -- get single source (404 if not found)
+  - `POST /api/sources` -- create source from Git URL (code/docs)
+  - `POST /api/sources/upload` -- upload zip file source
+  - `POST /api/sources/{name}/sync` -- sync existing source
+  - `DELETE /api/sources/{name}` -- remove source
 
-### HomePage.tsx
-- Added `searchResults` state for backend search results (line 22)
-- Replaced `handleSearchKeyDown` to call `GET /api/search?q=...&limit=5` (lines 54-71)
-  - On successful backend results with items → sets `searchResults` + keeps suggest open
-  - On no results or error → falls back to navigating to `/qa?q=...`
-- Replaced suggest dropdown with two-mode display (lines 96-146)
-  - **Backend results** (when `searchResults` is set): grouped by Wiki / Topic / QA sections
-  - **Local fallback** (when `!searchResults`): original `filteredSuggest` for real-time typing feedback
+### `backend/tests/test_main/test_sources_routes.py`
+- 23 test cases covering all new endpoints:
+  - 4 listing tests (empty, all, filter code, filter docs)
+  - 2 get-source tests (found, not-found 404)
+  - 6 create-source tests (code-git, docs-git, missing name, duplicate, invalid type, runtime error)
+  - 6 upload tests (code-zip, docs-zip, missing name / 422, duplicate, invalid type, import exception)
+  - 3 sync tests (success, not-found 404, runtime error)
+  - 2 delete tests (success, not-found 404)
+  - 1 backward-compat test (`/api/repos`)
+- All tests follow `test_settings_routes.py` patterns (mock `stores.sources.REGISTRY_PATH` for list/get, mock `main.*` async functions for create/sync/delete/upload).
 
-### QAPage.tsx — stale closure fix (2026-07-18)
-- Removed `lastUserMsg = messages[messages.length - 1]` in SSE `done` handler and replaced with local variable `q` (captured at function-call time on line 63)
-- **Bug:** `messages` not in `useCallback` deps → stale closure → first question on fresh page sent empty string (400 error), subsequent questions sent previous text
-- **Fix:** Use `q` (the `input.trim()` result) instead of `lastUserMsg?.content || ''`
-- Commit `594e0b6`
+## Test Summary
 
-## Verification
-- `cd frontend && npx tsc --noEmit` — zero errors
+```
+=== 153 passed in 4.47s ===
+```
+
+All existing tests (130) continue to pass. All 23 new tests pass.
+
+## Concerns
+
+- `POST /api/sources/upload`: When `name` is omitted from the multipart form, FastAPI's `Form(...)` validation rejects with HTTP 422 before the handler runs -- the `if not name` guard in the handler is never reached. This is correct FastAPI behavior; the test asserts a 422 response.
+- The `import_code_git`, `import_code_zip`, etc. functions require real git/zip tools at runtime. Tests mock these entirely, so no real I/O occurs during testing.
+
+## Report Path
+
+`/home/long2015/Code/OpenCodeWiki/.superpowers/sdd/task-3-report.md`
