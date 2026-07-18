@@ -97,7 +97,7 @@ export function WikiPage() {
                         <span className="text-[10px] text-gray-400">主题聚合视图</span>
                       </div>
                     )}
-                    <article ref={articleRef} className="prose prose-slate max-w-none text-sm leading-relaxed font-sans [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_pre]:bg-[#1e293b] [&_pre]:text-[#e2e8f0] [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_a]:text-cyber-blue [&_blockquote]:border-l-4 [&_blockquote]:border-cyber-blue [&_blockquote]:pl-4 [&_blockquote]:bg-gray-50 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_th]:border [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:px-3 [&_td]:py-2"
+                    <article ref={articleRef} className="prose prose-slate max-w-none text-sm leading-relaxed font-sans [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_pre]:bg-[#1e293b] [&_pre]:text-[#e2e8f0] [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_a]:text-cyber-blue [&_blockquote]:border-l-4 [&_blockquote]:border-cyber-blue [&_blockquote]:pl-4 [&_blockquote]:bg-gray-50 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_table]:table-fixed [&_table]:text-[11px] [&_th]:border [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:break-all [&_td]:border [&_td]:px-2 [&_td]:py-1.5 [&_td]:break-all"
                       dangerouslySetInnerHTML={{ __html: renderedHtml }} />
                   </div>
                 ) : currentSlug ? (
