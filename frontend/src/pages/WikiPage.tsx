@@ -43,7 +43,15 @@ export function WikiPage() {
 
   const renderedHtml = useMemo(() => {
     if (!rawContent) return ''
-    return marked.parse(rawContent, { async: false }) as string
+    let html = marked.parse(rawContent, { async: false }) as string
+    // 将含制表符（ASCII art 图表）的 <p> 段落替换为 <pre>
+    html = html.replace(/<p>\s*([┌└│├▔─┐┘┴┬┤╰╮╭╰╯ ].*?)<\/p>/gs, (_, content) => {
+      if (content.split('\n').length > 1 || content.includes('──') || content.includes('│')) {
+        return `<pre class="ascii-art">${content}</pre>`
+      }
+      return `<p>${content}</p>`
+    })
+    return html
   }, [rawContent])
 
   // Highlight.js + Mermaid
@@ -97,7 +105,7 @@ export function WikiPage() {
                         <span className="text-[10px] text-gray-400">主题聚合视图</span>
                       </div>
                     )}
-                    <article ref={articleRef} className="prose prose-slate max-w-none text-sm leading-relaxed font-sans [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_pre]:bg-[#1e293b] [&_pre]:text-[#e2e8f0] [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_a]:text-cyber-blue [&_blockquote]:border-l-4 [&_blockquote]:border-cyber-blue [&_blockquote]:pl-4 [&_blockquote]:bg-gray-50 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_table]:table-fixed [&_table]:text-[11px] [&_th]:border [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:break-all [&_td]:border [&_td]:px-2 [&_td]:py-1.5 [&_td]:break-all"
+                    <article ref={articleRef} className="prose prose-slate max-w-none text-sm leading-relaxed font-sans [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_pre]:bg-[#1e293b] [&_pre]:text-[#e2e8f0] [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_pre]:font-[12px/1.6] [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_a]:text-cyber-blue [&_blockquote]:border-l-4 [&_blockquote]:border-cyber-blue [&_blockquote]:pl-4 [&_blockquote]:bg-gray-50 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_table]:table-fixed [&_table]:text-[11px] [&_th]:border [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1.5 [&_td]:border [&_td]:px-2 [&_td]:py-1.5 [&_.ascii-art]:bg-[#1e293b] [&_.ascii-art]:text-[#e2e8f0] [&_.ascii-art]:rounded-lg [&_.ascii-art]:p-4 [&_.ascii-art]:overflow-x-auto [&_.ascii-art]:text-[12px] [&_.ascii-art]:leading-relaxed [&_.ascii-art]:font-mono [&_.ascii-art]:my-3 "
                       dangerouslySetInnerHTML={{ __html: renderedHtml }} />
                   </div>
                 ) : currentSlug ? (
