@@ -1,0 +1,11 @@
+{
+  "gitHead": "bff6658c74c9017beb4351140fb25a22c10ee53f",
+  "updatedAt": "2025-07-18T22:30:00Z",
+  "files": [
+    "openwiki/quickstart.md",
+    "openwiki/architecture.md",
+    "openwiki/workflows.md",
+    "openwiki/data-model.md",
+    "openwiki/testing.md"
+  ]
+}
