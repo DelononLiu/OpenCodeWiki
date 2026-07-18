@@ -87,7 +87,7 @@ export function SettingsPage() {
                   {saved && <span className="text-xs text-cyber-green">已保存</span>}
                 </div>
               </div>
-            ) : section === 'model' ? (
+            ) : (
               <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
                 <h2 className="text-sm font-bold text-gray-900">模型配置</h2>
                 <div>
