@@ -26,6 +26,15 @@ from stores.qa import (
     list_pending,
     search_questions,
 )
+from stores.sources import (
+    list_sources as get_sources,
+    get_source as get_source_entry,
+)
+from source_importer import (
+    import_code_git, import_code_zip,
+    import_docs_git, import_docs_zip,
+    sync_source, remove_source,
+)
 
 # ── Config ──────────────────────────────────────────────────────
 
@@ -38,10 +47,7 @@ sys.path.insert(0, str(HERE))
 
 
 def _load_registry() -> list[dict]:
-    try:
-        return json.loads(REGISTRY_PATH.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+    return get_sources()
 
 
 # ── Lifespan ────────────────────────────────────────────────────
@@ -69,7 +75,90 @@ def _err(msg: str, status: int = 400) -> JSONResponse:
 
 @app.get("/api/repos")
 async def api_repos():
-    return _ok(_load_registry())
+    return _ok(get_sources("code"))
+
+
+# ── Sources ──────────────────────────────────────────────────────
+
+@app.get("/api/sources")
+async def api_sources(type: str | None = None):
+    return _ok(get_sources(type))
+
+
+@app.get("/api/sources/{name}")
+async def api_source(name: str):
+    src = get_source_entry(name)
+    if not src:
+        raise HTTPException(404, f"Source '{name}' not found")
+    return _ok(src)
+
+
+@app.post("/api/sources")
+async def api_create_source(body: dict):
+    name = (body.get("name") or "").strip()
+    url = (body.get("url") or "").strip()
+    source_type = body.get("type", "code")
+    if not name:
+        return _err("Missing name")
+    if get_source_entry(name):
+        return _err(f"Source '{name}' already exists")
+    try:
+        if source_type == "code":
+            result = await import_code_git(name, url)
+        elif source_type == "docs":
+            result = await import_docs_git(name, url)
+        else:
+            return _err(f"Invalid type: {source_type}")
+        return _ok(result)
+    except RuntimeError as e:
+        return _err(str(e), 500)
+
+
+@app.post("/api/sources/upload")
+async def api_upload_source(
+    name: str = Form(...),
+    type: str = Form("code"),
+    file: UploadFile = File(...),
+):
+    if not name:
+        return _err("Missing name")
+    if get_source_entry(name):
+        return _err(f"Source '{name}' already exists")
+    zip_path = Path.home() / ".opencodewiki" / "tmp" / f"{name}.zip"
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    zip_path.write_bytes(content)
+    try:
+        if type == "code":
+            result = await import_code_zip(name, zip_path)
+        elif type == "docs":
+            result = await import_docs_zip(name, zip_path)
+        else:
+            return _err(f"Invalid type: {type}")
+        return _ok(result)
+    except Exception as e:
+        return _err(str(e), 500)
+    finally:
+        zip_path.unlink(missing_ok=True)
+
+
+@app.post("/api/sources/{name}/sync")
+async def api_sync_source(name: str):
+    try:
+        result = await sync_source(name)
+        return _ok(result)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except RuntimeError as e:
+        return _err(str(e), 500)
+
+
+@app.delete("/api/sources/{name}")
+async def api_delete_source(name: str):
+    ok = await remove_source(name)
+    if not ok:
+        raise HTTPException(404, f"Source '{name}' not found")
+    return _ok({"deleted": True})
 
 
 # ── Settings ───────────────────────────────────────────────────
