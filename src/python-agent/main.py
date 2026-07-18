@@ -72,6 +72,43 @@ async def api_repos():
     return _ok(_load_registry())
 
 
+# ── Settings ───────────────────────────────────────────────────
+
+CONFIG_PATH = Path.home() / ".opencodewiki" / "config.json"
+
+DEFAULT_CONFIG = {
+    "general": {"site_name": "OpenCodeWiki"},
+    "model": {"provider": "openai", "api_key": "", "model": "gpt-4o", "temperature": 0.7},
+}
+
+def _load_config() -> dict:
+    try:
+        return json.loads(CONFIG_PATH.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return DEFAULT_CONFIG
+
+def _save_config(config: dict):
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, ensure_ascii=False, indent=2))
+
+
+@app.get("/api/settings")
+async def api_settings():
+    return _ok(_load_config())
+
+
+@app.put("/api/settings")
+async def api_settings_update(body: dict):
+    section = body.get("section", "")
+    data = body.get("data", {})
+    if section not in ("general", "model"):
+        return _err("Invalid section, must be 'general' or 'model'")
+    config = _load_config()
+    config[section] = data
+    _save_config(config)
+    return _ok({"saved": True})
+
+
 # ── QA ──────────────────────────────────────────────────────────
 
 @app.get("/api/qa/next-qid")
