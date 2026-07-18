@@ -32,11 +32,14 @@ OPENWIKI_CLI = "openwiki"
 # ── 底层工具 ─────────────────────────────────────────────────────
 
 
-async def _run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+async def _run_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> tuple[int, str]:
     """执行外部命令，返回 (exit_code, combined_output)。"""
+    import os
+    cmd_env = os.environ.copy() | (env or {})
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=cwd,
+        env=cmd_env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
