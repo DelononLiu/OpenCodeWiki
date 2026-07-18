@@ -174,7 +174,10 @@ async def sync_source(name: str) -> dict:
             await _git_clone(url, repo_path)
         else:
             await _run_cmd(["git", "pull"], cwd=repo_path)
-        await _run_cmd([OPENWIKI_CLI, str(repo_path)], cwd=repo_path)
+        wiki_dir = repo_path / "openwiki"
+        if not wiki_dir.exists():
+            wiki_dir.mkdir(parents=True, exist_ok=True)
+            await _run_cmd([OPENWIKI_CLI, str(repo_path)], cwd=repo_path)
 
     elif source.get("type") == "docs":
         with tempfile.TemporaryDirectory() as tmp:
