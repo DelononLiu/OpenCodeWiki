@@ -70,7 +70,7 @@ def _make_fake_run_cmd(*, exit_code: int = 0, output: str = ""):
     return fake_run_cmd
 
 
-async def _noop_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
+async def _noop_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> tuple[int, str]:
     return 0, ""
 
 
@@ -141,7 +141,7 @@ class TestImportCodeGit:
         fake_clone = _make_fake_git_clone()
         calls = []
 
-        async def tracking_run_cmd(cmd, cwd=None):
+        async def tracking_run_cmd(cmd, cwd=None, env=None):
             calls.append((cmd, cwd))
             return 0, ""
 
@@ -389,7 +389,7 @@ class TestSyncSource:
 
         calls = []
 
-        async def tracking_run_cmd(cmd, cwd=None):
+        async def tracking_run_cmd(cmd, cwd=None, env=None):
             calls.append((cmd, cwd))
             return 0, ""
 
@@ -401,7 +401,7 @@ class TestSyncSource:
         assert result is not None
         assert result["name"] == "sync-code"
         # verify git pull was run inside repo path
-        pull_calls = [c for c in calls if c[0] == ["git", "pull"]]
+        pull_calls = [c for c in calls if c[0][:2] == ["git", "pull"]]
         assert len(pull_calls) >= 1
         assert pull_calls[0][1] == repos / "sync-code"
 
