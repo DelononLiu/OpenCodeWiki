@@ -95,3 +95,44 @@ export function fetchSettings(): Promise<{ general: { site_name: string }; model
 export function saveSettings(section: string, data: Record<string, unknown>): Promise<{ saved: boolean }> {
   return request('/settings', { method: 'PUT', body: JSON.stringify({ section, data }) })
 }
+
+// ── Sources ──
+
+export interface SourceItem {
+  name: string
+  type: 'code' | 'docs'
+  url?: string
+  created_at: string
+  updated_at: string
+}
+
+export function fetchSources(type?: string): Promise<SourceItem[]> {
+  const qs = type ? `?type=${type}` : ''
+  return request<SourceItem[]>(`/sources${qs}`)
+}
+
+export function addSource(name: string, url: string, type: string): Promise<SourceItem> {
+  return request<SourceItem>('/sources', {
+    method: 'POST',
+    body: JSON.stringify({ name, url, type }),
+  })
+}
+
+export function syncSource(name: string): Promise<SourceItem> {
+  return request<SourceItem>(`/sources/${encodeURIComponent(name)}/sync`, { method: 'POST' })
+}
+
+export function deleteSourceApi(name: string): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(`/sources/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
+export async function addSourceZip(name: string, type: string, file: File): Promise<SourceItem> {
+  const formData = new FormData()
+  formData.append('name', name)
+  formData.append('type', type)
+  formData.append('file', file)
+  const res = await fetch('/api/sources/upload', { method: 'POST', body: formData })
+  const body = await res.json()
+  if (!body.ok) throw new Error(body.error || 'Upload failed')
+  return body.data
+}
