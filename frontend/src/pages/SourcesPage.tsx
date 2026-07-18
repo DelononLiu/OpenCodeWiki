@@ -15,6 +15,7 @@ export function SourcesPage() {
   const [sourceMode, setSourceMode] = useState<'git' | 'zip'>('git')
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [pageSuccess, setPageSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,6 +27,12 @@ export function SourcesPage() {
       <Header variant="global" />
       <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
         <div className="max-w-4xl mx-auto space-y-4">
+          {pageSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
+              <span>{pageSuccess}</span>
+              <button onClick={() => setPageSuccess(null)} className="text-green-400 hover:text-green-600 ml-2">&times;</button>
+            </div>
+          )}
           {pageError && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
               <span>{pageError}</span>
@@ -77,9 +84,13 @@ export function SourcesPage() {
                             <button onClick={async () => {
                               setSyncing(s.name)
                               try {
-                                await syncSource(s.name)
+                                const r = await syncSource(s.name)
                                 setSources(await fetchSources())
-                              } catch {}
+                                setPageSuccess(`「${s.name}」同步成功`)
+                                setTimeout(() => setPageSuccess(null), 3000)
+                              } catch (e: any) {
+                                setPageError(`「${s.name}」同步失败: ${e.message}`)
+                              }
                               setSyncing(null)
                             }} disabled={syncing === s.name}
                               className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
