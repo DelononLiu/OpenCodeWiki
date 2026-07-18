@@ -1,7 +1,6 @@
 # OpenCodeWiki — AI Agent 开发指南
 
-> **📖 先读 `docs/superpowers/specs/2026-07-18-topic-page-sidebar-design.md`** — 最新架构设计文档。
-> **📋 实施计划在 `docs/superpowers/plans/2026-07-18-UI-global-upgrade.md`** — 分阶段任务。
+> **📖 先读 `docs/ARCHITECTURE.md`** — 项目架构总览。
 
 ## 项目定位
 
@@ -54,6 +53,7 @@ opencodewiki/
 │   ├── wiki-generate.sh       # Wiki 生成入口
 │   └── crg-wiki.py            # CRG Wiki 生成器
 ├── eval/                      # QA 评测套件
+├── Dockerfile                 # Docker 镜像构建
 └── AGENTS.md                  # 本文件
 ```
 
@@ -68,6 +68,19 @@ cd frontend && npm run dev
 
 # 生产 (Python 直接 serve 构建产物)
 cd frontend && npm run build
+```
+
+## 运行测试
+
+```bash
+# 后端 (pytest)
+cd backend && source .venv/bin/activate && python -m pytest
+
+# 前端 (Vitest)
+cd frontend && npx vitest run
+
+# QA 评测 (pytest + requests)
+cd eval && source ../backend/.venv/bin/activate && bash run.sh
 ```
 
 ## URL 路由
@@ -91,3 +104,18 @@ cd frontend && npm run build
 6. **自进化闭环** — 增长循环是核心业务流程，修改时注意保持闭环完整性
 7. **API 响应格式** — `{ok: bool, data?: any, error?: string}`
 8. **新增 Python 工具** — 注册在 `backend/agent/tools.py` 的 `CODEGRAPH_TOOLS` 列表
+
+## 禁止事项
+
+1. **不要自动 push** — 所有提交后等待用户确认
+2. **不要修改 `docs/superpowers/`** — 那是开发过程归档，详细设计记录，不修改
+3. **不要直接写入 `~/.opencodewiki/`** — 通过 API/Store 层操作数据
+4. **不要修改 `frontend/dist/`** — 构建产物，由 `npm run build` 生成
+5. **不要删除数据库文件** — `qa.db` / `knowledge.db` 在 `~/.opencodewiki/`
+
+## AI 工作流程
+
+1. **先读 `docs/ARCHITECTURE.md`** 了解完整架构
+2. **读本文件**（AGENTS.md）了解开发和测试命令
+3. **读相关 spec**（`docs/superpowers/specs/`）了解功能的设计背景
+4. **动手前先列出改动的文件和理由**，等用户确认后再执行
