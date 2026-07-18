@@ -45,11 +45,11 @@ export function WikiPage() {
     if (!rawContent) return ''
     let html = marked.parse(rawContent, { async: false }) as string
     // 将含制表符（ASCII art 图表）的 <p> 段落替换为 <pre>
-    html = html.replace(/<p>\s*([┌└│├▔─┐┘┴┬┤╰╮╭╰╯ ].*?)<\/p>/gs, (_, content) => {
-      if (content.split('\n').length > 1 || content.includes('──') || content.includes('│')) {
-        return `<pre class="ascii-art">${content}</pre>`
-      }
-      return `<p>${content}</p>`
+    // 每行 ASCII art 可能是一个独立的 <p>，需要合并连续的 ASCII 行
+    html = html.replace(/(<p>\s*[┌└│├─┐┘┴┬┤╰╮╭╯╲╱].*?<\/p>\s*)+/gs, (block) => {
+      // 提取所有行内容，去掉 <p> 和 </p> 标签
+      const lines = block.replace(/<\/?p>/g, '').trim()
+      return `<pre class="ascii-art">${lines}</pre>`
     })
     return html
   }, [rawContent])
