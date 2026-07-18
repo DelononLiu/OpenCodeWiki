@@ -74,9 +74,25 @@ export function QAPage() {
       } else if (msg.type === 'error') setCurrentAnswer(`错误: ${msg.message}`)
       else if (msg.type === 'done') {
         const finalAnswer = streamingRef.current
+        const lastUserMsg = messages[messages.length - 1]
         setMessages(prev => [...prev, { role: 'assistant', content: finalAnswer }])
         setCurrentAnswer('')
         streamingRef.current = ''
+
+        // 自动保存 QA
+        fetch('/api/qa/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: lastUserMsg?.content || '',
+            answer: finalAnswer,
+            repo: '',
+            session_id: Date.now().toString(),
+            sources: [],
+            mode: 'deep',
+          }),
+        }).then(() => fetchQaEntries({ limit: 100 }).then(d => setQaEntries(d.entries)))
+        .catch(() => {})
       }
     })
   }, [input, isLoading, stream, contextSlug])

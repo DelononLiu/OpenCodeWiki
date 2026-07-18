@@ -19,6 +19,7 @@ export function HomePage() {
   const [hotQa, setHotQa] = useState<QaEntry[]>([])
   const [searchVal, setSearchVal] = useState('')
   const [showSuggest, setShowSuggest] = useState(false)
+  const [searchResults, setSearchResults] = useState<{ wiki: any[]; topic: any[]; qa: any[] } | null>(null)
 
   useEffect(() => {
     fetchRepos().then(setRepos).catch(() => {})
@@ -50,8 +51,21 @@ export function HomePage() {
     else navigate(`/${repos[0]?.name ?? 'self'}#${item.key}`)
   }
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+  const handleSearchKeyDown = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchVal.trim()) {
+      try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(searchVal.trim()) + '&limit=5')
+        const body = await res.json()
+        if (body.ok) {
+          const data = body.data
+          const hasResults = (data.wiki?.length || 0) + (data.topic?.length || 0) + (data.qa?.length || 0) > 0
+          if (hasResults) {
+            setSearchResults(data)
+            setShowSuggest(true)
+            return
+          }
+        }
+      } catch {}
       navigate(`/qa?q=${encodeURIComponent(searchVal.trim())}`)
     }
   }
@@ -79,7 +93,47 @@ export function HomePage() {
                   placeholder="搜索文档、主题或问答..." />
                 <span className="text-[10px] bg-gray-100 border border-gray-200 text-gray-400 font-mono px-2 py-1 rounded-lg shrink-0">Ctrl+K</span>
               </div>
-              {showSuggest && searchVal.trim() && filteredSuggest.length > 0 && (
+              {showSuggest && searchVal.trim() && searchResults && (
+                <div className="absolute top-full left-4 right-4 bg-white border border-gray-100 rounded-xl shadow-xl mt-1.5 p-3 text-left text-xs z-50 max-h-80 overflow-y-auto">
+                  {searchResults.wiki?.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">📖 Wiki</h4>
+                      {searchResults.wiki.map((w: any) => (
+                        <button key={w.slug} onClick={() => { setShowSuggest(false); setSearchVal(''); setSearchResults(null); navigate('/' + (repos[0]?.name ?? 'self') + '#' + w.slug); }}
+                          className="w-full p-2 hover:bg-slate-100 rounded-lg text-left">
+                          <div className="font-medium text-gray-700">{w.title}</div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">{w.snippet}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.topic?.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">🏷️ Topic</h4>
+                      {searchResults.topic.map((t: any) => (
+                        <button key={t.slug} onClick={() => { setShowSuggest(false); setSearchVal(''); setSearchResults(null); navigate('/' + (repos[0]?.name ?? 'self') + '#' + t.slug); }}
+                          className="w-full p-2 hover:bg-slate-100 rounded-lg text-left">
+                          <span className="font-mono font-medium text-gray-700">#{t.slug}</span>
+                          <span className="text-gray-500 ml-2">{t.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.qa?.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">💬 QA</h4>
+                      {searchResults.qa.map((q: any) => (
+                        <button key={q.qid} onClick={() => { setShowSuggest(false); setSearchVal(''); setSearchResults(null); navigate('/qa?qid=' + q.qid); }}
+                          className="w-full p-2 hover:bg-slate-100 rounded-lg text-left">
+                          <span className="text-gray-700">{q.question}</span>
+                          <span className="text-[10px] text-gray-400 ml-2">#{q.qid}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {showSuggest && searchVal.trim() && !searchResults && filteredSuggest.length > 0 && (
                 <div className="absolute top-full left-4 right-4 bg-white border border-gray-100 rounded-xl shadow-xl mt-1.5 p-2 text-left text-xs z-50">
                   {filteredSuggest.map(item => (
                     <button key={item.label} onClick={() => handleSuggestClick(item)}
