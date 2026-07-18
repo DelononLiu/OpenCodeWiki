@@ -47,46 +47,60 @@ export function SourcesPage() {
           ) : sources.length === 0 ? (
             <div className="text-center text-gray-400 py-16 text-sm">暂无知识源，点击上方按钮添加</div>
           ) : (
-            <div className="space-y-2">
-              {sources.map(s => (
-                <div key={s.name} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between hover:border-gray-300 transition">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-sm font-bold text-gray-800">{s.name}</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-cyber-green/10 text-cyber-green'}`}>{s.type}</span>
-                    {s.git_commit && (
-                      <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded" title={s.git_commit}>
-                        #{s.git_count} · {s.git_commit?.slice(0, 12)}...
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400 font-mono truncate max-w-[200px]">{s.url || '(zip 导入)'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-gray-400">{s.updated_at?.slice(0, 10)}</span>
-                    {s.url && (
-                      <button onClick={async () => {
-                        setSyncing(s.name)
-                        try {
-                          await syncSource(s.name)
-                          setSources(await fetchSources())
-                        } catch {}
-                        setSyncing(null)
-                      }} disabled={syncing === s.name}
-                        className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
-                        {syncing === s.name ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                        同步
-                      </button>
-                    )}
-                    <button onClick={async () => {
-                      if (!confirm(`确认删除知识源「${s.name}」？`)) return
-                      await deleteSourceApi(s.name)
-                      setSources(await fetchSources())
-                    }}
-                      className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
-                      <Trash2 className="w-3 h-3" /> 删除
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">名称</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">类型</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">版本</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">地址</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">更新</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map(s => (
+                    <tr key={s.name} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                      <td className="px-4 py-3 font-mono font-bold text-gray-800">{s.name}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-cyber-green/10 text-cyber-green'}`}>{s.type}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-gray-500">
+                        {s.git_commit ? s.git_commit.slice(0, 7) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 truncate max-w-[200px]">{s.url || '-'}</td>
+                      <td className="px-4 py-3 text-gray-400">{s.updated_at?.slice(0, 10)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          {s.url && (
+                            <button onClick={async () => {
+                              setSyncing(s.name)
+                              try {
+                                await syncSource(s.name)
+                                setSources(await fetchSources())
+                              } catch {}
+                              setSyncing(null)
+                            }} disabled={syncing === s.name}
+                              className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
+                              {syncing === s.name ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                              同步
+                            </button>
+                          )}
+                          <button onClick={async () => {
+                            if (!confirm(`确认删除知识源「${s.name}」？`)) return
+                            await deleteSourceApi(s.name)
+                            setSources(await fetchSources())
+                          }}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
+                            <Trash2 className="w-3 h-3" /> 删除
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
