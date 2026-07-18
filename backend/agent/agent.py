@@ -13,7 +13,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from config import get_llm_config
-from tools import CODEGRAPH_TOOLS
+from agent.tools import CODEGRAPH_TOOLS
 
 # ── System prompt ────────────────────────────────────────────────
 

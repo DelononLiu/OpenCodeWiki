@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 # Setup: ensure we can import from the project
-HERE = Path(__file__).parent
+HERE = Path(__file__).parent.parent
 sys.path.insert(0, str(HERE))
 
 # Use a separate test database
@@ -37,7 +37,7 @@ class TestStoreTopics(unittest.TestCase):
         db.execute("DELETE FROM topics")
         db.commit()
         # Import here to get fresh state
-        from store_topics import create_topic
+        from stores.topics import create_topic
         self.create_topic = create_topic
 
     def test_create_topic(self):
@@ -51,7 +51,7 @@ class TestStoreTopics(unittest.TestCase):
         self.create_topic("topic-a", "主题A")
         self.create_topic("topic-b", "主题B")
 
-        from store_topics import list_topics
+        from stores.topics import list_topics
         topics = list_topics()
         self.assertEqual(len(topics), 2)
         slugs = [t["slug"] for t in topics]
@@ -62,7 +62,7 @@ class TestStoreTopics(unittest.TestCase):
         """获取单个 topic"""
         self.create_topic("get-test", "获取测试")
 
-        from store_topics import get_topic
+        from stores.topics import get_topic
         topic = get_topic("get-test")
         self.assertIsNotNone(topic)
         self.assertEqual(topic["name"], "获取测试")
@@ -74,7 +74,7 @@ class TestStoreTopics(unittest.TestCase):
         """关联 QA 到 topic"""
         self.create_topic("qa-link", "QA关联")
 
-        from store_topics import link_qa, list_topics
+        from stores.topics import link_qa, list_topics
         link_qa("qa-link", 1)
         link_qa("qa-link", 2)
 
@@ -86,7 +86,7 @@ class TestStoreTopics(unittest.TestCase):
         """草稿 CRUD"""
         self.create_topic("draft-test", "草稿测试")
 
-        from store_topics import save_draft, get_draft, update_draft_content
+        from stores.topics import save_draft, get_draft, update_draft_content
         save_draft("draft-test", "原始内容")
 
         draft = get_draft("draft-test")
@@ -102,7 +102,7 @@ class TestStoreTopics(unittest.TestCase):
         """沉淀 topic 为 wiki"""
         self.create_topic("publish-test", "沉淀测试")
 
-        from store_topics import publish, get_topic
+        from stores.topics import publish, get_topic
         publish("publish-test", "core-module")
 
         topic = get_topic("publish-test")

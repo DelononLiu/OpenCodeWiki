@@ -8,8 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Add parent dir for config import
-sys.path.insert(0, str(Path(__file__).parent))
+# Add grandparent dir for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import get_llm_config
 

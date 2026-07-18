@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import init_databases
-from store_qa import (
+from stores.qa import (
     calibrate as calibrate_entry,
     create_entry,
     get_entry,
@@ -231,7 +231,7 @@ async def api_qa_suggest(q: str, limit: int = 5):
 
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
-from graph import get_graph
+from agent.graph import get_graph
 
 
 async def _qa_event_stream(question: str, session_id: str, repo: str = "") -> AsyncGenerator[str, None]:
@@ -299,7 +299,7 @@ async def api_wiki_page(slug: str):
             return _ok({"type": "wiki", "slug": slug, "content": content})
     # Try stored page
     try:
-        from store_wiki import read_page as read_wiki_file
+        from stores.wiki import read_page as read_wiki_file
         stored = read_wiki_file(slug, "entity")
         if stored:
             return _ok({"type": "wiki", "slug": slug, "content": stored})
@@ -307,7 +307,7 @@ async def api_wiki_page(slug: str):
         pass
     # Try topic
     try:
-        from store_topics import get_topic as get_topic_data
+        from stores.topics import get_topic as get_topic_data
         topic = get_topic_data(slug)
         if topic:
             qa_list = topic.get("qa_entries", [])
@@ -356,7 +356,7 @@ async def api_wiki_modules():
                 modules.append({"slug": child.stem, "name": child.stem, "type": "page"})
     # Also list stored pages
     try:
-        from store_wiki import list_pages
+        from stores.wiki import list_pages
         stored = list_pages()
         for p in stored:
             if not any(m["slug"] == p["slug"] for m in modules):
@@ -369,7 +369,7 @@ async def api_wiki_modules():
 # ── Topics ──────────────────────────────────────────────────────
 
 try:
-    from store_topics import (
+    from stores.topics import (
         list_topics, get_topic, create_topic, get_draft,
         save_draft, link_qa, update_draft_content, publish as publish_topic,
     )
@@ -418,7 +418,7 @@ try:
     @app.post("/api/topics/analyze")
     async def api_analyze_topics():
         """分析 QA 池，按 domain/tag 聚类生成 topic 建议"""
-        from store_qa import list_entries
+        from stores.qa import list_entries
 
         result = list_entries({"status": "active", "limit": 100})
         entries = result.get("entries", [])
@@ -475,7 +475,7 @@ try:
             content = "\n".join(lines)
 
         # 写入 wiki 目录
-        from store_wiki import write_page
+        from stores.wiki import write_page
         write_page(slug, "entity", content)
 
         # 更新 topic 状态
@@ -522,7 +522,7 @@ async def api_qa_save(body: dict):
         "sources": body.get("sources", []),
     })
     domain = await classify_domain(question, answer)
-    from store_qa import update_domain
+    from stores.qa import update_domain
     update_domain(entry["qid"], domain)
     return _ok({"qid": entry["qid"], "id": entry["id"], "domain": domain})
 
@@ -572,7 +572,7 @@ async def api_search(q: str = "", limit: int = 10):
     # 搜 topic
     topic_results = []
     try:
-        from store_topics import search_topics
+        from stores.topics import search_topics
         topic_results = search_topics(q, limit=3)
     except ImportError:
         pass
@@ -580,7 +580,7 @@ async def api_search(q: str = "", limit: int = 10):
     # 搜 QA
     qa_results = []
     try:
-        from store_qa import search_questions
+        from stores.qa import search_questions
         qa_results = search_questions(q, limit=3)
     except ImportError:
         pass

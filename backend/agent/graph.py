@@ -15,10 +15,10 @@ from langgraph.errors import GraphRecursionError
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from typing import TypedDict, Sequence
 
-from agent import SYSTEM_PROMPT
-from agent import _build_llm as build_llm
+from agent.agent import SYSTEM_PROMPT
+from agent.agent import _build_llm as build_llm
 from config import get_llm_config
-from tools import CODEGRAPH_TOOLS
+from agent.tools import CODEGRAPH_TOOLS
 
 
 # ── 状态 ─────────────────────────────────────────────────────
