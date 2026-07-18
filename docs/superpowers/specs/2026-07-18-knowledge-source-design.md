@@ -1,104 +1,180 @@
-# 知识源管理 Design Spec
+# 统一知识源管理系统 — 设计文档
 
-## 概述
+> 日期：2026-07-18
 
-统一管理代码库接入 + 文档上传。代码库入口在首页和 `/wiki` 全局页，文档上传入口在审核台 `/admin`。上传后解析提取文本，纳入 wiki 体系（不保留原始文件）。
+## 背景
 
-## 代码库接入（已有，微调）
+当前 OpenCodeWiki 的知识源只有"代码仓库"一种类型，存储在 `registry.json` 中只有 `{name, path}`。代码生成的 wiki 文档放在项目目录下的 `.codegraph/wiki/`，与用户沉淀的 wiki 页面（`~/.opencodewiki/pages/`）割裂。
 
-保持已有逻辑：`registry.json` 记录 repo 路径 → codegraph 索引生成 wiki。
+本次设计将知识源统一为"代码源"和"文档源"两种类型，统一存储路径和导入流程，所有文档归入 `~/.opencodewiki/` 统一管理。
 
-首页/Wiki全局页："+ 提交代码库"按钮 → 跳转审核台代码库提交队列。
+## 目标
 
-## 文档上传（新增）
+1. 支持注册代码仓库（git/zip）→ 自动生成文档
+2. 支持注册文档仓库（git/zip）→ 直接导入 `.md` 文件
+3. 所有知识源的 Wiki 页面统一可见、QA 统一检索
+4. 支持同步更新和删除清理
+5. 清理旧 `.codegraph/` 目录
 
-### 入口
-
-审核台 `/admin` 左侧栏增加"📤 上传文档"入口（操作按钮，非队列）。
-
-点击 → 弹出上传对话框：
-
-```
-┌─ 上传文档 ────────────────────────────────────┐
-│                                                 │
-│   拖拽文件到此处，或                            │
-│   [选择文件]                                    │
-│                                                 │
-│   支持: .md .txt .pdf                           │
-│   最大: 10MB                                    │
-│                                                 │
-│   标签: [___________] (可选，逗号分隔)           │
-│                                                 │
-│   [取消] [上传]                                  │
-└─────────────────────────────────────────────────┘
-```
-
-### 上传流程
+## 目录结构
 
 ```
-用户选择文件 → 前端上传 POST /api/documents/upload
-                   ↓
-              后端存储原始文本到 ~/.opencodewiki/pages/
-              生成 metadata（来源、标签、时间）
-                   ↓
-              纳入 wiki 全文搜索索引
-                   ↓
-              返回 { slug, title }
-              Wiki 全局页最近变动中可见
+~/.opencodewiki/
+├── config.json                    # LLM 配置（现有）
+├── registry.json                  # 统一知识源注册
+├── qa.db / knowledge.db          # SQLite（现有）
+├── qa-sessions/                   # QA 会话（现有）
+├── vectors/                       # 向量索引（现有，外部 CLI 管理）
+│
+├── repos/                         # 代码源
+│   ├── {name}/
+│   │   ├── src/                   # git clone / zip 解压的代码
+│   │   ├── README.md
+│   │   └── opencodewiki/          # 生成的文档
+│   │       ├── quickstart.md
+│   │       └── architecture/
+│   │           └── overview.md
+│   └── ...
+│
+└── pages/                         # Wiki 统一存储
+    ├── entities/                  # Topic 沉淀（现有）
+    ├── overviews/                 # 概览（现有）
+    ├── qa-archives/               # QA 归档（现有）
+    └── sources/                   # 文档源导入
+        └── {name}/
+            ├── 文档1.md
+            └── 文档2.md
 ```
 
-### API `POST /api/documents/upload`
+## Registry 扩展
 
-**Request:** `multipart/form-data`
-```
-file: document.md
-tags: "architecture, design"
-```
-
-**Response:**
 ```json
-{
-  "ok": true,
-  "data": {
-    "slug": "architecture-design",
-    "title": "architecture-design",
-    "page_type": "uploaded",
-    "size": 2048,
-    "tags": ["architecture", "design"]
+// ~/.opencodewiki/registry.json
+[
+  {
+    "name": "my-project",
+    "url": "git@github.com:user/my-project.git",
+    "type": "code",
+    "created_at": "2026-07-18T15:00:00Z",
+    "updated_at": "2026-07-18T15:00:00Z"
+  },
+  {
+    "name": "团队规范",
+    "url": "https://git.company.com/team/standards.git",
+    "type": "docs",
+    "created_at": "2026-07-18T15:00:00Z",
+    "updated_at": "2026-07-18T15:00:00Z"
+  },
+  {
+    "name": "设计文档",
+    "type": "docs",
+    "created_at": "2026-07-18T16:00:00Z",
+    "updated_at": "2026-07-18T16:00:00Z"
   }
-}
+]
 ```
 
-**后端处理：**
-1. 接收文件，校验类型（`.md` `.txt` `.pdf`）和大小（≤10MB）
-2. 提取文本内容：md/txt 直接读取，pdf 用 PyPDF2 或 pdfplumber 解析
-3. 写入 `~/.opencodewiki/pages/uploaded/{slug}.md`
-4. 返回 slug + title
+- `type: "code"` — 代码仓库，导入到 `repos/{name}/`
+- `type: "docs"` — 文档仓库，导入到 `pages/sources/{name}/`
+- `url` 可选 — git/svn 地址。zip 导入的没有 url
+- 旧的 registry 数据清空重建，不做兼容
 
-### Wiki 搜索集成
+## 新增模块：stores/sources.py
 
-`GET /api/search` 已搜 `.codegraph/wiki/`，需扩展搜索 `~/.opencodewiki/pages/uploaded/` 目录。
+将所有 registry 操作集中在此模块。不在 main.py 和 tools.py 中重复实现。
 
----
+```python
+def list_sources(type: str | None = None) -> list[dict]
+def get_source(name: str) -> dict | None
+def create_source(data: dict) -> dict
+def delete_source(name: str) -> bool
+def update_source(name: str, data: dict) -> dict
+```
 
-## 前端改动
+## API 端点
 
-| 文件 | 操作 | 说明 |
+| 方法 | 路径 | 说明 |
 |------|------|------|
-| `frontend/src/pages/AdminPage.tsx` | 修改 | +文档上传入口 + 上传对话框 |
-| `frontend/src/pages/HomePage.tsx` | 不变 | 提交代码库跳转审核台 |
-| `frontend/src/pages/WikiGlobalPage.tsx` | 不变 | 最近变动列表需后端支持 |
+| GET | /api/sources | 列出所有知识源 |
+| GET | /api/sources/{name} | 获取单个源信息 |
+| POST | /api/sources | 注册知识源（git url） |
+| POST | /api/sources/upload | 上传 zip 导入 |
+| POST | /api/sources/{name}/sync | 同步更新 |
+| DELETE | /api/sources/{name} | 删除知识源 |
 
-## 后端改动
+## 导入流程
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `src/python-agent/main.py` | 修改 | +`POST /api/documents/upload` 路由 |
-| `src/python-agent/main.py` | 修改 | `GET /api/search` 扩展搜 `pages/uploaded/` |
+### 代码源 (git)
 
-## Spec 自检
+1. `git clone {url}` → `~/.opencodewiki/repos/{name}/`
+2. codebase-memory-mcp 索引
+3. subprocess 调 openwiki CLI → 生成文档到 `repos/{name}/opencodewiki/`
+4. registry.json 写记录
+5. 后台异步执行，前端显示"生成中"
 
-- **范围**：仅文档上传 + 文本提取，不保留原始文件
-- **格式**：md/txt/pdf，≤10MB
-- **标签**：可选，用于 wiki 分类
-- **安全**：文件类型白名单校验，大小限制
+### 代码源 (zip)
+
+1. 解压 zip → `~/.opencodewiki/repos/{name}/`
+2. codebase-memory-mcp 索引
+3. openwiki CLI 生成文档
+4. registry.json 写记录
+
+### 文档源 (git)
+
+1. `git clone {url}` → 临时目录
+2. 扫描全部 `.md` 文件
+3. 复制到 `pages/sources/{name}/`
+4. registry.json 写记录
+
+### 文档源 (zip)
+
+1. 解压 zip → 临时目录
+2. 扫描全部 `.md` 文件
+3. 复制到 `pages/sources/{name}/`
+4. registry.json 写记录
+
+## 同步与清理
+
+### 同步
+
+```
+POST /api/sources/{name}/sync
+
+type=code: git pull → 重新 openwiki 生成
+type=docs: git pull → 重新扫描 .md → 覆盖 pages/sources/{name}/
+```
+
+### 删除
+
+```
+DELETE /api/sources/{name}
+
+1. 从 registry 删除
+2. type=code: rm -rf repos/{name}/
+3. type=docs: rm -rf pages/sources/{name}/
+4. 删除 vectors/{name}.vec.db*（向量索引文件）
+```
+
+## 实施计划
+
+### 第一阶段：后端核心
+
+1. 新建 `stores/sources.py`（registry CRUD）
+2. 新建 `routes/sources.py`（API 端点）
+3. 导入流程实现（git clone / zip 解压 / openwiki CLI 调用）
+4. 同步和删除逻辑
+5. 测试覆盖
+
+### 第二阶段：前端 UI + 清理
+
+1. AdminPage/SettingsPage 改造为统一知识源管理
+2. 导入进度展示
+3. 清理 `.codegraph/wiki/` 目录
+4. 删除 `WIKI_BASE` 相关代码
+5. 更新 `code_read_wiki` Agent 工具
+
+## 不在此次设计中的事项
+
+- Wiki 路由的 repo 相关改造（待定）
+- QA Agent 直接读取 sources 文档（待清理后统一处理）
+- 前端 UI（第二阶段实施）
