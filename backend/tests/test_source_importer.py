@@ -105,8 +105,8 @@ class TestImportCodeGit:
         assert len(raw) == 1
         assert raw[0]["name"] == "my-code"
 
-    async def test_git_clone_failure_raises_runtime_error(self, mock_env):
-        """_run_cmd 返回非零时 _git_clone 抛出 RuntimeError。"""
+    async def test_git_clone_failure_registers_anyway(self, mock_env):
+        """clone 失败仍先注册，用户刷新页面不会丢失。"""
         repos, sources, vectors, reg = mock_env
 
         with patch(
@@ -115,10 +115,11 @@ class TestImportCodeGit:
         ):
             from source_importer import import_code_git
 
-            with pytest.raises(RuntimeError, match="git clone failed"):
-                await import_code_git(
-                    "fail-clone", "https://example.com/fail.git"
-                )
+            result = await import_code_git(
+                "fail-clone", "https://example.com/fail.git"
+            )
+            assert result["name"] == "fail-clone"
+            assert result["type"] == "code"
 
     async def test_creates_openwiki_dir(self, mock_env):
         """验证 openwiki 目录被创建。"""

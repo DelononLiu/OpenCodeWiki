@@ -83,47 +83,43 @@ async def import_code_git(name: str, url: str) -> dict:
     - 调用 openwiki 构建 wiki
     - 在注册表中创建记录
     """
+    # 先注册，让用户立即看到
+    result = create_source({"name": name, "type": "code", "url": url})
     dest = REPOS_DIR / name
-    await _git_clone(url, dest)
-
     try:
+        await _git_clone(url, dest)
         from agent.tools import BINARY
-
         await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
-
         wiki_dir = dest / "openwiki"
         if not wiki_dir.exists():
             wiki_dir.mkdir(parents=True, exist_ok=True)
             await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
-
-        return create_source({"name": name, "type": "code", "url": url})
     except Exception:
         if dest.exists():
             shutil.rmtree(dest)
-        raise
+        # 注册成功了但后续失败，保留 registry 记录，删除 clone 的目录
+    return result
 
 
 async def import_code_zip(name: str, zip_path: Path) -> dict:
     """从 zip 文件导入代码知识源。"""
+    # 先注册，让用户立即看到
+    result = create_source({"name": name, "type": "code"})
     dest = REPOS_DIR / name
-    dest.mkdir(parents=True, exist_ok=True)
-    await _unzip(zip_path, dest)
-
     try:
+        dest.mkdir(parents=True, exist_ok=True)
+        await _unzip(zip_path, dest)
         from agent.tools import BINARY
-
         await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
-
         wiki_dir = dest / "openwiki"
         if not wiki_dir.exists():
             wiki_dir.mkdir(parents=True, exist_ok=True)
             await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
-
-        return create_source({"name": name, "type": "code"})
     except Exception:
         if dest.exists():
             shutil.rmtree(dest)
-        raise
+        # 不抛出——注册已成功，用户能看到该源
+    return result
 
 
 async def import_docs_git(name: str, url: str) -> dict:
