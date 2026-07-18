@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -107,6 +107,66 @@ async def api_settings_update(body: dict):
     config[section] = data
     _save_config(config)
     return _ok({"saved": True})
+
+
+# ── Documents ──────────────────────────────────────────────────
+
+UPLOAD_DIR = Path.home() / ".opencodewiki" / "pages" / "uploaded"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _extract_text(filename: str, content: bytes) -> str:
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        try:
+            import io
+            from PyPDF2 import PdfReader
+            reader = PdfReader(io.BytesIO(content))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except ImportError:
+            return "[PDF解析需要安装PyPDF2: pip install PyPDF2]"
+        except Exception as e:
+            return f"[PDF解析失败: {e}]"
+    elif ext in (".md", ".txt"):
+        return content.decode("utf-8", errors="replace")
+    return ""
+
+
+@app.post("/api/documents/upload")
+async def api_document_upload(
+    file: UploadFile = File(...),
+    tags: str = Form(""),
+):
+    filename = file.filename or "unknown"
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return _err(f"不支持的文件类型: {ext}，仅支持 {', '.join(ALLOWED_EXTENSIONS)}")
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        return _err(f"文件过大，最大 10MB")
+
+    text = _extract_text(filename, content)
+    slug = Path(filename).stem
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # 写入 markdown
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    header = f"---\nsource: upload\noriginal_filename: {filename}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
+    md_path = UPLOAD_DIR / f"{slug}.md"
+    md_path.write_text(header + text, encoding="utf-8")
+
+    return _ok({
+        "slug": slug,
+        "title": slug,
+        "page_type": "uploaded",
+        "size": len(content),
+        "tags": tag_list,
+    })
 
 
 # ── QA ──────────────────────────────────────────────────────────
@@ -489,6 +549,23 @@ async def api_search(q: str = "", limit: int = 10):
                 wiki_results.append({
                     "slug": title,
                     "title": title,
+                    "snippet": content[:120],
+                })
+
+    # 也搜上传文档目录
+    if UPLOAD_DIR.exists():
+        for md_path in UPLOAD_DIR.rglob("*.md"):
+            if len(wiki_results) >= 3:
+                break
+            try:
+                content = md_path.read_text(encoding="utf-8")[:500]
+                title = md_path.stem
+            except Exception:
+                continue
+            if q.lower() in title.lower() or q.lower() in content.lower():
+                wiki_results.append({
+                    "slug": title,
+                    "title": f"📤 {title}",
                     "snippet": content[:120],
                 })
 
