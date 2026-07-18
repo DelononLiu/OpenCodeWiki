@@ -70,6 +70,34 @@ cd frontend && npm run dev
 cd frontend && npm run build
 ```
 
+## 服务管理
+
+```bash
+# 启动后端 (8100)
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
+
+# 启动前端 (5180，自动代理 API 到 8100)
+cd frontend && npx vite --port 5180
+
+# 重启后端（先杀旧进程再启）
+pkill -f "uvicorn main:app" 2>/dev/null
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
+
+# 全部重启
+pkill -f "uvicorn main:app" 2>/dev/null; pkill -f "vite" 2>/dev/null
+sleep 1
+cd /home/long2015/Code/OpenCodeWiki/backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload &
+sleep 2
+cd /home/long2015/Code/OpenCodeWiki/frontend && npx vite --port 5180 &
+sleep 2
+echo "后端 http://localhost:8100  前端 http://localhost:5180"
+
+# 访问地址
+# 知识管理: http://localhost:5180/sources
+# 知识沉淀: http://localhost:5180/admin
+# Wiki:     http://localhost:5180/wiki
+```
+
 ## 运行测试
 
 ```bash
