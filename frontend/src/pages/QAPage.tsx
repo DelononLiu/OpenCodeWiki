@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
 import { fetchQaEntries, fetchQaEntry } from '@/api/client'
 import type { QaEntry } from '@/types'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Send, Loader2, Search, Plus } from 'lucide-react'
 
 interface Message { role: 'user' | 'assistant'; content: string }
@@ -165,8 +167,8 @@ export function QAPage() {
               <div className="max-w-3xl mx-auto">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">{selectedQa.question}</h2>
                 {selectedQa.answer && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm prose prose-slate max-w-none text-sm">
-                    {selectedQa.answer}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedQa.answer}</ReactMarkdown>
                   </div>
                 )}
               </div>
@@ -177,14 +179,20 @@ export function QAPage() {
                 <div className="max-w-3xl mx-auto space-y-6">
                   {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
-                        m.role === 'user' ? 'bg-cyber-blue text-white' : 'bg-white border border-gray-200/50 shadow-sm text-gray-800'
-                      }`}>{m.content}</div>
+                      {m.role === 'user' ? (
+                        <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-cyber-blue text-white whitespace-pre-wrap">{m.content}</div>
+                      ) : (
+                        <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {currentAnswer && (
                     <div className="flex justify-start">
-                      <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">{currentAnswer}</div>
+                      <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentAnswer}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                   {messages.length === 0 && !currentAnswer && (
