@@ -46,7 +46,7 @@ async def _run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
 
 async def _git_clone(url: str, dest: Path):
     """git clone 远程仓库到本地路径。"""
-    code, log = await _run_cmd(["git", "clone", url, str(dest)])
+    code, log = await _run_cmd(["git", "clone", "--depth", "1", url, str(dest)])
     if code != 0:
         raise RuntimeError(f"git clone failed: {log[:200]}")
 
