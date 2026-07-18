@@ -176,6 +176,8 @@ async def sync_source(name: str) -> dict:
                 shutil.rmtree(repo_path)
             await _git_clone(url, repo_path)
         else:
+            # openwiki 可能会改 AGENTS.md，先恢复再 pull
+            await _run_cmd(["git", "restore", "."], cwd=repo_path)
             code, log = await _run_cmd(["git", "pull"], cwd=repo_path)
             if code != 0:
                 raise RuntimeError(f"git pull 失败: {log[:200]}")
