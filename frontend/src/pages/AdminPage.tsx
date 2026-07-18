@@ -25,11 +25,6 @@ export function AdminPage() {
   const [calAnswers, setCalAnswers] = useState<Record<number, string>>({})
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<string | null>(null)
-  const [showUpload, setShowUpload] = useState(false)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadTags, setUploadTags] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<string | null>(null)
   const [sources, setSources] = useState<SourceItem[]>([])
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [syncing, setSyncing] = useState<string | null>(null)
@@ -130,12 +125,6 @@ export function AdminPage() {
                   </button>
                 </li>
               </ul>
-              <li className="pt-2 border-t border-gray-100 mt-2">
-                <button onClick={() => setShowUpload(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition text-xs">
-                  📤 上传文档
-                </button>
-              </li>
             </div>
           </div>
         </aside>
@@ -301,57 +290,6 @@ export function AdminPage() {
     )}
   </div>
           ) : null}
-          {showUpload && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowUpload(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-gray-900">上传文档</h2>
-                  <button onClick={() => setShowUpload(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-                </div>
-
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-                  <input type="file" accept=".md,.txt,.pdf" onChange={e => setUploadFile(e.target.files?.[0] || null)}
-                    className="text-sm" />
-                  <p className="text-[10px] text-gray-400 mt-2">支持 .md .txt .pdf，最大 10MB</p>
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">标签（逗号分隔，可选）</label>
-                  <input value={uploadTags} onChange={e => setUploadTags(e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                    placeholder="architecture, design" />
-                </div>
-
-                {uploadResult && (
-                  <div className={`text-xs px-3 py-2 rounded-lg ${uploadResult.startsWith('✅') ? 'bg-cyber-green/10 text-cyber-green' : 'bg-red-50 text-red-600'}`}>
-                    {uploadResult}
-                  </div>
-                )}
-
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => { setShowUpload(false); setUploadFile(null); setUploadTags(''); setUploadResult(null) }}
-                    className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
-                  <button onClick={async () => {
-                    if (!uploadFile) return
-                    setUploading(true); setUploadResult(null)
-                    try {
-                      const formData = new FormData()
-                      formData.append('file', uploadFile)
-                      formData.append('tags', uploadTags)
-                      const res = await fetch('/api/documents/upload', { method: 'POST', body: formData })
-                      const body = await res.json()
-                      if (body.ok) setUploadResult(`✅ 上传成功: ${body.data.slug}`)
-                      else setUploadResult(`❌ ${body.error}`)
-                    } catch (e: any) { setUploadResult(`❌ ${e.message}`) }
-                    setUploading(false)
-                  }} disabled={!uploadFile || uploading}
-                    className="px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark disabled:opacity-50">
-                    {uploading ? '上传中...' : '上传'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           {showSourceModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowSourceModal(false)}>
               <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
