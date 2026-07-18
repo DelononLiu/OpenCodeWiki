@@ -176,7 +176,9 @@ async def sync_source(name: str) -> dict:
                 shutil.rmtree(repo_path)
             await _git_clone(url, repo_path)
         else:
-            await _run_cmd(["git", "pull"], cwd=repo_path)
+            code, log = await _run_cmd(["git", "pull"], cwd=repo_path)
+            if code != 0:
+                raise RuntimeError(f"git pull 失败: {log[:200]}")
         wiki_dir = repo_path / "openwiki"
         if not wiki_dir.exists():
             wiki_dir.mkdir(parents=True, exist_ok=True)
