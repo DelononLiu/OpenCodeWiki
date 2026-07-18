@@ -6,22 +6,44 @@ import { Settings, Cpu, Check, Loader2 } from 'lucide-react'
 
 export function SettingsPage() {
   const [section, setSection] = useState<'general' | 'model'>('general')
-  const [general, setGeneral] = useState({ site_name: '' })
-  const [model, setModel] = useState({ provider: 'openai', api_key: '', model: 'gpt-4o', temperature: 0.7 })
+  const [siteName, setSiteName] = useState('')
+  const [provider, setProvider] = useState('openai')
+  const [apiKey, setApiKey] = useState('')
+  const [modelName, setModelName] = useState('gpt-4o')
+  const [temperature, setTemperature] = useState(0.7)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    fetchSettings().then(cfg => {
-      setGeneral(cfg.general)
-      setModel(cfg.model)
+    fetchSettings().then((cfg: any) => {
+      // 兼容扁平格式 { apiKey, provider, model } 和嵌套格式 { general: { site_name }, model: { ... } }
+      if (cfg.general) {
+        setSiteName(cfg.general.site_name || '')
+      } else {
+        setSiteName('OpenCodeWiki')
+      }
+      if (cfg.model) {
+        setProvider(cfg.model.provider || 'openai')
+        setApiKey(cfg.model.api_key || '')
+        setModelName(cfg.model.model || 'gpt-4o')
+        setTemperature(cfg.model.temperature ?? 0.7)
+      } else {
+        setProvider(cfg.provider || 'openai')
+        setApiKey(cfg.apiKey || '')
+        setModelName(cfg.model || 'gpt-4o')
+        setTemperature(cfg.temperature ?? 0.7)
+      }
     }).catch(() => {})
   }, [])
 
   const handleSave = async () => {
     setSaving(true); setSaved(false)
     try {
-      await saveSettings(section, section === 'general' ? general as any : model as any)
+      // 保存为扁平格式
+      await saveSettings(section, section === 'general'
+        ? { site_name: siteName }
+        : { provider, api_key: apiKey, model: modelName, temperature }
+      )
       setSaved(true)
     } catch {}
     setSaving(false)
@@ -54,7 +76,7 @@ export function SettingsPage() {
                 <h2 className="text-sm font-bold text-gray-900">通用设置</h2>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">系统名称</label>
-                  <input value={general.site_name} onChange={e => setGeneral(prev => ({ ...prev, site_name: e.target.value }))}
+                  <input value={siteName} onChange={e => setSiteName(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20" />
                 </div>
                 <div className="flex items-center gap-2">
@@ -70,7 +92,7 @@ export function SettingsPage() {
                 <h2 className="text-sm font-bold text-gray-900">模型配置</h2>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Provider</label>
-                  <select value={model.provider} onChange={e => setModel(prev => ({ ...prev, provider: e.target.value }))}
+                  <select value={provider} onChange={e => setProvider(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20">
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
@@ -78,18 +100,18 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">API Key</label>
-                  <input type="password" value={model.api_key} onChange={e => setModel(prev => ({ ...prev, api_key: e.target.value }))}
+                  <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Model</label>
-                  <input value={model.model} onChange={e => setModel(prev => ({ ...prev, model: e.target.value }))}
+                  <input value={modelName} onChange={e => setModelName(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Temperature: {model.temperature}</label>
-                  <input type="range" min="0" max="2" step="0.1" value={model.temperature}
-                    onChange={e => setModel(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                  <label className="text-xs text-gray-500 mb-1 block">Temperature: {temperature}</label>
+                  <input type="range" min="0" max="2" step="0.1" value={temperature}
+                    onChange={e => setTemperature(parseFloat(e.target.value))}
                     className="w-full" />
                 </div>
                 <div className="flex items-center gap-2">
