@@ -52,7 +52,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
               <div key={sourceName}>
                 {items.map(m => (
                   <button key={m.slug} onClick={() => handleDocClick(m.slug)}
-                    className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentSlug === m.slug ? 'bg-cyber-blue/8 text-cyber-blue font-semibold border-l-[3px] border-cyber-blue rounded-l-none' : 'text-gray-600'}`}>
+                    className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentSlug === m.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
                     {m.title || m.slug}
                   </button>
                 ))}
@@ -68,7 +68,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
           <div className="space-y-0.5">
             {topics.map(t => (
               <button key={t.slug} onClick={() => handleDocClick(t.slug)}
-                className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentTopic === t.slug ? 'bg-cyber-blue/8 text-cyber-blue font-semibold border-l-[3px] border-cyber-blue rounded-l-none' : 'text-gray-600'}`}>
+                className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentTopic === t.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
                 {t.status === 'published' ? '✓ ' : ''}#{t.slug}
               </button>
             ))}
