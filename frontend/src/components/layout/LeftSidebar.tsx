@@ -5,7 +5,7 @@ import type { Topic } from '@/types'
 import { FileText, BookOpen, Hash, FolderGit, Folder } from 'lucide-react'
 
 interface WikiModule {
-  slug: string; name: string; type: string
+  slug: string; name: string; type: string; title?: string
 }
 
 interface LeftSidebarProps {
@@ -62,7 +62,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
                       <button onClick={() => handleDocClick(m.slug)}
                         className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition ${currentSlug === m.slug ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
                         <FileText className="w-3 h-3 text-gray-400 shrink-0" />
-                        <span className="truncate">{m.slug}</span>
+                        <span className="truncate">{m.title || m.slug}</span>
                       </button>
                     </li>
                   ))}

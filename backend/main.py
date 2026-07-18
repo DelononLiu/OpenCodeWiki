@@ -402,12 +402,22 @@ async def api_wiki_modules():
         if wiki_dir.exists():
             for md_file in sorted(wiki_dir.glob("*.md")):
                 slug = md_file.stem
-                if not any(m["slug"] == slug for m in modules):
-                    modules.append({
-                        "slug": slug,
-                        "name": f"{name}/{slug}",
-                        "type": "source",
-                    })
+                if any(m["slug"] == slug for m in modules):
+                    continue
+                # 从 markdown 中提取一级标题作为显示名
+                title = slug
+                try:
+                    first_line = md_file.read_text(encoding="utf-8").strip().split("\n")[0]
+                    if first_line.startswith("# "):
+                        title = first_line[2:].strip()
+                except Exception:
+                    pass
+                modules.append({
+                    "slug": slug,
+                    "name": f"{name} / {title}",
+                    "type": "source",
+                    "title": title,
+                })
     return _ok(modules)
 
 
