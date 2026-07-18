@@ -390,6 +390,90 @@ except ImportError:
     pass
 
 
+# ── QA Save ──────────────────────────────────────────────────────
+
+DOMAINS = ['bug-analysis', 'log-analysis', 'program-analysis', 'build-issue', 'stack-analysis', 'general']
+
+
+async def classify_domain(question: str, answer: str) -> str:
+    try:
+        from langchain_openai import ChatOpenAI
+        from config import get_llm_config
+        llm = ChatOpenAI(**get_llm_config(), temperature=0)
+        text = f"{question[:300]}\n{answer[:500]}"
+        resp = await llm.ainvoke(
+            f"将以下问答分类到以下类别之一: {', '.join(DOMAINS)}。只输出类别名，不要解释。\n\n{text}"
+        )
+        domain = resp.content.strip()
+        return domain if domain in DOMAINS else 'general'
+    except Exception:
+        return 'general'
+
+
+@app.post("/api/qa/save")
+async def api_qa_save(body: dict):
+    question = body.get("question", "").strip()
+    answer = body.get("answer", "").strip()
+    if not question or not answer:
+        return _err("Missing question or answer")
+    entry = create_entry({
+        "question": question,
+        "answer": answer,
+        "repo": body.get("repo", ""),
+        "sessionId": body.get("session_id", ""),
+        "mode": body.get("mode", "deep"),
+        "sources": body.get("sources", []),
+    })
+    domain = await classify_domain(question, answer)
+    from store_qa import update_domain
+    update_domain(entry["qid"], domain)
+    return _ok({"qid": entry["qid"], "id": entry["id"], "domain": domain})
+
+
+# ── Global Search ───────────────────────────────────────────────
+
+@app.get("/api/search")
+async def api_search(q: str = "", limit: int = 10):
+    if len(q.strip()) < 2:
+        return _ok({"wiki": [], "topic": [], "qa": []})
+
+    # 搜 wiki
+    wiki_results = []
+    if WIKI_BASE.exists():
+        for md_path in WIKI_BASE.rglob("*.md"):
+            if len(wiki_results) >= 3:
+                break
+            try:
+                content = md_path.read_text(encoding="utf-8")[:500]
+                title = md_path.stem
+            except Exception:
+                continue
+            if q.lower() in title.lower() or q.lower() in content.lower():
+                wiki_results.append({
+                    "slug": title,
+                    "title": title,
+                    "snippet": content[:120],
+                })
+
+    # 搜 topic
+    topic_results = []
+    try:
+        from store_topics import search_topics
+        topic_results = search_topics(q, limit=3)
+    except ImportError:
+        pass
+
+    # 搜 QA
+    qa_results = []
+    try:
+        from store_qa import search_questions
+        qa_results = search_questions(q, limit=3)
+    except ImportError:
+        pass
+
+    return _ok({"wiki": wiki_results, "topic": topic_results, "qa": qa_results})
+
+
 # ── Static files (React SPA) ───────────────────────────────────
 
 if FRONTEND_DIST.exists():
