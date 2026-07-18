@@ -5,11 +5,25 @@ FastAPI 入口：全栈 OpenCodeWiki 后端。
 """
 
 import json
+import logging
 import os
 import sys
 import uuid
-from contextlib import asynccontextmanager
 from pathlib import Path
+
+# ── 日志 ──
+LOG_DIR = Path.home() / ".opencodewiki"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(str(LOG_DIR / "app.log"), encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+logger = logging.getLogger("opencodewiki")
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -82,21 +96,7 @@ async def api_repos():
 
 @app.get("/api/sources")
 async def api_sources(type: str | None = None):
-    sources = get_sources(type)
-    # 对 code 类型的源追加 git 版本信息
-    import subprocess
-    for src in sources:
-        if src.get("type") == "code":
-            repo_path = REPOS_DIR / src["name"]
-            if repo_path.exists():
-                try:
-                    head = subprocess.run(["git", "log", "--oneline", "-1"], cwd=repo_path, capture_output=True, text=True, timeout=5)
-                    count = subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo_path, capture_output=True, text=True, timeout=5)
-                    src["git_commit"] = head.stdout.strip() if head.returncode == 0 else ""
-                    src["git_count"] = count.stdout.strip() if count.returncode == 0 else ""
-                except Exception:
-                    pass
-    return _ok(sources)
+    return _ok(get_sources(type))
 
 
 @app.get("/api/sources/{name}")
