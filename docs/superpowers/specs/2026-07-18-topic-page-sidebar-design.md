@@ -168,7 +168,7 @@ Design 阶段确定将"晋升"改为"沉淀为 Wiki"（`publish`）：
 ## 不变更
 
 - App.tsx 路由：无变化
-- HomePage / QAPage：无变化
+- HomePage：无变化
 - Header / BottomInput：无变化
 - `topics` 表结构：无变化
 - `topic_qa` 表：无变化
@@ -230,12 +230,77 @@ fetchTopics({ status: 'published' })   → publishedCount
 - 默认进入 `'pending-qa'` 视图
 - Topic 详情面板复用现有逻辑（handleViewTopic → 展开对比视图）
 
+---
+
+## QAPage 左侧栏：知识条目列表
+
+### 设计原则
+
+与传统 AI Chat 的本质区别：Wiki QA 是**知识挖掘工作台**，不是聊天框。每一次问答是一条结构化的知识资产，具有生命周期（提问 → 关联 topic → 沉淀为 wiki）。
+
+### 左侧栏 QA 列表
+
+```
+┌─ QA 左侧栏 (w-72) ───────────────────────────────────┐
+│ 🔍 搜索 QA...                                          │
+│                                                        │
+│ [全部] [bug-analysis] [log-analysis] [program]         │
+│                                                        │
+│ 今天                                                   │
+│   Redis 连接池线程等待               #103  #concurrency │
+│   系统启动初始化时序问题             #112  #qa-engine   │
+│                                                        │
+│ 三天内                                                  │
+│   双路分流延迟排查                   #107  #qa-engine   │
+│                                                        │
+│ 本周                                                   │
+│   LSH 冷启动卡顿问题排障             #103  #qa-engine   │
+│   缓存映射矩阵设计思路              #98   #cache-design │
+│                                                        │
+│ 本月                                                   │
+│   ...                                                  │
+│                                                        │
+│ 更早                                                   │
+│   ...                                                  │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+```
+
+**格式规范：**
+- 每条一行：`标题` + `#qid`（小号灰色） + `#topic`（小号灰色，右对齐）
+- 时间分组：今天 / 三天内 / 本周 / 本月 / 更早
+- 不显示状态（`已沉淀` / `聚合中`），用户在 QA 页不是来做审核的
+- 不显示 qid 编号列 — qid 做小做淡跟在标题后，作用和 #topic 标签一样，提供引用标识
+
+**过滤标签行：**
+- 按 domain 过滤：`bug-analysis`、`log-analysis`、`program-analysis`、`general`
+- 默认 `全部`
+- 可选：按 topic 过滤（下拉或点击列表中 #topic 标签切换到该 topic 视图）
+
+**空态：** "暂无 QA 记录，从首页或 Wiki 页底部提问开始"
+
+### 主内容区
+
+点击左侧 QA 条目 → 主内容区展示完整 QA 详情：
+
+- 答案正文（markdown 渲染）
+- 来源引用（源码位置 / wiki 页面链接）
+- 操作入口：关联 topic、查看相关 QA
+
+点击 `[+ 新建提问]` → 主内容区切换到提问模式（当前已有的对话流）。
+
+### 数据来源
+
+- QA 列表：`GET /api/qa/entries`，已有接口
+- 按时间分组在前端完成，API 不做分组逻辑
+
 ## Spec 自检
 
 - **占位符**：无 TBD/TODO
-- **内部一致性**：布局、API、数据流在三栏模式下一致；wiki 和 topic 各自有明确的右栏内容定义
-- **范围控制**：只涉及 WikiPage.tsx + 两个右栏子组件 + API 扩展，不动路由和其他页面
+- **内部一致性**：三栏布局在 wiki/topic 模式统一；Admin/QAPage 左侧栏各自独立但风格一致
+- **范围控制**：WikiPage 三栏改造 + Admin 左侧栏分离 + QA 左侧栏列表 + publish 术语重命名
 - **歧义检查**：
-  - TOC 从 DOM 提取而非正则 → 明确使用 DOMParser
-  - topic wiki_links 来源 → 明确为 wiki_module + draft 内容中的 wiki 链接
-  - 右栏固定宽度 → 明确为 w-56
+  - TOC 从 DOM 提取 → DOMParser
+  - QA 列表时间分组 → 前端按 `created_at` 分组
+  - qid 编号保留但做淡 → 统一为小号灰色 `#103` 格式
+  - QA 页不显示状态 → 普通用户不需要看审核状态
