@@ -384,6 +384,7 @@ class TestSyncSource:
 
         create_source({"name": "sync-code", "type": "code", "url": "https://example.com/r.git"})
         (repos / "sync-code").mkdir(parents=True)
+        (repos / "sync-code" / ".git").mkdir()
         (repos / "sync-code" / "README.md").write_text("# original")
 
         calls = []

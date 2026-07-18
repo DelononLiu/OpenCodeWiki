@@ -166,7 +166,14 @@ async def sync_source(name: str) -> dict:
 
     if source.get("type") == "code":
         repo_path = REPOS_DIR / name
-        await _run_cmd(["git", "pull"], cwd=repo_path)
+        # 如果目录不是完整 git 仓库（如 clone 失败），重新 clone
+        git_dir = repo_path / ".git"
+        if not git_dir.exists():
+            if repo_path.exists():
+                shutil.rmtree(repo_path)
+            await _git_clone(url, repo_path)
+        else:
+            await _run_cmd(["git", "pull"], cwd=repo_path)
         await _run_cmd([OPENWIKI_CLI, str(repo_path)], cwd=repo_path)
 
     elif source.get("type") == "docs":
