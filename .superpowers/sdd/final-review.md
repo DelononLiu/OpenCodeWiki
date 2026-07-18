@@ -124,3 +124,17 @@ The hardcoded entry `'📖 物理文档: 双路分流路由算法系统'` with k
 **H3. AdminPage preview toggle restored.** Added `previewMode` state, a toggle button (预览效果/关闭预览) in the action bar before the publish button, and a rendered preview div below the textarea when previewMode is enabled.
 
 *TypeScript check: `npx tsc --noEmit` passes with zero errors.*
+
+**M1. AdminPage `as any` casts fixed.** Added `TopicDetail` interface extending `Topic` with `qa_entries`. Replaced `as any` with `as TopicDetail` in `handleViewTopic` (line 44) and in the detail panel render (line 132). (`frontend/src/pages/AdminPage.tsx`)
+
+**M2. QA sidebar #topic tags added.** Added `{qa.tags?.[0] && (<span>#{qa.tags[0]}</span>)}` next to the `#qid` label in each QA sidebar row. (`frontend/src/pages/QAPage.tsx`, line 127-129)
+
+**M3. HomePage `draftQa` renamed to `latestQa`.** State variable, fetch callback, and render reference all renamed from `draftQa`/`setDraftQa` to `latestQa`/`setLatestQa`. (`frontend/src/pages/HomePage.tsx`)
+
+**L1. LeftSidebar dead code removed.** Removed unreachable `pageType === 'qa'` and `pageType === 'admin'` branches. Removed `Target`, `Clock`, `Activity` from lucide imports. Removed `pageType` from `LeftSidebarProps`. Simplified `useEffect` to only fetch topics. Updated `WikiPage.tsx` caller to drop the `pageType` prop. (`frontend/src/components/layout/LeftSidebar.tsx`, `frontend/src/pages/WikiPage.tsx`)
+
+**L2. Dead exports removed from client.ts.** Removed `fetchQaPending` and `analyzeTopics` — both were defined but never imported anywhere in the codebase. (`frontend/src/api/client.ts`)
+
+**L3. Hardcoded search TODO added.** Added `// TODO: 后续从 API 动态获取 wiki 页面列表` above the hardcoded pool entry. (`frontend/src/pages/HomePage.tsx`, line 33)
+
+*TypeScript check: `npx tsc --noEmit` passes with zero errors.*

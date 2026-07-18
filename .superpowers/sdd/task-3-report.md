@@ -20,5 +20,11 @@ Modified 2 frontend files to add auto-save on SSE done and backend-powered group
   - **Backend results** (when `searchResults` is set): grouped by Wiki / Topic / QA sections
   - **Local fallback** (when `!searchResults`): original `filteredSuggest` for real-time typing feedback
 
+### QAPage.tsx — stale closure fix (2026-07-18)
+- Removed `lastUserMsg = messages[messages.length - 1]` in SSE `done` handler and replaced with local variable `q` (captured at function-call time on line 63)
+- **Bug:** `messages` not in `useCallback` deps → stale closure → first question on fresh page sent empty string (400 error), subsequent questions sent previous text
+- **Fix:** Use `q` (the `input.trim()` result) instead of `lastUserMsg?.content || ''`
+- Commit `594e0b6`
+
 ## Verification
 - `cd frontend && npx tsc --noEmit` — zero errors
