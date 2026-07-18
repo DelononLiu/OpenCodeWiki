@@ -96,7 +96,21 @@ async def api_repos():
 
 @app.get("/api/sources")
 async def api_sources(type: str | None = None):
-    return _ok(get_sources(type))
+    sources = get_sources(type)
+    # 对 code 源追加当前版本号（只读本地 .git，毫秒级）
+    for src in sources:
+        if src.get("type") == "code":
+            repo_path = REPOS_DIR / src["name"]
+            git_dir = repo_path / ".git"
+            if git_dir.exists():
+                try:
+                    import subprocess
+                    r = subprocess.run(["git", "log", "--oneline", "-1"], cwd=repo_path, capture_output=True, text=True, timeout=5)
+                    if r.returncode == 0:
+                        src["git_commit"] = r.stdout.strip()
+                except Exception:
+                    pass
+    return _ok(sources)
 
 
 @app.get("/api/sources/{name}")
