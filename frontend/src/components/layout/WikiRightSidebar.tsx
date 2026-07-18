@@ -10,15 +10,19 @@ export function WikiRightSidebar({ renderedHtml }: WikiRightSidebarProps) {
 
   const headings: Heading[] = useMemo(() => {
     if (!renderedHtml) return []
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(renderedHtml, 'text/html')
-      return Array.from(doc.querySelectorAll('h1, h2, h3')).map((el, i) => {
-        const id = el.id || `heading-${i}`
-        if (!el.id) el.id = id
-        return { id, text: el.textContent || '', level: parseInt(el.tagName[1]) }
-      })
-    } catch { return [] }
+    // 从 markdown 原始内容解析标题（# 开头）
+    const lines = renderedHtml.split('\n')
+    const result: Heading[] = []
+    for (const line of lines) {
+      const m = line.match(/^(#{1,3})\s+(.+)$/)
+      if (m) {
+        const level = m[1].length
+        const text = m[2].trim()
+        const id = text.toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+        result.push({ id, text, level })
+      }
+    }
+    return result
   }, [renderedHtml])
 
   useEffect(() => {

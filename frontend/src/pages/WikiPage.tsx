@@ -107,9 +107,9 @@ export function WikiPage() {
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          h1: ({ children }) => <h1 className="text-3xl font-bold border-b border-gray-200 pb-3 mb-6">{children}</h1>,
-                          h2: ({ children }) => <h2 className="text-2xl font-semibold mt-12 mb-4">{children}</h2>,
-                          h3: ({ children }) => <h3 className="text-lg font-semibold mt-8 mb-3">{children}</h3>,
+                          h1: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h1 id={id} className="text-3xl font-bold border-b border-gray-200 pb-3 mb-6">{children}</h1> },
+                          h2: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h2 id={id} className="text-2xl font-semibold mt-12 mb-4">{children}</h2> },
+                          h3: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h3 id={id} className="text-lg font-semibold mt-8 mb-3">{children}</h3> },
                           h4: ({ children }) => <h4 className="font-semibold mt-6 mb-2">{children}</h4>,
                           a: ({ href, children }) => <a href={href} className="text-cyber-blue no-underline hover:underline">{children}</a>,
                           img: ({ src, alt }) => <img src={src} alt={alt} className="rounded-xl my-4" />,
