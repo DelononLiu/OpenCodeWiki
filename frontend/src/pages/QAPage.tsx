@@ -74,7 +74,6 @@ export function QAPage() {
       } else if (msg.type === 'error') setCurrentAnswer(`错误: ${msg.message}`)
       else if (msg.type === 'done') {
         const finalAnswer = streamingRef.current
-        const lastUserMsg = messages[messages.length - 1]
         setMessages(prev => [...prev, { role: 'assistant', content: finalAnswer }])
         setCurrentAnswer('')
         streamingRef.current = ''
@@ -84,7 +83,7 @@ export function QAPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            question: lastUserMsg?.content || '',
+            question: q,
             answer: finalAnswer,
             repo: '',
             session_id: Date.now().toString(),
