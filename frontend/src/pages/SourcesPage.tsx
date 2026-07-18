@@ -44,6 +44,11 @@ export function SourcesPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="font-mono text-sm font-bold text-gray-800">{s.name}</span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-cyber-green/10 text-cyber-green'}`}>{s.type}</span>
+                    {s.git_commit && (
+                      <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded" title={s.git_commit}>
+                        #{s.git_count} · {s.git_commit?.slice(0, 12)}...
+                      </span>
+                    )}
                     <span className="text-xs text-gray-400 font-mono truncate max-w-[200px]">{s.url || '(zip 导入)'}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

@@ -104,6 +104,9 @@ export interface SourceItem {
   url?: string
   created_at: string
   updated_at: string
+  git_commit?: string
+  git_count?: string
+  git_branch?: string
 }
 
 export function fetchSources(type?: string): Promise<SourceItem[]> {

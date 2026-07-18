@@ -82,7 +82,21 @@ async def api_repos():
 
 @app.get("/api/sources")
 async def api_sources(type: str | None = None):
-    return _ok(get_sources(type))
+    sources = get_sources(type)
+    # 对 code 类型的源追加 git 版本信息
+    import subprocess
+    for src in sources:
+        if src.get("type") == "code":
+            repo_path = REPOS_DIR / src["name"]
+            if repo_path.exists():
+                try:
+                    head = subprocess.run(["git", "log", "--oneline", "-1"], cwd=repo_path, capture_output=True, text=True, timeout=5)
+                    count = subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo_path, capture_output=True, text=True, timeout=5)
+                    src["git_commit"] = head.stdout.strip() if head.returncode == 0 else ""
+                    src["git_count"] = count.stdout.strip() if count.returncode == 0 else ""
+                except Exception:
+                    pass
+    return _ok(sources)
 
 
 @app.get("/api/sources/{name}")
@@ -90,6 +104,19 @@ async def api_source(name: str):
     src = get_source_entry(name)
     if not src:
         raise HTTPException(404, f"Source '{name}' not found")
+    # 对 code 类型的源，追加 git 版本信息
+    if src.get("type") == "code":
+        repo_path = REPOS_DIR / name
+        if repo_path.exists():
+            try:
+                import subprocess
+                head = subprocess.run(["git", "log", "--oneline", "-1"], cwd=repo_path, capture_output=True, text=True, timeout=5)
+                count = subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo_path, capture_output=True, text=True, timeout=5)
+                src["git_commit"] = head.stdout.strip() if head.returncode == 0 else ""
+                src["git_count"] = count.stdout.strip() if count.returncode == 0 else ""
+            except Exception:
+                pass
+        src["git_branch"] = "main"
     return _ok(src)
 
 
