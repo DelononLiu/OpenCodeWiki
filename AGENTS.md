@@ -113,9 +113,37 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 4. **不要修改 `frontend/dist/`** — 构建产物，由 `npm run build` 生成
 5. **不要删除数据库文件** — `qa.db` / `knowledge.db` 在 `~/.opencodewiki/`
 
+## TDD 纪律
+
+> 修改代码后，必须手动运行相关测试确认通过，否则工作视为未完成。
+
+**TDD 日常流程（适用于 AI 和人类开发者）：**
+
+```
+1. 写一个失败测试      → Red
+2. 写最少代码让测试通过  → Green
+3. 运行全量测试确认无回归 → 验证
+4. 提交代码
+```
+
+**具体执行规则：**
+
+| 改了什么 | 必须运行的测试 |
+|---------|---------------|
+| stores/\*.py | `python -m pytest backend/tests/test_stores/ -v` |
+| main.py 路由 | `python -m pytest backend/tests/test_main/ -v` |
+| agent/\*.py | `python -m pytest backend/tests/test_agent/ -v` |
+| 前端组件/页面 | `npx vitest run src/pages/ src/components/ --reporter=verbose` |
+| 前端 hooks | `npx vitest run src/hooks/ --reporter=verbose` |
+| 跨模块改动 | **跑全量：** 后端 `python -m pytest backend/tests/ -v` + 前端 `npx vitest run` |
+
+**禁止**：测试失败时提交代码、合并 PR、或声称工作完成。
+
 ## AI 工作流程
 
 1. **先读 `docs/ARCHITECTURE.md`** 了解完整架构
 2. **读本文件**（AGENTS.md）了解开发和测试命令
 3. **读相关 spec**（`docs/superpowers/specs/`）了解功能的设计背景
-4. **动手前先列出改动的文件和理由**，等用户确认后再执行
+4. **读 `docs/superpowers/plans/`**（如有）了解实施计划细节
+5. **动手前先列出改动的文件和理由**，等用户确认后再执行
+6. **改动后手动运行相关测试**（见上表），确认通过
