@@ -86,7 +86,7 @@ export function WikiPage() {
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
           <main className="flex-1 overflow-y-auto no-scrollbar">
             <div className="flex justify-center py-8 px-6">
-              <div className="w-full max-w-3xl transition-all">
+              <div className="w-full max-w-4xl transition-all">
                 {!currentHash && !currentSlug && (
                   <div className="text-center py-16 space-y-6">
                     <div className="w-16 h-16 bg-gradient-to-br from-cyber-blue/10 to-cyber-blue/5 rounded-2xl flex items-center justify-center mx-auto">

@@ -43,7 +43,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
   }
 
   return (
-    <aside className="w-48 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
+    <aside className="w-56 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
       <div className="py-2 px-2 space-y-3 text-xs">
         <div>
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 px-2">文档</div>
