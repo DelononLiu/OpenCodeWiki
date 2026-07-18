@@ -44,51 +44,45 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
   }
 
   return (
-    <aside className="w-64 border-r border-gray-200/50 bg-[#FBFBFC] flex flex-col overflow-y-auto no-scrollbar shrink-0">
-      <div className="p-4 space-y-6 text-xs font-medium">
+    <aside className="w-56 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
+      <div className="py-3 px-3 space-y-4 text-xs">
         <div>
-          <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
-            <FolderGit className="w-3.5 h-3.5" /> 文档
-          </h3>
-          <ul className="space-y-1 text-gray-600">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+            <FolderGit className="w-3 h-3" /> 文档
+          </div>
+          <div className="space-y-0.5">
             {Object.entries(sourceGroups).map(([sourceName, items]) => (
-              <li key={sourceName} className="mb-2">
-                <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                  <Folder className="w-3 h-3" /> {sourceName}
+              <div key={sourceName} className="mb-1">
+                <div className="text-[10px] text-gray-400 font-medium px-2 py-1 flex items-center gap-1">
+                  <Folder className="w-3 h-3 shrink-0" /> {sourceName}
                 </div>
-                <ul className="space-y-0.5">
-                  {items.map(m => (
-                    <li key={m.slug}>
-                      <button onClick={() => handleDocClick(m.slug)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition ${currentSlug === m.slug ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
-                        <FileText className="w-3 h-3 text-gray-400 shrink-0" />
-                        <span className="truncate">{m.title || m.slug}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
+                {items.map(m => (
+                  <button key={m.slug} onClick={() => handleDocClick(m.slug)}
+                    className={`w-full text-left flex items-center gap-1.5 px-2 py-1 rounded text-[11px] hover:bg-gray-100 transition ${currentSlug === m.slug ? 'bg-cyber-blue/10 text-cyber-blue font-medium' : 'text-gray-600'}`}>
+                    <FileText className="w-3 h-3 shrink-0 text-gray-300" />
+                    <span className="truncate">{m.title || m.slug}</span>
+                  </button>
+                ))}
+              </div>
             ))}
             {Object.keys(sourceGroups).length === 0 && (
-              <li className="px-3 py-2 text-gray-400">暂无文档</li>
+              <div className="px-3 py-4 text-gray-400">暂无文档</div>
             )}
-          </ul>
+          </div>
         </div>
-        <div className="pt-2 border-t border-gray-200/50">
-          <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
-            <Hash className="w-3.5 h-3.5 text-cyber-blue" /> 主题
-          </h3>
-          <ul className="space-y-1 text-gray-600">
+        <div className="pt-3 border-t border-gray-100">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+            <Hash className="w-3 h-3" /> 主题
+          </div>
+          <div className="space-y-0.5">
             {topics.map(t => (
-              <li key={t.slug}>
-                <button onClick={() => handleDocClick(t.slug)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 transition ${currentTopic === t.slug ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
-                  <span className="font-mono text-[11px]">#{t.slug}</span>
-                  <span className="text-[9px] bg-cyber-blue/10 text-cyber-blue px-1.5 py-0.5 rounded-full font-bold">{t.status === 'published' ? '已沉淀' : '聚合中'}</span>
-                </button>
-              </li>
+              <button key={t.slug} onClick={() => handleDocClick(t.slug)}
+                className={`w-full text-left flex items-center justify-between px-2 py-1 rounded text-[11px] hover:bg-gray-100 transition ${currentTopic === t.slug ? 'bg-cyber-blue/10 text-cyber-blue font-medium' : 'text-gray-600'}`}>
+                <span className="font-mono truncate">#{t.slug}</span>
+                <span className="text-[9px] text-gray-400 shrink-0 ml-1">{t.status === 'published' ? '已沉淀' : '聚合中'}</span>
+              </button>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
     </aside>
