@@ -61,8 +61,7 @@ opencodewiki/
 
 ```bash
 # 后端
-cd backend && source .venv/bin/activate && uvicorn main:app --port 8000 --reload
-
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8000 
 # 前端开发 (Vite 代理 API 到 :8000)
 cd frontend && npm run dev
 
@@ -73,16 +72,15 @@ cd frontend && npm run build
 ## 服务管理
 
 ```bash
-# 启动后端 (8100)
-cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
+# 启动后端 (8100，不用 --reload 避免重启卡死)
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100
 
 # 启动前端 (5180，自动代理 API 到 8100)
 cd frontend && npx vite --port 5180
 
 # 重启后端（先杀旧进程再启）
 kill $(lsof -ti:8100) 2>/dev/null; sleep 1
-cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
-
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 
 # 全部重启
 kill $(lsof -ti:8100) 2>/dev/null; kill $(lsof -ti:5180) 2>/dev/null; sleep 1
 cd /home/long2015/Code/OpenCodeWiki/backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload &

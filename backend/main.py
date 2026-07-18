@@ -7,6 +7,7 @@ FastAPI 入口：全栈 OpenCodeWiki 后端。
 import json
 import logging
 import os
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -104,7 +105,6 @@ async def api_sources(type: str | None = None):
             git_dir = repo_path / ".git"
             if git_dir.exists():
                 try:
-                    import subprocess
                     r = subprocess.run(["git", "log", "--oneline", "-1"], cwd=repo_path, capture_output=True, text=True, timeout=5)
                     if r.returncode == 0:
                         src["git_commit"] = r.stdout.strip()
