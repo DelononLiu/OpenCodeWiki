@@ -28,15 +28,13 @@ export function SourcesPage() {
       <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
         <div className="max-w-4xl mx-auto space-y-4">
           {pageSuccess && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
-              <span>{pageSuccess}</span>
-              <button onClick={() => setPageSuccess(null)} className="text-green-400 hover:text-green-600 ml-2">&times;</button>
+            <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg animate-in slide-in-from-bottom-2">
+              {pageSuccess}
             </div>
           )}
           {pageError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
-              <span>{pageError}</span>
-              <button onClick={() => setPageError(null)} className="text-red-400 hover:text-red-600 ml-2">&times;</button>
+            <div className="fixed bottom-6 right-6 z-50 bg-red-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg animate-in slide-in-from-bottom-2">
+              {pageError}
             </div>
           )}
           <div className="flex items-center justify-between">
