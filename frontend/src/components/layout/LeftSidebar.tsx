@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchTopics } from '@/api/client'
+import { fetchTopics, fetchWikiModules } from '@/api/client'
 import type { Topic } from '@/types'
-import { FileText, BookOpen, Hash, FolderGit } from 'lucide-react'
+import { FileText, BookOpen, Hash, FolderGit, Folder } from 'lucide-react'
+
+interface WikiModule {
+  slug: string; name: string; type: string
+}
 
 interface LeftSidebarProps {
   currentSlug?: string
@@ -14,10 +18,25 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
   const navigate = useNavigate()
   const { repo } = useParams<{ repo: string }>()
   const [topics, setTopics] = useState<Topic[]>([])
+  const [modules, setModules] = useState<WikiModule[]>([])
 
   useEffect(() => {
     fetchTopics().then(setTopics).catch(() => {})
+    fetchWikiModules().then(setModules).catch(() => {})
   }, [])
+
+  // 按 source 名称分组（name 格式为 "source_name/slug"）
+  const sourceGroups = useMemo(() => {
+    const groups: Record<string, WikiModule[]> = {}
+    for (const m of modules) {
+      if (m.type !== 'source') continue
+      const [sourceName, ...rest] = m.name.split('/')
+      const group = sourceName || '其他'
+      if (!groups[group]) groups[group] = []
+      groups[group].push(m)
+    }
+    return groups
+  }, [modules])
 
   const handleDocClick = (slug: string) => {
     if (onNavigate) onNavigate(slug)
@@ -32,18 +51,27 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
             <FolderGit className="w-3.5 h-3.5" /> 物理视角
           </h3>
           <ul className="space-y-1 text-gray-600">
-            <li>
-              <button onClick={() => handleDocClick('overview')}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition ${currentSlug === 'overview' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
-                <FileText className="w-3.5 h-3.5 text-gray-400" /> 概览
-              </button>
-            </li>
-            <li>
-              <button onClick={() => handleDocClick('02-qa-engine')}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition ${currentSlug === '02-qa-engine' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
-                <BookOpen className="w-3.5 h-3.5 text-gray-400" /> 双路路由算法
-              </button>
-            </li>
+            {Object.entries(sourceGroups).map(([sourceName, items]) => (
+              <li key={sourceName} className="mb-2">
+                <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                  <Folder className="w-3 h-3" /> {sourceName}
+                </div>
+                <ul className="space-y-0.5">
+                  {items.map(m => (
+                    <li key={m.slug}>
+                      <button onClick={() => handleDocClick(m.slug)}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition ${currentSlug === m.slug ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
+                        <FileText className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span className="truncate">{m.slug}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+            {Object.keys(sourceGroups).length === 0 && (
+              <li className="px-3 py-2 text-gray-400">暂无文档</li>
+            )}
           </ul>
         </div>
         <div className="pt-2 border-t border-gray-200/50">
