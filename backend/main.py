@@ -110,7 +110,7 @@ async def api_create_source(body: dict):
         else:
             return _err(f"Invalid type: {source_type}")
         return _ok(result)
-    except RuntimeError as e:
+    except Exception as e:
         return _err(str(e), 500)
 
 

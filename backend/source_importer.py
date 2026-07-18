@@ -86,15 +86,20 @@ async def import_code_git(name: str, url: str) -> dict:
     dest = REPOS_DIR / name
     await _git_clone(url, dest)
 
-    from agent.tools import BINARY
+    try:
+        from agent.tools import BINARY
 
-    await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
+        await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
 
-    wiki_dir = dest / "opencodewiki"
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+        wiki_dir = dest / "opencodewiki"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+        await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
 
-    return create_source({"name": name, "type": "code", "url": url})
+        return create_source({"name": name, "type": "code", "url": url})
+    except Exception:
+        if dest.exists():
+            shutil.rmtree(dest)
+        raise
 
 
 async def import_code_zip(name: str, zip_path: Path) -> dict:
@@ -103,11 +108,20 @@ async def import_code_zip(name: str, zip_path: Path) -> dict:
     dest.mkdir(parents=True, exist_ok=True)
     await _unzip(zip_path, dest)
 
-    wiki_dir = dest / "opencodewiki"
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+    try:
+        from agent.tools import BINARY
 
-    return create_source({"name": name, "type": "code"})
+        await _run_cmd([BINARY, "cli", "index", json.dumps({"path": str(dest)})])
+
+        wiki_dir = dest / "opencodewiki"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+        await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
+
+        return create_source({"name": name, "type": "code"})
+    except Exception:
+        if dest.exists():
+            shutil.rmtree(dest)
+        raise
 
 
 async def import_docs_git(name: str, url: str) -> dict:
@@ -152,12 +166,12 @@ async def sync_source(name: str) -> dict:
 
     now = datetime.now(timezone.utc).isoformat()
 
-    if source["type"] == "code":
+    if source.get("type") == "code":
         repo_path = REPOS_DIR / name
         await _run_cmd(["git", "pull"], cwd=repo_path)
         await _run_cmd([OPENWIKI_CLI, str(repo_path)], cwd=repo_path)
 
-    elif source["type"] == "docs":
+    elif source.get("type") == "docs":
         with tempfile.TemporaryDirectory() as tmp:
             clone_dir = Path(tmp) / name
             await _git_clone(source["url"], clone_dir)
@@ -176,12 +190,12 @@ async def remove_source(name: str) -> bool:
     if not source:
         return False
 
-    if source["type"] == "code":
+    if source.get("type") == "code":
         repo_path = REPOS_DIR / name
         if repo_path.exists():
             shutil.rmtree(repo_path)
 
-    elif source["type"] == "docs":
+    elif source.get("type") == "docs":
         pages_path = SOURCES_DIR / name
         if pages_path.exists():
             shutil.rmtree(pages_path)
