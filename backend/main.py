@@ -375,6 +375,8 @@ async def api_qa(request: Request):
 
 # ── Wiki ────────────────────────────────────────────────────────
 
+from stores.sources import list_sources, REPOS_DIR, SOURCES_DIR
+
 
 @app.get("/api/wiki/{slug}")
 async def api_wiki_page(slug: str):
@@ -423,6 +425,23 @@ async def api_wiki_page(slug: str):
             })
     except ImportError:
         pass
+
+    # Try source wiki files
+    for src in list_sources():
+        name = src["name"]
+        if src.get("type") == "code":
+            md_path = REPOS_DIR / name / "openwiki" / f"{slug}.md"
+        else:
+            md_path = SOURCES_DIR / name / f"{slug}.md"
+        if md_path.exists():
+            content = md_path.read_text(encoding="utf-8")
+            return _ok({
+                "type": "source",
+                "slug": slug,
+                "content": content,
+                "source": name,
+                "source_type": src["type"],
+            })
     raise HTTPException(404, f"Page '{slug}' not found")
 
 
@@ -439,6 +458,23 @@ async def api_wiki_modules():
                 modules.append({"slug": p["slug"], "name": p["slug"], "type": p["page_type"]})
     except ImportError:
         pass
+
+    # List source wiki files
+    for src in list_sources():
+        name = src["name"]
+        if src.get("type") == "code":
+            wiki_dir = REPOS_DIR / name / "openwiki"
+        else:
+            wiki_dir = SOURCES_DIR / name
+        if wiki_dir.exists():
+            for md_file in sorted(wiki_dir.glob("*.md")):
+                slug = md_file.stem
+                if not any(m["slug"] == slug for m in modules):
+                    modules.append({
+                        "slug": slug,
+                        "name": f"{name}/{slug}",
+                        "type": "source",
+                    })
     return _ok(modules)
 
 
