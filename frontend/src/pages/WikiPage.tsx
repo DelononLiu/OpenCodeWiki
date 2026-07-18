@@ -103,16 +103,30 @@ export function WikiPage() {
                         <span className="text-[10px] text-gray-400">主题聚合视图</span>
                       </div>
                     )}
-                    <article ref={articleRef} className="text-sm leading-7 text-gray-800 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:border-b [&_h1]:border-gray-200 [&_h1]:pb-3 [&_h1]:mb-6 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-12 [&_h2]:mb-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-8 [&_h4]:font-semibold [&_h4]:mt-6 [&_a]:text-cyber-blue [&_a]:no-underline [&_img]:rounded-xl [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-5 [&_blockquote]:py-1 [&_blockquote]:text-gray-600 [&_blockquote]:my-6 [&_table]:w-full [&_table]:my-6 [&_th]:border [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-sm [&_th]:font-semibold [&_td]:border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_hr]:my-8 [&_hr]:border-gray-200">
+                    <article ref={articleRef}>
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
+                          h1: ({ children }) => <h1 className="text-3xl font-bold border-b border-gray-200 pb-3 mb-6">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-2xl font-semibold mt-12 mb-4">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-lg font-semibold mt-8 mb-3">{children}</h3>,
+                          h4: ({ children }) => <h4 className="font-semibold mt-6 mb-2">{children}</h4>,
+                          a: ({ href, children }) => <a href={href} className="text-cyber-blue no-underline hover:underline">{children}</a>,
+                          img: ({ src, alt }) => <img src={src} alt={alt} className="rounded-xl my-4" />,
+                          blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-5 py-1 text-gray-600 my-6">{children}</blockquote>,
+                          table: ({ children }) => <table className="w-full my-6">{children}</table>,
+                          th: ({ children }) => <th className="border bg-gray-50 px-3 py-2 text-sm font-semibold">{children}</th>,
+                          td: ({ children }) => <td className="border px-3 py-2 text-sm">{children}</td>,
+                          ul: ({ children }) => <ul className="my-4 list-disc pl-6">{children}</ul>,
+                          ol: ({ children }) => <ol className="my-4 list-decimal pl-6">{children}</ol>,
+                          li: ({ children }) => <li className="my-1">{children}</li>,
+                          hr: () => <hr className="my-8 border-gray-200" />,
                           p: ({ children }) => {
                             const text = extractText(children)
                             if (isAsciiArt(text)) {
                               return <pre className="bg-[#1e293b] text-[#e2e8f0] rounded-lg p-4 overflow-x-auto text-xs font-mono my-6">{text}</pre>
                             }
-                            return <p className="my-4">{children}</p>
+                            return <p className="my-4 leading-7 text-gray-800">{children}</p>
                           },
                           code: ({ className, children }) => {
                             const match = /language-(\w+)/.exec(className || '')
@@ -138,8 +152,7 @@ export function WikiPage() {
                       >
                         {rawContent}
                       </ReactMarkdown>
-                    </article> "
-                      dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+                    </article>
                   </div>
                 ) : currentSlug ? (
                   <div className="text-center text-gray-400 py-20">加载中或页面不存在</div>
