@@ -7,8 +7,11 @@ import { TopicRightSidebar } from '@/components/layout/TopicRightSidebar'
 import { BottomInput } from '@/components/layout/BottomInput'
 import { fetchWikiPage } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
-import { marked } from 'marked'
-import { Hash, BookOpen, FileText, Search } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { Hash, BookOpen } from 'lucide-react'
 
 export function WikiPage() {
   const { repo } = useParams<{ repo: string }>()
@@ -41,26 +44,17 @@ export function WikiPage() {
     else loadContent('overview')
   }, [currentHash, loadContent])
 
-  const renderedHtml = useMemo(() => {
-    if (!rawContent) return ''
-    let html = marked.parse(rawContent, { async: false }) as string
-    // 将含制表符（ASCII art 图表）的 <p> 段落替换为 <pre>
-    // 每行 ASCII art 可能是一个独立的 <p>，需要合并连续的 ASCII 行
-    html = html.replace(/(<p>\s*[┌└│├─┐┘┴┬┤╰╮╭╯╲╱].*?<\/p>\s*)+/gs, (block) => {
-      // 提取所有行内容，去掉 <p> 和 </p> 标签
-      const lines = block.replace(/<\/?p>/g, '').trim()
-      return `<pre class="ascii-art">${lines}</pre>`
-    })
-    return html
-  }, [rawContent])
+  // 从 React children 提取文本
+  const extractText = (children: any): string => {
+    if (typeof children === 'string') return children
+    if (Array.isArray(children)) return children.map(c => extractText(c)).join('')
+    if (children?.props?.children) return extractText(children.props.children)
+    return ''
+  }
 
-  // Highlight.js + Mermaid
+  // Mermaid
   useEffect(() => {
-    if (!articleRef.current || !renderedHtml) return
-    import('highlight.js/styles/github-dark.css').then(() => {})
-    import('highlight.js').then(hljs => {
-      articleRef.current?.querySelectorAll('pre code').forEach(b => hljs.default.highlightElement(b as HTMLElement))
-    }).catch(() => {})
+    if (!articleRef.current) return
     const mmds = articleRef.current.querySelectorAll('.language-mermaid')
     if (mmds.length > 0) {
       import('mermaid').then(m => {
@@ -74,7 +68,10 @@ export function WikiPage() {
         m.default.run({ nodes: articleRef.current?.querySelectorAll('.mermaid') })
       }).catch(() => {})
     }
-  }, [renderedHtml])
+  }, [rawContent])
+
+  // 检测是否含 ASCII art
+  const isAsciiArt = (text: string) => /[┌└│├─┐┘┴┬┤╰╮╭╯]/.test(text)
 
   const handleNavigate = (slug: string) => { window.location.hash = slug }
 
@@ -96,7 +93,7 @@ export function WikiPage() {
                     <p className="text-sm text-gray-400">从左侧选择文档开始阅读</p>
                   </div>
                 )}
-                {renderedHtml ? (
+                {rawContent ? (
                   <div>
                     {pageType === 'topic' && (
                       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
@@ -106,7 +103,42 @@ export function WikiPage() {
                         <span className="text-[10px] text-gray-400">主题聚合视图</span>
                       </div>
                     )}
-                    <article ref={articleRef} className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-3xl prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-3 prose-h1:mb-6 prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h3:text-lg prose-h3:mt-8 prose-p:leading-7 prose-p:text-gray-700 prose-a:text-cyber-blue prose-a:no-underline hover:prose-a:underline prose-pre:bg-[#1e293b] prose-pre:text-[#e2e8f0] prose-pre:rounded-lg prose-pre:p-4 prose-pre:overflow-x-auto prose-pre:text-sm prose-pre:my-6 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono prose-pre:prose-code:bg-transparent prose-pre:prose-code:p-0 prose-pre:prose-code:rounded-none prose-pre:prose-code:text-inherit prose-img:rounded-xl prose-blockquote:border-l-4 prose-blockquote:border-cyber-blue prose-blockquote:pl-5 prose-blockquote:py-1 prose-blockquote:not-italic prose-blockquote:text-gray-600 prose-table:w-full prose-table:table-fixed prose-td:border prose-td:px-3 prose-td:py-2 prose-td:text-sm prose-th:border prose-th:px-3 prose-th:py-2 prose-th:bg-gray-50 prose-th:text-sm prose-th:font-semibold prose-li:my-1 [&_.ascii-art]:bg-[#1e293b] [&_.ascii-art]:text-[#e2e8f0] [&_.ascii-art]:rounded-lg [&_.ascii-art]:p-4 [&_.ascii-art]:overflow-x-auto [&_.ascii-art]:text-xs [&_.ascii-art]:font-mono [&_.ascii-art]:my-6 "
+                    <article ref={articleRef} className="text-sm leading-7 text-gray-800 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:border-b [&_h1]:border-gray-200 [&_h1]:pb-3 [&_h1]:mb-6 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-12 [&_h2]:mb-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-8 [&_h4]:font-semibold [&_h4]:mt-6 [&_a]:text-cyber-blue [&_a]:no-underline [&_img]:rounded-xl [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-5 [&_blockquote]:py-1 [&_blockquote]:text-gray-600 [&_blockquote]:my-6 [&_table]:w-full [&_table]:my-6 [&_th]:border [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-sm [&_th]:font-semibold [&_td]:border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_hr]:my-8 [&_hr]:border-gray-200">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => {
+                            const text = extractText(children)
+                            if (isAsciiArt(text)) {
+                              return <pre className="bg-[#1e293b] text-[#e2e8f0] rounded-lg p-4 overflow-x-auto text-xs font-mono my-6">{text}</pre>
+                            }
+                            return <p className="my-4">{children}</p>
+                          },
+                          code: ({ className, children }) => {
+                            const match = /language-(\w+)/.exec(className || '')
+                            const isInline = !match
+                            if (isInline) {
+                              return <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                            }
+                            const lang = match[1]
+                            if (lang === 'mermaid') {
+                              return <pre className="bg-gray-50 rounded-lg p-4 my-4 text-center text-gray-400 text-sm">mermaid</pre>
+                            }
+                            return (
+                              <SyntaxHighlighter style={vscDarkPlus} language={lang} PreTag="div" customStyle={{
+                                margin: '1.5rem 0', padding: '16px', borderRadius: '8px',
+                                fontSize: '13px', lineHeight: '1.6',
+                              }}>
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            )
+                          },
+                          pre: ({ children }) => <>{children}</>,
+                        }}
+                      >
+                        {rawContent}
+                      </ReactMarkdown>
+                    </article> "
                       dangerouslySetInnerHTML={{ __html: renderedHtml }} />
                   </div>
                 ) : currentSlug ? (
@@ -119,7 +151,7 @@ export function WikiPage() {
         </div>
         {pageType === 'topic'
           ? <TopicRightSidebar qaEntries={wikiData?.qa_entries || []} wikiLinks={wikiData?.wiki_links || []} />
-          : <WikiRightSidebar renderedHtml={renderedHtml} />
+          : <WikiRightSidebar renderedHtml={rawContent} />
         }
       </div>
     </div>
