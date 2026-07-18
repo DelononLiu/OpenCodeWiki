@@ -13,7 +13,6 @@ export function SourcesPage() {
   const [newSourceUrl, setNewSourceUrl] = useState('')
   const [newSourceZip, setNewSourceZip] = useState<File | null>(null)
   const [sourceMode, setSourceMode] = useState<'git' | 'zip'>('git')
-  const [addingSource, setAddingSource] = useState(false)
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
 
@@ -137,22 +136,41 @@ export function SourcesPage() {
               <div className="flex gap-2 justify-end">
                 <button onClick={() => { setShowSourceModal(false); setNewSourceName(''); setNewSourceUrl(''); setNewSourceZip(null); setSourceMode('git'); setNewSourceType('code'); setSourceError(null) }}
                   className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
-                <button onClick={async () => {
-                  if (!newSourceName.trim()) { setSourceError('请输入名称'); return }
-                  setAddingSource(true); setSourceError(null)
-                  try {
-                    if (sourceMode === 'git') {
-                      await addSource(newSourceName.trim(), newSourceUrl.trim(), newSourceType)
-                    } else {
-                      if (!newSourceZip) { setSourceError('请选择 zip 文件'); setAddingSource(false); return }
-                      await addSourceZip(newSourceName.trim(), newSourceType, newSourceZip)
+                <button onClick={() => {
+                  const name = newSourceName.trim()
+                  if (!name) { setSourceError('请输入名称'); return }
+                  const url = newSourceUrl.trim()
+                  const file = newSourceZip
+                  const type = newSourceType
+                  const mode = sourceMode
+                  if (mode === 'zip' && !file) { setSourceError('请选择 zip 文件'); return }
+
+                  // 立即关闭弹窗，后台添加
+                  setShowSourceModal(false)
+                  setNewSourceName(''); setNewSourceUrl(''); setNewSourceZip(null); setSourceMode('git'); setNewSourceType('code'); setSourceError(null)
+
+                  // 添加到列表并标记为加载中
+                  setSources(prev => [...prev, {
+                    name, type, url: mode === 'git' ? url : undefined,
+                    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+                  } as SourceItem])
+                  setPageError(null)
+
+                  // 后台执行导入
+                  ;(async () => {
+                    try {
+                      if (mode === 'git') {
+                        await addSource(name, url, type)
+                      } else if (file) {
+                        await addSourceZip(name, type, file)
+                      }
+                      setSources(await fetchSources())
+                    } catch (e: any) {
+                      setPageError(`${name} 添加失败: ${e.message}`)
+                      setSources(await fetchSources())  // 刷新列表，去掉 pending 条目
                     }
-                    setSources(await fetchSources())
-                    setShowSourceModal(false)
-                    setNewSourceName(''); setNewSourceUrl(''); setNewSourceZip(null)
-                  } catch (e: any) { setSourceError(e.message); setPageError(e.message) }
-                  setAddingSource(false)
-                }} disabled={addingSource || !newSourceName.trim()}
+                  })()
+                }} disabled={!newSourceName.trim()}
                   className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
                   {addingSource && <Loader2 className="w-3 h-3 animate-spin" />}
                   {addingSource ? '添加中...' : '提交'}
