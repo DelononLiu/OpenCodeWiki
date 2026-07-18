@@ -172,8 +172,7 @@ export function SourcesPage() {
                   })()
                 }} disabled={!newSourceName.trim()}
                   className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
-                  {addingSource && <Loader2 className="w-3 h-3 animate-spin" />}
-                  {addingSource ? '添加中...' : '提交'}
+                  提交
                 </button>
               </div>
             </div>
