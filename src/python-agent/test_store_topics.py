@@ -98,15 +98,15 @@ class TestStoreTopics(unittest.TestCase):
         draft2 = get_draft("draft-test")
         self.assertEqual(draft2["edited_content"], "编辑后内容")
 
-    def test_promote(self):
-        """晋升 topic"""
-        self.create_topic("promote-test", "晋升测试")
+    def test_publish(self):
+        """沉淀 topic 为 wiki"""
+        self.create_topic("publish-test", "沉淀测试")
 
-        from store_topics import promote, get_topic
-        promote("promote-test", "core-module")
+        from store_topics import publish, get_topic
+        publish("publish-test", "core-module")
 
-        topic = get_topic("promote-test")
-        self.assertEqual(topic["status"], "promoted")
+        topic = get_topic("publish-test")
+        self.assertEqual(topic["status"], "published")
         self.assertEqual(topic["wiki_module"], "core-module")
 
 

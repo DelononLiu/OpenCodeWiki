@@ -228,7 +228,7 @@ async def api_wiki_page(slug: str):
 
 @app.get("/api/wiki/modules")
 async def api_wiki_modules():
-    """返回 wiki 模块目录列表（供 Admin 选择晋升位置）"""
+    """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
     modules = []
     if WIKI_BASE.exists():
         for child in sorted(WIKI_BASE.iterdir()):
@@ -253,7 +253,7 @@ async def api_wiki_modules():
 try:
     from store_topics import (
         list_topics, get_topic, create_topic, get_draft,
-        save_draft, link_qa, update_draft_content, promote as promote_topic,
+        save_draft, link_qa, update_draft_content, publish as publish_topic,
     )
 
     @app.get("/api/topics")
@@ -329,9 +329,9 @@ try:
 
         return _ok({"suggestions": suggestions, "total": len(suggestions)})
 
-    @app.post("/api/topics/{slug}/promote")
-    async def api_promote_topic(slug: str, body: dict):
-        """晋升 topic：写入 wiki 文件"""
+    @app.post("/api/topics/{slug}/publish")
+    async def api_publish_topic(slug: str, body: dict):
+        """沉淀 topic 为 wiki 页面"""
         wiki_module = body.get("wiki_module", "").strip()
         if not wiki_module:
             return _err("Missing wiki_module")
@@ -361,9 +361,9 @@ try:
         write_page(slug, "entity", content)
 
         # 更新 topic 状态
-        promote_topic(slug, wiki_module)
+        publish_topic(slug, wiki_module)
 
-        return _ok({"slug": slug, "wiki_module": wiki_module, "promoted": True})
+        return _ok({"slug": slug, "wiki_module": wiki_module, "published": True})
 
 except ImportError:
     pass

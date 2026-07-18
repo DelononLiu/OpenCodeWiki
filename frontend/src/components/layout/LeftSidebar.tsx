@@ -63,7 +63,7 @@ export function LeftSidebar({ pageType, currentSlug, currentTopic, onNavigate }:
                   <button onClick={() => handleDocClick(t.slug)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 transition ${currentTopic === t.slug ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : ''}`}>
                     <span className="font-mono text-[11px]">#{t.slug}</span>
-                    <span className="text-[9px] bg-cyber-blue/10 text-cyber-blue px-1.5 py-0.5 rounded-full font-bold">{t.status === 'promoted' ? '已固化' : '聚合中'}</span>
+                    <span className="text-[9px] bg-cyber-blue/10 text-cyber-blue px-1.5 py-0.5 rounded-full font-bold">{t.status === 'published' ? '已沉淀' : '聚合中'}</span>
                   </button>
                 </li>
               ))}

@@ -134,10 +134,10 @@ def _init_knowledge_db(db: sqlite3.Connection):
             name        TEXT NOT NULL,
             description TEXT DEFAULT '',
             status      TEXT NOT NULL DEFAULT 'pool'
-                        CHECK(status IN ('pool', 'promoted')),
+                        CHECK(status IN ('pool', 'published')),
             wiki_module TEXT DEFAULT NULL,
             created_at  TEXT DEFAULT (datetime('now')),
-            promoted_at TEXT DEFAULT NULL
+            published_at TEXT DEFAULT NULL
         );
         CREATE TABLE IF NOT EXISTS topic_qa (
             topic_slug  TEXT NOT NULL REFERENCES topics(slug),

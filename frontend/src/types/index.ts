@@ -22,11 +22,11 @@ export interface Topic {
   slug: string
   name: string
   description: string
-  status: 'pool' | 'promoted'
+  status: 'pool' | 'published'
   wiki_module: string | null
   qa_count?: number
   created_at: string
-  promoted_at: string | null
+  published_at: string | null
 }
 
 export interface TopicDraft {

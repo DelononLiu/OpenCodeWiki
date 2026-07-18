@@ -1,6 +1,6 @@
 """
 store_topics.py — Topic 聚合层 CRUD.
-QA → Topic 聚合 → Draft 提炼 → Wiki 晋升
+QA → Topic 聚合 → Draft 提炼 → Wiki 沉淀
 """
 
 from datetime import datetime, timezone
@@ -101,11 +101,11 @@ def update_draft_content(topic_slug: str, edited_content: str) -> bool:
     return True
 
 
-def promote(topic_slug: str, wiki_module: str) -> bool:
+def publish(topic_slug: str, wiki_module: str) -> bool:
     db = get_knowledge_db()
     now = datetime.now(timezone.utc).isoformat()
     db.execute(
-        "UPDATE topics SET status = 'promoted', wiki_module = ?, promoted_at = ? WHERE slug = ?",
+        "UPDATE topics SET status = 'published', wiki_module = ?, published_at = ? WHERE slug = ?",
         (wiki_module, now, topic_slug),
     )
     db.commit()

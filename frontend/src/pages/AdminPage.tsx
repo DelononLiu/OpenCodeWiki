@@ -4,7 +4,7 @@ import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { Button } from '@/components/ui/button'
 import {
   fetchQaPending, calibrateQaEntry, analyzeTopics, fetchTopics,
-  fetchTopic, fetchTopicDraft, fetchWikiModules, promoteTopic,
+  fetchTopic, fetchTopicDraft, fetchWikiModules, publishTopic,
   updateTopicDraft,
 } from '@/api/client'
 import type { QaEntry, Topic, TopicDraft } from '@/types'
@@ -26,9 +26,9 @@ export function AdminPage() {
   const [modules, setModules] = useState<{ slug: string; name: string; type: string }[]>([])
   const [selectedModule, setSelectedModule] = useState('')
   const [editableContent, setEditableContent] = useState('')
-  const [promoting, setPromoting] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
-  const [promoteResult, setPromoteResult] = useState<string | null>(null)
+  const [publishResult, setPublishResult] = useState<string | null>(null)
 
   useEffect(() => {
     fetchQaPending().then(setPendingEntries).catch(() => {})
@@ -54,7 +54,7 @@ export function AdminPage() {
   }
 
   const handleViewTopic = async (slug: string) => {
-    setPromoteResult(null)
+    setPublishResult(null)
     setPreviewMode(false)
     try {
       const topic = await fetchTopic(slug)
@@ -72,23 +72,23 @@ export function AdminPage() {
     } catch {}
   }
 
-  const handlePromote = async () => {
+  const handlePublish = async () => {
     if (!selectedTopic || !selectedModule) return
-    setPromoting(true)
+    setPublishing(true)
     try {
       // Save draft content first
       if (editableContent) {
         await updateTopicDraft(selectedTopic.slug, editableContent)
       }
-      await promoteTopic(selectedTopic.slug, selectedModule)
-      setPromoteResult('✅ 晋升成功！Topic 已写入 wiki')
+      await publishTopic(selectedTopic.slug, selectedModule)
+      setPublishResult('✅ 沉淀成功！Topic 已写入 wiki')
       // Refresh topic list
       const updated = await fetchTopics()
       setTopics(updated)
     } catch (e: any) {
-      setPromoteResult(`❌ 晋升失败: ${e.message}`)
+      setPublishResult(`❌ 沉淀失败: ${e.message}`)
     }
-    setPromoting(false)
+    setPublishing(false)
   }
 
   const closeDetail = () => {
@@ -96,7 +96,7 @@ export function AdminPage() {
     setSelectedDraft(null)
     setTopicQaEntries([])
     setEditableContent('')
-    setPromoteResult(null)
+    setPublishResult(null)
     setPreviewMode(false)
   }
 
@@ -115,9 +115,9 @@ export function AdminPage() {
                   <Button variant="ghost" size="sm" onClick={closeDetail}>← 返回</Button>
                   <h2 className="text-lg font-bold text-gray-900">#{selectedTopic.slug}</h2>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    selectedTopic.status === 'promoted' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-50 text-amber-600'
+                    selectedTopic.status === 'published' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-50 text-amber-600'
                   }`}>
-                    {selectedTopic.status === 'promoted' ? '已固化' : '聚合中'}
+                    {selectedTopic.status === 'published' ? '已沉淀' : '聚合中'}
                   </span>
                 </div>
               </div>
@@ -190,9 +190,9 @@ export function AdminPage() {
                   </select>
                 </div>
 
-                {promoteResult && (
-                  <div className={`text-sm px-3 py-2 rounded-lg ${promoteResult.startsWith('✅') ? 'bg-cyber-green/10 text-cyber-green' : 'bg-red-50 text-red-600'}`}>
-                    {promoteResult}
+                {publishResult && (
+                  <div className={`text-sm px-3 py-2 rounded-lg ${publishResult.startsWith('✅') ? 'bg-cyber-green/10 text-cyber-green' : 'bg-red-50 text-red-600'}`}>
+                    {publishResult}
                   </div>
                 )}
 
@@ -200,9 +200,9 @@ export function AdminPage() {
                   <Button size="sm" variant="outline" onClick={() => setPreviewMode(!previewMode)} disabled={!editableContent}>
                     <Eye className="w-3.5 h-3.5 mr-1" /> {previewMode ? '关闭预览' : '预览 wiki 效果'}
                   </Button>
-                  <Button size="sm" onClick={handlePromote} disabled={!selectedModule || promoting || selectedTopic.status === 'promoted'}>
-                    {promoting ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" />}
-                    {promoting ? '晋升中...' : (selectedTopic.status === 'promoted' ? '已晋升' : '晋升到 Wiki')}
+                  <Button size="sm" onClick={handlePublish} disabled={!selectedModule || publishing || selectedTopic.status === 'published'}>
+                    {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" />}
+                    {publishing ? '沉淀中...' : (selectedTopic.status === 'published' ? '已沉淀' : '沉淀为 Wiki')}
                   </Button>
                 </div>
               </div>
@@ -266,9 +266,9 @@ export function AdminPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          t.status === 'promoted' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-50 text-amber-600'
+                          t.status === 'published' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-50 text-amber-600'
                         }`}>
-                          {t.status === 'promoted' ? '已固化' : '聚合中'}
+                          {t.status === 'published' ? '已沉淀' : '聚合中'}
                         </span>
                         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewTopic(t.slug) }}>
                           <FileText className="w-3.5 h-3.5" />

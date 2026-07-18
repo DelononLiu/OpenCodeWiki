@@ -88,8 +88,8 @@ export function updateTopicDraft(slug: string, content: string): Promise<{ updat
   })
 }
 
-export function promoteTopic(slug: string, wikiModule: string): Promise<{ slug: string }> {
-  return request(`/topics/${encodeURIComponent(slug)}/promote`, {
+export function publishTopic(slug: string, wikiModule: string): Promise<{ slug: string }> {
+  return request(`/topics/${encodeURIComponent(slug)}/publish`, {
     method: 'POST',
     body: JSON.stringify({ wiki_module: wikiModule }),
   })
