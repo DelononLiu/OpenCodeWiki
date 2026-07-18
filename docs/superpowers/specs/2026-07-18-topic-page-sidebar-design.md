@@ -168,10 +168,67 @@ Design 阶段确定将"晋升"改为"沉淀为 Wiki"（`publish`）：
 ## 不变更
 
 - App.tsx 路由：无变化
-- HomePage / QAPage / AdminPage：无变化
+- HomePage / QAPage：无变化
 - Header / BottomInput：无变化
 - `topics` 表结构：无变化
 - `topic_qa` 表：无变化
+
+---
+
+## AdminPage 左侧栏 + Tab 分离
+
+### 问题
+
+- Admin 左侧栏目前只有"待审草稿"一个入口，太单薄
+- QA 审核和 Topic 管理混在同一主内容区，功能臃肿
+
+### 改造后
+
+**左侧栏：**
+
+```
+┌─ Admin 左侧栏 ──────┐
+│ 📋 QA 审核           │
+│   ⏳ 待审    (3)     │
+│   ✅ 已审    (12)    │
+│                      │
+│ 🧠 Topic 管理        │
+│   📝 聚合中   (2)    │
+│   📖 已沉淀   (1)    │
+└──────────────────────┘
+```
+
+**主内容区：** 点击左侧不同入口切换视图，不再混排。
+
+| 左侧点击 | 主内容区 |
+|---------|---------|
+| ⏳ 待审 | QA 校准列表（待审条目 + 校准输入框 + 校准按钮） |
+| ✅ 已审 | 已审核 QA 列表（只读，可按时间/domain 过滤） |
+| 📝 聚合中 | Topic 列表（status=pool）+ 分析 QA 池按钮 |
+| 📖 已沉淀 | Topic 列表（status=published），可点击查看详情 |
+
+**Topic 详情面板**（点击单个 topic 后展开）保持不变：
+- 两栏对比（液态原始 QA | 固态提炼编辑稿）
+- 目标模块选择 + 预览 + 沉淀为 Wiki
+
+### 左侧栏组件变更
+
+`LeftSidebar` pageType='admin' 时新增子导航项：
+
+```typescript
+// 数据来源
+fetchQaEntries({ status: 'pending' })  → pendingCount
+fetchQaEntries({ status: 'active' })   → reviewedCount
+fetchTopics({ status: 'pool' })        → poolCount
+fetchTopics({ status: 'published' })   → publishedCount
+```
+
+### AdminPage 主内容区变更
+
+- 新增 `adminView` state：`'pending-qa' | 'reviewed-qa' | 'pool-topics' | 'published-topics'`
+- 新增 `topicDetailSlug` state：控制 topic 详情面板展开
+- 默认进入 `'pending-qa'` 视图
+- Topic 详情面板复用现有逻辑（handleViewTopic → 展开对比视图）
 
 ## Spec 自检
 
