@@ -1,4 +1,4 @@
-import type { ApiResponse, Repo, QaEntry, Topic, TopicDraft } from '@/types'
+import type { ApiResponse, Repo, QaEntry, Topic, TopicDraft, WikiPageResponse } from '@/types'
 
 const BASE = '/api'
 
@@ -53,7 +53,7 @@ export function fetchQaSuggest(q: string): Promise<{ suggestions: { qid: number;
 
 // ── Wiki ──
 
-export function fetchWikiPage(slug: string): Promise<{ type: string; slug: string; content: string }> {
+export function fetchWikiPage(slug: string): Promise<WikiPageResponse> {
   return request(`/wiki/${encodeURIComponent(slug)}`)
 }
 

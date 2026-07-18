@@ -41,3 +41,12 @@ export interface ApiResponse<T> {
   data?: T
   error?: string
 }
+
+export interface WikiPageResponse {
+  type: 'wiki' | 'topic'
+  slug: string
+  content: string
+  topic?: { name: string; description: string; status: string; wiki_module: string | null }
+  qa_entries?: { qid: number; question: string; created_at: string }[]
+  wiki_links?: { slug: string; name: string }[]
+}

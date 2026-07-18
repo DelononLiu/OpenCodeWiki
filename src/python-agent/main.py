@@ -220,7 +220,28 @@ async def api_wiki_page(slug: str):
                 if qa.get("answer"):
                     lines.append(f"{qa['answer']}\n")
             content = "\n".join(lines)
-            return _ok({"type": "topic", "slug": slug, "content": content})
+
+            wiki_links = []
+            wiki_module = topic.get("wiki_module")
+            if wiki_module:
+                wiki_links.append({"slug": wiki_module, "name": wiki_module})
+
+            return _ok({
+                "type": "topic",
+                "slug": slug,
+                "content": content,
+                "topic": {
+                    "name": topic["name"],
+                    "description": topic.get("description", ""),
+                    "status": topic.get("status", "pool"),
+                    "wiki_module": topic.get("wiki_module"),
+                },
+                "qa_entries": [
+                    {"qid": q["qid"], "question": q["question"], "created_at": q.get("created_at", "")}
+                    for q in qa_list[:20]
+                ],
+                "wiki_links": wiki_links,
+            })
     except ImportError:
         pass
     raise HTTPException(404, f"Page '{slug}' not found")
