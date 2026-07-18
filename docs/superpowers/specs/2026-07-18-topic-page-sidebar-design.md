@@ -140,12 +140,30 @@
 ### LeftSidebar.tsx
 
 - topic 状态标签区分：
-  - `pool` → 灰色标签 "聚合中"
-  - `promoted` → 绿色标签 "已固化"
+  - `pool` → "聚合中"
+  - `published` → "已沉淀"
 
 ### API client.ts
 
 - `fetchWikiPage()` 返回类型扩展，增加 `topic`、`qa_entries`、`wiki_links` 字段
+
+## 术语重命名：promote → publish
+
+Design 阶段确定将"晋升"改为"沉淀为 Wiki"（`publish`）：
+
+| 位置 | 旧 | 新 |
+|------|-----|-----|
+| 数据库 `topics.status` | `'promoted'` | `'published'` |
+| 数据库 `topics.promoted_at` | `promoted_at` | `published_at` |
+| 数据库 CHECK 约束 | `CHECK(status IN ('pool', 'promoted'))` | `CHECK(status IN ('pool', 'published'))` |
+| Python `store_topics.promote()` | `promote()` | `publish()` |
+| API 路由 | `POST /api/topics/{slug}/promote` | `POST /api/topics/{slug}/publish` |
+| 前端 `api/client.ts` | `promoteTopic()` | `publishTopic()` |
+| Admin 按钮文案 | "晋升到 Wiki" | "沉淀为 Wiki" |
+| Admin 结果文案 | "晋升成功" | "沉淀成功" |
+| 状态标签文案 | "已固化" | "已沉淀" |
+| TypeScript `Topic.status` | `'pool' \| 'promoted'` | `'pool' \| 'published'` |
+| TypeScript `Topic` 字段 | `promoted_at` | `published_at` |
 
 ## 不变更
 
