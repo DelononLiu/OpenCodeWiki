@@ -48,7 +48,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
       <div className="p-4 space-y-6 text-xs font-medium">
         <div>
           <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
-            <FolderGit className="w-3.5 h-3.5" /> 物理视角
+            <FolderGit className="w-3.5 h-3.5" /> 文档
           </h3>
           <ul className="space-y-1 text-gray-600">
             {Object.entries(sourceGroups).map(([sourceName, items]) => (
@@ -76,7 +76,7 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
         </div>
         <div className="pt-2 border-t border-gray-200/50">
           <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 px-2">
-            <Hash className="w-3.5 h-3.5 text-cyber-blue" /> 逻辑视角
+            <Hash className="w-3.5 h-3.5 text-cyber-blue" /> 主题
           </h3>
           <ul className="space-y-1 text-gray-600">
             {topics.map(t => (
