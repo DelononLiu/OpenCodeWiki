@@ -57,6 +57,7 @@ export function WikiPage() {
   // Highlight.js + Mermaid
   useEffect(() => {
     if (!articleRef.current || !renderedHtml) return
+    import('highlight.js/styles/github-dark.css').then(() => {})
     import('highlight.js').then(hljs => {
       articleRef.current?.querySelectorAll('pre code').forEach(b => hljs.default.highlightElement(b as HTMLElement))
     }).catch(() => {})
