@@ -144,6 +144,12 @@ async def sync_source(name: str) -> dict:
     if not source:
         raise ValueError(f"Source '{name}' not found")
 
+    url = source.get("url")
+    if not url:
+        raise ValueError(
+            f"Source '{name}' has no URL and cannot be synced"
+        )
+
     now = datetime.now(timezone.utc).isoformat()
 
     if source["type"] == "code":

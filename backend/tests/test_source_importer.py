@@ -105,6 +105,21 @@ class TestImportCodeGit:
         assert len(raw) == 1
         assert raw[0]["name"] == "my-code"
 
+    async def test_git_clone_failure_raises_runtime_error(self, mock_env):
+        """_run_cmd 返回非零时 _git_clone 抛出 RuntimeError。"""
+        repos, sources, vectors, reg = mock_env
+
+        with patch(
+            "source_importer._run_cmd",
+            _make_fake_run_cmd(exit_code=128, output="fatal: could not clone"),
+        ):
+            from source_importer import import_code_git
+
+            with pytest.raises(RuntimeError, match="git clone failed"):
+                await import_code_git(
+                    "fail-clone", "https://example.com/fail.git"
+                )
+
     async def test_creates_opencodewiki_dir(self, mock_env):
         """验证 opencodewiki 目录被创建。"""
         repos, sources, vectors, reg = mock_env
@@ -439,3 +454,23 @@ class TestSyncSource:
 
         assert result is not None
         assert result["updated_at"] >= ts_before
+
+    async def test_sync_source_without_url_raises_value_error(self, mock_env):
+        """没有 URL 的 source（zip 导入）同步时抛出 ValueError。"""
+        repos, sources, vectors, reg = mock_env
+
+        from stores.sources import create_source, get_source
+
+        # import_code_zip / import_docs_zip 创建的 source 没有 url 字段
+        create_source({"name": "no-url-code", "type": "code"})
+        (repos / "no-url-code").mkdir(parents=True)
+
+        create_source({"name": "no-url-docs", "type": "docs"})
+
+        from source_importer import sync_source
+
+        with pytest.raises(ValueError, match="no URL"):
+            await sync_source("no-url-code")
+
+        with pytest.raises(ValueError, match="no URL"):
+            await sync_source("no-url-docs")
