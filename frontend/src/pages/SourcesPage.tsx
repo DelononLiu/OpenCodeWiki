@@ -15,6 +15,7 @@ export function SourcesPage() {
   const [sourceMode, setSourceMode] = useState<'git' | 'zip'>('git')
   const [addingSource, setAddingSource] = useState(false)
   const [sourceError, setSourceError] = useState<string | null>(null)
+  const [pageError, setPageError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSources().then(setSources).catch(() => {})
@@ -25,6 +26,12 @@ export function SourcesPage() {
       <Header variant="global" />
       <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
         <div className="max-w-4xl mx-auto space-y-4">
+          {pageError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 rounded-xl flex items-center justify-between">
+              <span>{pageError}</span>
+              <button onClick={() => setPageError(null)} className="text-red-400 hover:text-red-600 ml-2">&times;</button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Database className="w-5 h-5 text-cyber-blue" /> 知识管理
@@ -143,7 +150,7 @@ export function SourcesPage() {
                     setSources(await fetchSources())
                     setShowSourceModal(false)
                     setNewSourceName(''); setNewSourceUrl(''); setNewSourceZip(null)
-                  } catch (e: any) { setSourceError(e.message) }
+                  } catch (e: any) { setSourceError(e.message); setPageError(e.message) }
                   setAddingSource(false)
                 }} disabled={addingSource || !newSourceName.trim()}
                   className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
