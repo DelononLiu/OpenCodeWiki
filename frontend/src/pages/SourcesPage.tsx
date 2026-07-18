@@ -15,9 +15,10 @@ export function SourcesPage() {
   const [sourceMode, setSourceMode] = useState<'git' | 'zip'>('git')
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchSources().then(setSources).catch(() => {})
+    fetchSources().then(s => { setSources(s); setLoading(false) }).catch(() => { setPageError('无法加载知识源列表'); setLoading(false) })
   }, [])
 
   return (
@@ -41,7 +42,9 @@ export function SourcesPage() {
             </button>
           </div>
 
-          {sources.length === 0 ? (
+          {loading ? (
+            <div className="text-center text-gray-400 py-16 text-sm">加载中...</div>
+          ) : sources.length === 0 ? (
             <div className="text-center text-gray-400 py-16 text-sm">暂无知识源，点击上方按钮添加</div>
           ) : (
             <div className="space-y-2">
