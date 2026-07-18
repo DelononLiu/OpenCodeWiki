@@ -168,3 +168,9 @@ def bump_visit(qid: int):
     db = get_qa_db()
     db.execute("UPDATE qa_entries SET visit_count = visit_count + 1 WHERE qid = ?", (qid,))
     db.commit()
+
+
+def update_domain(qid: int, domain: str):
+    db = get_qa_db()
+    db.execute("UPDATE qa_entries SET domain = ? WHERE qid = ?", (domain, qid))
+    db.commit()

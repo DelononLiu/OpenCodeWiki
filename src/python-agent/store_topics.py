@@ -110,3 +110,12 @@ def publish(topic_slug: str, wiki_module: str) -> bool:
     )
     db.commit()
     return True
+
+
+def search_topics(q: str, limit: int = 3) -> list[dict]:
+    db = get_knowledge_db()
+    rows = db.execute(
+        "SELECT slug, name, description FROM topics WHERE slug LIKE ? OR name LIKE ? LIMIT ?",
+        (f"%{q}%", f"%{q}%", limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
