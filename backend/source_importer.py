@@ -48,7 +48,10 @@ async def _git_clone(url: str, dest: Path):
     """git clone 远程仓库到本地路径。"""
     code, log = await _run_cmd(["git", "clone", "--depth", "1", url, str(dest)])
     if code != 0:
-        raise RuntimeError(f"git clone failed: {log[:200]}")
+        # 取错误摘要，去掉路径/URL 细节
+        brief = log.strip().split("\n")[-1] if log.strip() else "unknown error"
+        brief = brief.replace("fatal: ", "").replace("remote: ", "").strip()
+        raise RuntimeError(f"clone 失败: {brief[:80]}")
 
 
 async def _unzip(zip_path: Path, dest: Path):
