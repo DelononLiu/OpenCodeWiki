@@ -378,6 +378,39 @@ async def api_qa(request: Request):
 from stores.sources import list_sources, REPOS_DIR, SOURCES_DIR
 
 
+@app.get("/api/wiki/modules")
+async def api_wiki_modules():
+    """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
+    modules = []
+    # List stored pages
+    try:
+        from stores.wiki import list_pages
+        stored = list_pages()
+        for p in stored:
+            if not any(m["slug"] == p["slug"] for m in modules):
+                modules.append({"slug": p["slug"], "name": p["slug"], "type": p["page_type"]})
+    except ImportError:
+        pass
+
+    # List source wiki files
+    for src in list_sources():
+        name = src["name"]
+        if src.get("type") == "code":
+            wiki_dir = REPOS_DIR / name / "openwiki"
+        else:
+            wiki_dir = SOURCES_DIR / name
+        if wiki_dir.exists():
+            for md_file in sorted(wiki_dir.glob("*.md")):
+                slug = md_file.stem
+                if not any(m["slug"] == slug for m in modules):
+                    modules.append({
+                        "slug": slug,
+                        "name": f"{name}/{slug}",
+                        "type": "source",
+                    })
+    return _ok(modules)
+
+
 @app.get("/api/wiki/{slug}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
@@ -444,38 +477,6 @@ async def api_wiki_page(slug: str):
             })
     raise HTTPException(404, f"Page '{slug}' not found")
 
-
-@app.get("/api/wiki/modules")
-async def api_wiki_modules():
-    """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
-    modules = []
-    # List stored pages
-    try:
-        from stores.wiki import list_pages
-        stored = list_pages()
-        for p in stored:
-            if not any(m["slug"] == p["slug"] for m in modules):
-                modules.append({"slug": p["slug"], "name": p["slug"], "type": p["page_type"]})
-    except ImportError:
-        pass
-
-    # List source wiki files
-    for src in list_sources():
-        name = src["name"]
-        if src.get("type") == "code":
-            wiki_dir = REPOS_DIR / name / "openwiki"
-        else:
-            wiki_dir = SOURCES_DIR / name
-        if wiki_dir.exists():
-            for md_file in sorted(wiki_dir.glob("*.md")):
-                slug = md_file.stem
-                if not any(m["slug"] == slug for m in modules):
-                    modules.append({
-                        "slug": slug,
-                        "name": f"{name}/{slug}",
-                        "type": "source",
-                    })
-    return _ok(modules)
 
 
 # ── Topics ──────────────────────────────────────────────────────
