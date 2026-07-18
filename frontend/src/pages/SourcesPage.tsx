@@ -88,6 +88,7 @@ export function SourcesPage() {
                                 setTimeout(() => setPageSuccess(null), 3000)
                               } catch (e: any) {
                                 setPageError(`「${s.name}」同步失败，详情查看后台日志`)
+                                setTimeout(() => setPageError(null), 5000)
                               }
                               setSyncing(null)
                             }} disabled={syncing === s.name}
@@ -193,6 +194,7 @@ export function SourcesPage() {
                       setSources(await fetchSources())
                     } catch (e: any) {
                       setPageError(`${name} 添加失败，详情查看后台日志`)
+                      setTimeout(() => setPageError(null), 5000)
                       setSources(await fetchSources())  // 刷新列表，去掉 pending 条目
                     }
                   })()
