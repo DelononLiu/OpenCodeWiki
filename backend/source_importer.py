@@ -178,7 +178,7 @@ async def sync_source(name: str) -> dict:
         else:
             # openwiki 可能会改 AGENTS.md，先恢复再 pull
             await _run_cmd(["git", "restore", "."], cwd=repo_path)
-            # GIT_TERMINAL_PROMPT=0 防止 git 卡在认证交互
+            await _run_cmd(["git", "clean", "-fd"], cwd=repo_path)
             code, log = await _run_cmd(["git", "pull", "--ff-only"], cwd=repo_path, env={"GIT_TERMINAL_PROMPT": "0"})
             if code != 0:
                 raise RuntimeError(f"git pull 失败: {log[:200]}")
