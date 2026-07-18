@@ -38,6 +38,7 @@ coverage/
 # Python cache
 __pycache__/
 .venv/
+venv/
 
 # CRG index data (rebuilt on demand)
 .code-review-graph/
