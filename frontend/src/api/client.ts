@@ -85,3 +85,13 @@ export function publishTopic(slug: string, wikiModule: string): Promise<{ slug: 
     body: JSON.stringify({ wiki_module: wikiModule }),
   })
 }
+
+// ── Settings ──
+
+export function fetchSettings(): Promise<{ general: { site_name: string }; model: { provider: string; api_key: string; model: string; temperature: number } }> {
+  return request('/settings')
+}
+
+export function saveSettings(section: string, data: Record<string, unknown>): Promise<{ saved: boolean }> {
+  return request('/settings', { method: 'PUT', body: JSON.stringify({ section, data }) })
+}

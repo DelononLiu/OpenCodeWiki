@@ -4,6 +4,7 @@ import { WikiGlobalPage } from '@/pages/WikiGlobalPage'
 import { WikiPage } from '@/pages/WikiPage'
 import { QAPage } from '@/pages/QAPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/wiki" element={<WikiGlobalPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/:repo" element={<WikiPage />} />
         <Route path="/qa" element={<QAPage />} />
         <Route path="/admin" element={<AdminPage />} />
