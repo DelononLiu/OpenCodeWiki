@@ -35,7 +35,7 @@ class TestSearch:
         assert len(data["data"]["qa"]) >= 1
 
     def test_search_mixed_results(self, client):
-        """搜索混合返回"""
+        """搜索同时返回 topic 和 qa 结果"""
         from stores.topics import create_topic
         from stores.qa import create_entry
 
@@ -45,4 +45,5 @@ class TestSearch:
         resp = client.get("/api/search?q=部署")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["data"]["topic"]) >= 1 or len(data["data"]["qa"]) >= 1
+        assert len(data["data"]["topic"]) >= 1, "应有 topic 结果"
+        assert len(data["data"]["qa"]) >= 1, "应有 qa 结果"

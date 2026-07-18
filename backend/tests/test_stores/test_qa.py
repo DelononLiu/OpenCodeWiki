@@ -27,15 +27,17 @@ class TestCreateEntry:
         assert result["qid"] == 42
 
     def test_create_with_tags_and_sources(self, patch_stores):
-        """创建带标签和来源的条目"""
-        from stores.qa import create_entry
+        """创建带标签和来源的条目，验证 JSON 序列化/反序列化正确"""
+        from stores.qa import create_entry, get_entry
 
-        result = create_entry({
+        created = create_entry({
             "question": "带标签",
             "tags": ["bug", "feature"],
             "sources": ["file1.py"],
         })
-        assert result["qid"] >= 1
+        entry = get_entry(created["qid"])
+        assert entry["tags"] == ["bug", "feature"]
+        assert entry["sources"] == ["file1.py"]
 
 
 class TestGetEntry:
@@ -129,16 +131,21 @@ class TestPending:
         assert len(pending) >= 1
 
     def test_list_pending_with_repo(self, patch_stores):
-        """按仓库筛选待处理"""
-        from stores.qa import create_entry, list_pending
+        """按仓库筛选待处理，验证 repo-a 不包含 repo-b 的条目"""
+        from stores.qa import create_entry, list_pending, calibrate
 
-        create_entry({"question": "Q1", "repo": "repo-a"})
-        create_entry({"question": "Q2", "repo": "repo-b"})
+        # repo-a 待处理条目在结果中
+        c_a = create_entry({"question": "A问题", "repo": "repo-a"})
+        # repo-b 的条目不应出现在 repo-a 的结果中
+        create_entry({"question": "B问题", "repo": "repo-b"})
+        # 已校准（status=active）的不应出现
+        calibrate(create_entry({"question": "C已激活", "repo": "repo-a"})["qid"], "已校准")
 
-        # list_pending(repo) 的查询只返回 qid/question/created_at
         result = list_pending("repo-a")
-        # repo-a 的条目应该出现在结果中
-        assert len(result) >= 1
+        questions = [r["question"] for r in result]
+        assert "A问题" in questions
+        assert "B问题" not in questions
+        assert "C已激活" not in questions
 
 
 class TestCalibrate:
@@ -202,19 +209,38 @@ class TestUpdateDomain:
 
 
 class TestListSorted:
-    def test_list_sorted_by_latest(self, patch_stores):
-        """按最新排序"""
-        from stores.qa import create_entry, list_entries
+    def test_list_sorted_by_latest(self, patch_stores, qa_db):
+        """按最新排序，验证 created_at DESC"""
+        from stores.qa import create_entry, list_entries, get_entry
 
-        create_entry({"question": "第一"})
-        create_entry({"question": "第二"})
+        c1 = create_entry({"question": "老的"})
+        c2 = create_entry({"question": "新的"})
+
+        # 给"老的"设一个更早的时间，确保排序可验证
+        qa_db.execute("UPDATE qa_entries SET created_at = '2025-01-01T00:00:00' WHERE qid = ?", (c1["qid"],))
+        qa_db.execute("UPDATE qa_entries SET created_at = '2026-07-18T00:00:00' WHERE qid = ?", (c2["qid"],))
+        qa_db.commit()
 
         result = list_entries({"sort": "latest"})
-        assert len(result["entries"]) == 2
+        entries = result["entries"]
+        assert len(entries) >= 2
+        # 新的应排第一
+        assert entries[0]["qid"] == c2["qid"]
+        assert entries[1]["qid"] == c1["qid"]
 
-    def test_list_sorted_by_popular(self, patch_stores):
-        """按热门排序"""
-        from stores.qa import create_entry, list_entries
+    def test_list_sorted_by_popular(self, patch_stores, qa_db):
+        """按热门排序，验证 visit_count DESC"""
+        from stores.qa import create_entry, list_entries, bump_visit
+
+        cold = create_entry({"question": "冷门"})  # visit_count = 0
+        hot = create_entry({"question": "热门"})   # visit_count = 0
+        bump_visit(hot["qid"])
+        bump_visit(hot["qid"])
+        bump_visit(hot["qid"])
 
         result = list_entries({"sort": "popular"})
-        assert "entries" in result
+        entries = result["entries"]
+        # 按 visit_count 倒序，hot 应有更高计数
+        hot_entry = next(e for e in entries if e["qid"] == hot["qid"])
+        cold_entry = next(e for e in entries if e["qid"] == cold["qid"])
+        assert hot_entry["visit_count"] > cold_entry["visit_count"]

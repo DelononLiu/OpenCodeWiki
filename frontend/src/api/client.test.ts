@@ -9,15 +9,20 @@ describe('API client', () => {
     expect(Array.isArray(repos)).toBe(true)
   })
 
-  it('should fetch QA entries', async () => {
+  it('should fetch QA entries with correct shape', async () => {
     const result = await fetchQaEntries({ status: 'pending', limit: 5 })
     expect(result.entries).toBeDefined()
-    expect(result.total).toBeGreaterThanOrEqual(0)
+    expect(result.total).toBeGreaterThanOrEqual(1)
+    expect(result.entries[0]).toMatchObject({
+      qid: expect.any(Number),
+      question: expect.any(String),
+    })
   })
 
-  it('should fetch QA suggest', async () => {
+  it('should fetch QA suggest with results', async () => {
     const result = await fetchQaSuggest('数据库')
     expect(result.suggestions.length).toBeGreaterThanOrEqual(1)
+    expect(result.suggestions[0].question).toContain('数据库')
   })
 
   it('should return empty suggestion for short query', async () => {
@@ -30,11 +35,14 @@ describe('API client', () => {
     expect(page.content).toContain('页面内容')
   })
 
-  it('should fetch topics', async () => {
+  it('should fetch topics with correct shape', async () => {
     const topics = await fetchTopics()
     expect(Array.isArray(topics)).toBe(true)
     if (topics.length > 0) {
-      expect(topics[0].slug).toBeDefined()
+      expect(topics[0]).toMatchObject({
+        slug: expect.any(String),
+        name: expect.any(String),
+      })
     }
   })
 
