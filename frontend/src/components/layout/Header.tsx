@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Home, BookOpen, MessagesSquare, ChevronDown, Settings, LogOut, Shield } from 'lucide-react'
+import { Home, BookOpen, MessagesSquare, ChevronDown, Settings, LogOut, Shield, Database } from 'lucide-react'
 
 const ADMIN_USERS = ['long2015']
 
@@ -58,15 +58,20 @@ export function Header({ variant, repoName }: HeaderProps) {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 text-sm">
+                <button onClick={() => { navigate('/settings'); setMenuOpen(false) }}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
+                  <Database className="w-4 h-4 text-cyber-blue" /> 知识管理
+                </button>
                 {isAdmin && (
                   <>
+                    <div className="border-t border-gray-100 my-1" />
                     <button onClick={() => { navigate('/admin'); setMenuOpen(false) }}
                       className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
-                      <Shield className="w-4 h-4 text-amber-500" /> 审核台
+                      <Shield className="w-4 h-4 text-amber-500" /> 知识沉淀
                     </button>
-                    <div className="border-t border-gray-100 my-1" />
                   </>
                 )}
+                <div className="border-t border-gray-100 my-1" />
                 <button onClick={() => { navigate('/settings'); setMenuOpen(false) }}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
                   <Settings className="w-4 h-4" /> 个人设置

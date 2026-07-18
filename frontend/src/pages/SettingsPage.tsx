@@ -84,7 +84,7 @@ export function SettingsPage() {
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition ${
                 section === 'sources' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
               }`}>
-              <Database className="w-3.5 h-3.5" /> 知识源
+              <Database className="w-3.5 h-3.5" /> 知识管理
             </button>
           </div>
         </aside>
