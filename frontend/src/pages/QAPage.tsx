@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ export function QAPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState(searchParams.get('q') ?? '')
   const [currentAnswer, setCurrentAnswer] = useState('')
+  const streamingRef = useRef('')
   const { stream, isLoading } = useSSE()
   const contextSlug = searchParams.get('context_entity_slug') || ''
 
@@ -63,17 +64,22 @@ export function QAPage() {
     if (!q || isLoading) return
     setMessages(prev => [...prev, { role: 'user', content: q }])
     setCurrentAnswer(''); setInput('')
+    streamingRef.current = ''
     const body: Record<string, unknown> = { question: q }
     if (contextSlug) body.context_entity_slug = contextSlug
     stream('/api/qa', body, msg => {
-      if (msg.type === 'token') setCurrentAnswer(prev => prev + (msg.content as string))
-      else if (msg.type === 'error') setCurrentAnswer(`错误: ${msg.message}`)
+      if (msg.type === 'token') {
+        streamingRef.current += (msg.content as string)
+        setCurrentAnswer(prev => prev + (msg.content as string))
+      } else if (msg.type === 'error') setCurrentAnswer(`错误: ${msg.message}`)
       else if (msg.type === 'done') {
-        setMessages(prev => [...prev, { role: 'assistant', content: currentAnswer }])
+        const finalAnswer = streamingRef.current
+        setMessages(prev => [...prev, { role: 'assistant', content: finalAnswer }])
         setCurrentAnswer('')
+        streamingRef.current = ''
       }
     })
-  }, [input, isLoading, stream, currentAnswer])
+  }, [input, isLoading, stream, contextSlug])
 
   const handleSelectQa = async (qid: number) => {
     try {
