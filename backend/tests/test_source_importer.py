@@ -31,7 +31,7 @@ def mock_env(tmp_path):
     sources.mkdir(parents=True, exist_ok=True)
     vectors.mkdir(parents=True, exist_ok=True)
 
-    reg = tmp_path / ".opencodewiki" / "registry.json"
+    reg = tmp_path / ".openwiki" / "registry.json"
     reg.parent.mkdir(parents=True, exist_ok=True)
     reg.write_text("[]")
 
@@ -98,7 +98,7 @@ class TestImportCodeGit:
 
         # 验证目录结构
         assert (repos / "my-code").is_dir()
-        assert (repos / "my-code" / "opencodewiki").is_dir()
+        assert (repos / "my-code" / "openwiki").is_dir()
 
         # 验证注册表持久化
         raw = json.loads(reg.read_text())
@@ -120,8 +120,8 @@ class TestImportCodeGit:
                     "fail-clone", "https://example.com/fail.git"
                 )
 
-    async def test_creates_opencodewiki_dir(self, mock_env):
-        """验证 opencodewiki 目录被创建。"""
+    async def test_creates_openwiki_dir(self, mock_env):
+        """验证 openwiki 目录被创建。"""
         repos, sources, vectors, reg = mock_env
         fake_clone = _make_fake_git_clone()
 
@@ -131,7 +131,7 @@ class TestImportCodeGit:
 
                 await import_code_git("with-wiki", "https://example.com/r.git")
 
-        wiki_path = repos / "with-wiki" / "opencodewiki"
+        wiki_path = repos / "with-wiki" / "openwiki"
         assert wiki_path.is_dir()
 
     async def test_runs_index_and_openwiki(self, mock_env):
@@ -180,7 +180,7 @@ class TestImportCodeZip:
         assert result["name"] == "my-zip-code"
         assert result["type"] == "code"
         assert (repos / "my-zip-code").is_dir()
-        assert (repos / "my-zip-code" / "opencodewiki").is_dir()
+        assert (repos / "my-zip-code" / "openwiki").is_dir()
 
 
 # ── Test: import_docs_git ───────────────────────────────────────

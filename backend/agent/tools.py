@@ -343,7 +343,7 @@ async def code_grep(pattern: str, project: str = "") -> str:
 async def code_read_wiki(project: str = "") -> str:
     """
     读取项目的 wiki 文档（由 opencodewiki 生成）。
-    从 ~/.opencodewiki/repos/{project_name}/opencodewiki/ 目录读取。
+    从 ~/.opencodewiki/repos/{project_name}/openwiki/ 目录读取。
     用于：回答前了解项目背景、架构、工作流，使回答更准确。
     """
     registry = _load_registry()
@@ -353,7 +353,8 @@ async def code_read_wiki(project: str = "") -> str:
     found = any(entry.get("name") == project for entry in registry)
     if not found:
         return "wiki not found"
-    wiki_base = REPOS_DIR / project / "opencodewiki"
+    # openwiki CLI 输出到 openwiki/ 目录
+    wiki_base = REPOS_DIR / project / "openwiki"
     if not wiki_base.exists():
         return "wiki not found"
     qs = wiki_base / "quickstart.md"
