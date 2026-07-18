@@ -12,6 +12,7 @@ OpenCodeWiki — 自进化知识工作台。核心闭环：**QA 问答 → Topic
 |---|------|
 | 后端 | Python 3.11+, FastAPI, LangGraph |
 | 前端 | React 18, Vite 5, TypeScript, shadcn/ui, Tailwind CSS 3, Recharts |
+| Markdown | react-markdown, remark-gfm, react-syntax-highlighter (Prism + vscDarkPlus) |
 | 数据库 | SQLite (Python sqlite3 标准库) |
 | 引擎 | codebase-memory-mcp CLI（代码索引与搜索） |
 
