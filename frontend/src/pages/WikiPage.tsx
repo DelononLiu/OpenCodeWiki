@@ -130,11 +130,11 @@ export function WikiPage() {
                           },
                           code: ({ className, children }) => {
                             const match = /language-(\w+)/.exec(className || '')
-                            const isInline = !match
+                            const isInline = !className && !String(children).includes('\n')
                             if (isInline) {
                               return <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
                             }
-                            const lang = match[1]
+                            const lang = match ? match[1] : 'text'
                             if (lang === 'mermaid') {
                               return <pre className="bg-gray-50 rounded-lg p-4 my-4 text-center text-gray-400 text-sm">mermaid</pre>
                             }
