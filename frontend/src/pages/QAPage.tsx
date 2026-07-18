@@ -44,7 +44,7 @@ export function QAPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" activeSection="qa" />
+      <Header variant="global" />
       <div className="flex-1 flex overflow-hidden relative">
         <LeftSidebar pageType="qa" />
         <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar relative bg-[#FBFBFC]">

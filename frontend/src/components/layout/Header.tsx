@@ -8,7 +8,6 @@ const ADMIN_USERS = ['long2015']
 interface HeaderProps {
   variant: 'home' | 'global'
   repoName?: string
-  activeSection?: string
 }
 
 export function Header({ variant, repoName }: HeaderProps) {

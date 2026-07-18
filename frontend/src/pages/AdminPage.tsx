@@ -102,7 +102,7 @@ export function AdminPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" activeSection="admin" />
+      <Header variant="global" />
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar pageType="admin" />
         <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
