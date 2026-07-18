@@ -35,11 +35,6 @@ export function fetchQaEntry(qid: number): Promise<QaEntry> {
   return request(`/qa/entry/${qid}`)
 }
 
-export function fetchQaPending(repo?: string): Promise<QaEntry[]> {
-  const qs = repo ? `?repo=${encodeURIComponent(repo)}` : ''
-  return request(`/qa/pending${qs}`)
-}
-
 export function calibrateQaEntry(qid: number, answer: string, calibrator = 'admin'): Promise<{ calibrated: boolean }> {
   return request(`/qa/entry/${qid}/calibrate`, {
     method: 'POST',
@@ -75,10 +70,6 @@ export function fetchTopic(slug: string): Promise<Topic> {
 
 export function fetchTopicDraft(slug: string): Promise<TopicDraft | null> {
   return request(`/topics/${encodeURIComponent(slug)}/draft`)
-}
-
-export function analyzeTopics(): Promise<{ suggestions: Topic[] }> {
-  return request('/topics/analyze', { method: 'POST' })
 }
 
 export function updateTopicDraft(slug: string, content: string): Promise<{ updated: boolean }> {

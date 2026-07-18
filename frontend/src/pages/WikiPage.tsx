@@ -73,7 +73,7 @@ export function WikiPage() {
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <Header variant="global" repoName={repo} />
       <div className="flex-1 flex overflow-hidden relative">
-        <LeftSidebar pageType="wiki" currentSlug={currentSlug} currentTopic={pageType === 'topic' ? currentSlug : undefined} onNavigate={handleNavigate} />
+        <LeftSidebar currentSlug={currentSlug} currentTopic={pageType === 'topic' ? currentSlug : undefined} onNavigate={handleNavigate} />
         <main className="flex-1 flex flex-col overflow-y-auto no-scrollbar relative bg-[#FBFBFC]">
           <div className="flex-1 flex justify-center py-8 px-6">
             <div className="w-full max-w-3xl transition-all">

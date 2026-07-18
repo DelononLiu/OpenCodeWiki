@@ -15,7 +15,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const [repos, setRepos] = useState<Repo[]>([])
   const [topics, setTopics] = useState<Topic[]>([])
-  const [draftQa, setDraftQa] = useState<QaEntry[]>([])
+  const [latestQa, setLatestQa] = useState<QaEntry[]>([])
   const [hotQa, setHotQa] = useState<QaEntry[]>([])
   const [searchVal, setSearchVal] = useState('')
   const [showSuggest, setShowSuggest] = useState(false)
@@ -23,13 +23,14 @@ export function HomePage() {
   useEffect(() => {
     fetchRepos().then(setRepos).catch(() => {})
     fetchTopics().then(setTopics).catch(() => {})
-    fetchQaEntries({ sort: 'latest', limit: 5 }).then(d => setDraftQa(d.entries)).catch(() => {})
+    fetchQaEntries({ sort: 'latest', limit: 5 }).then(d => setLatestQa(d.entries)).catch(() => {})
     fetchQaEntries({ sort: 'visit', limit: 5 }).then(d => setHotQa(d.entries)).catch(() => {})
   }, [])
 
   const searchPool = useMemo<SearchItem[]>(() => {
     const pool: SearchItem[] = []
     pool.push({ type: 'wiki', label: '📖 物理文档: 双路分流路由算法', key: '02-qa-engine' })
+    // TODO: 后续从 API 动态获取 wiki 页面列表
     for (const t of topics) {
       pool.push({ type: 'topic', label: `🏷️ 核心主题: #${t.slug}`, key: t.slug })
     }
@@ -139,7 +140,7 @@ export function HomePage() {
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4 text-amber-500" /> 最新问答
               </h3>
-              {draftQa.slice(0, 3).map(qa => (
+              {latestQa.slice(0, 3).map(qa => (
                 <div key={qa.qid} onClick={() => navigate(`/qa?qid=${qa.qid}`)}
                   className="cursor-pointer border-l-2 border-amber-400 pl-3 py-1 text-xs hover:bg-amber-50/50 rounded-r-lg transition mb-1.5">
                   <div className="font-semibold text-gray-800 truncate">{qa.question}</div>

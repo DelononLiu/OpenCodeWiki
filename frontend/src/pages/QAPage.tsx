@@ -124,6 +124,9 @@ export function QAPage() {
                       }`}>
                       <span className="text-gray-800 truncate flex-1">{qa.question}</span>
                       <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">#{qa.qid}</span>
+                      {qa.tags?.[0] && (
+                        <span className="text-[10px] text-gray-400 font-mono ml-1">#{qa.tags[0]}</span>
+                      )}
                     </button>
                   ))}
                 </div>

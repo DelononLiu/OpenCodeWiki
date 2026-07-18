@@ -4,6 +4,10 @@ import { fetchQaEntries, calibrateQaEntry, fetchTopics, fetchTopic, fetchTopicDr
 import type { QaEntry, Topic, TopicDraft } from '@/types'
 import { Loader2, CheckCircle, Eye, ArrowUpCircle, BookOpen, Shield } from 'lucide-react'
 
+interface TopicDetail extends Topic {
+  qa_entries?: { qid: number; question: string }[]
+}
+
 export function AdminPage() {
   const [pendingQa, setPendingQa] = useState<QaEntry[]>([])
   const [poolTopics, setPoolTopics] = useState<Topic[]>([])
@@ -37,7 +41,7 @@ export function AdminPage() {
   const handleViewTopic = async (slug: string) => {
     setPublishResult(null)
     try {
-      const topic = await fetchTopic(slug) as any
+      const topic = await fetchTopic(slug) as TopicDetail
       setSelectedTopic(topic)
       const draft = await fetchTopicDraft(slug)
       setSelectedDraft(draft)
@@ -125,7 +129,7 @@ export function AdminPage() {
                 <div className="space-y-3">
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">💧 液态原始 — 关联问答</h3>
                   <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                    {(selectedTopic as any).qa_entries?.map((qa: any) => (
+                    {(selectedTopic as TopicDetail).qa_entries?.map(qa => (
                       <div key={qa.qid} className="bg-white border border-gray-200 rounded-lg p-3 text-xs">
                         <span className="font-mono text-cyber-blue font-bold text-[10px]">#Q{qa.qid}</span>
                         <span className="ml-1.5 font-medium text-gray-800">{qa.question}</span>

@@ -112,3 +112,15 @@ The hardcoded entry `'📖 物理文档: 双路分流路由算法系统'` with k
 5. **Good use of React performance patterns** -- `useMemo` for filtered/grouped QA entries, domain list, search suggestions, and rendered HTML. `useCallback` for loadContent and handleSend.
 
 6. **Correct route registration** -- `/wiki` before `/:repo` in App.tsx, preventing the catch-all `:repo` param from matching "wiki" as a repo name.
+
+---
+
+## Fixes Applied (2026-07-18)
+
+**H1. AdminPage: Added missing wiki/repo audit queues.** Extended `currentView` type to `'qa' | 'topic' | 'wiki' | 'repo'`, added `wiki: 0, repo: 0` to `pendingCounts`, added two sidebar queue items with badge counts below Topic建议, and added placeholder placeholder views for wiki and repo.
+
+**H2. WikiPage empty-state regression fixed.** Changed `{renderedHtml && (...)}` to `{renderedHtml ? (...) : currentSlug ? (<div>加载中或页面不存在</div>) : null}` so invalid/loading slugs show a fallback message instead of blank white space.
+
+**H3. AdminPage preview toggle restored.** Added `previewMode` state, a toggle button (预览效果/关闭预览) in the action bar before the publish button, and a rendered preview div below the textarea when previewMode is enabled.
+
+*TypeScript check: `npx tsc --noEmit` passes with zero errors.*
