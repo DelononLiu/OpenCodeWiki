@@ -27,17 +27,21 @@ export function WikiPage() {
 
   const loadContent = useCallback(async (slug: string, initial = false) => {
     if (!slug) return
-    if (!initial) setLoading(true)
-    setCurrentSlug(slug)
+    if (!initial) {
+      setLoading(true)
+      setCurrentSlug(slug)
+    }
     try {
       const data = await fetchWikiPage(slug)
       setWikiData(data)
       setRawContent(data.content)
       setPageType(data.type as 'wiki' | 'topic')
+      if (initial) setCurrentSlug(slug)
     } catch {
       setWikiData(null)
       setRawContent('')
       setPageType('wiki')
+      if (initial) setCurrentSlug('')
     } finally {
       if (!initial) setLoading(false)
     }
