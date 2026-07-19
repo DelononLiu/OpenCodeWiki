@@ -10,6 +10,8 @@ const config: Config = {
           blue: '#4F46E5',
           'blue-dark': '#4338CA',
           green: '#10B981',
+          orange: '#F59E0B',
+          red: '#EF4444',
           bg: '#F8F9FA',
           card: '#FFFFFF',
         },
