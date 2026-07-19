@@ -89,6 +89,8 @@ class TestCreateSource:
         assert result["type"] == "code"
         assert "created_at" in result
         assert "updated_at" in result
+        assert "path" in result
+        assert result["path"].endswith("/new-source")
 
     def test_create_with_url(self, mock_registry):
         """创建包含 URL 的来源"""

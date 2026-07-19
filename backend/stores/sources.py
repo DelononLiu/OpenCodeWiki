@@ -52,6 +52,10 @@ def create_source(data: dict) -> dict:
     entry = {"name": data["name"], "type": data.get("type", "code")}
     if data.get("url"):
         entry["url"] = data["url"]
+    if data.get("path"):
+        entry["path"] = data["path"]
+    elif data.get("type") == "code":
+        entry["path"] = str(REPOS_DIR / data["name"])
     entry["created_at"] = now
     entry["updated_at"] = now
     sources.append(entry)
