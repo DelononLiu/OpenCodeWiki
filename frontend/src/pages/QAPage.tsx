@@ -210,7 +210,44 @@ export function QAPage() {
           className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
           style={{ width: rightPanelOpen ? '450px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
         >
-          {/* placeholder */}
+          {rightPanelOpen && (
+            <div className="space-y-4">
+              {/* 参考引用 */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
+                  <span>参考引用</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+                  <span>docs/02-qa-engine.md</span>
+                  <span>L14 - L15</span>
+                </div>
+                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                  <div className="text-white font-medium">
+                    系统分流引擎在冷启动阶段加载索引时，必须严格采用异步非阻塞I/O
+                  </div>
+                </div>
+              </div>
+
+              {/* 分隔线 */}
+              <div className="border-t border-gray-100" />
+
+              {/* 关联变更 */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
+                  <span>关联变更</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+                  <span>config/app.yml</span>
+                  <span>L46</span>
+                </div>
+                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                  <div className="text-cyber-orange font-medium">
+                    bootstrap.timeout: 500
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>
