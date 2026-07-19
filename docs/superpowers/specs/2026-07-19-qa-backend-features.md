@@ -18,6 +18,15 @@
 → 左栏 GET /api/sessions → 渲染历史对话
 ```
 
+## 设计决策
+
+| # | 决策 |
+|---|------|
+| 1 | sources 从 Agent 的 tool messages 中解析，后端做 |
+| 2 | topic 匹配基于已有 topics 列表，LLM 模糊匹配，无匹配 → `#general` |
+| 3 | topic 匹配替换现有 `classify_domain`，仅在 session 创建时执行一次（追问不重匹配） |
+| 4 | `#general` topic 不返回相关问题 |
+
 ## 数据模型变更
 
 ### session_topics 表（新增）
@@ -45,10 +54,12 @@ CREATE TABLE IF NOT EXISTS session_topics (
 ### 1. POST /api/qa/save（修改）
 
 **新增参数:**
-- `sources` — `[{file, line, snippet}]`，Agent 搜索的代码上下文
+- `sources` — `[{file, line, snippet}]`，从 Agent tool messages 解析
+- `session_create` — `boolean`，新 session 时为 `true`，触发 topic 匹配
 
 **新增逻辑:**
-- 保存后 LLM 自动匹配已有 topic → 写入 `session_topics`
+- 从 Agent tool messages 解析 sources（后端解析 → 写入 `sources` 字段）
+- 仅在 session 创建时（explicit flag：`session_create=true`），LLM 基于已有 topics 列表模糊匹配，写入 `session_topics`。匹配流程：取所有 `topics.slug` → LLM(问题+回答) → 输出最匹配的 slug 或 `general` → 写入 `session_topics`。替换现有的 `classify_domain` 调用
 
 ### 2. GET /api/sessions（新增）
 
@@ -95,7 +106,7 @@ CREATE TABLE IF NOT EXISTS session_topics (
 }
 ```
 
-**实现:** 通过 `session_topics` 找到当前 session 的 topics → 查同 topic 的其他 session 的根问题。
+**实现:** 通过 `session_topics` 找到当前 session 的 topics → 查同 topic 的其他 session 的根问题 → **排除 `#general` topic**。
 
 ### 5. POST /api/qa/entry/{qid}/feedback（新增）
 
