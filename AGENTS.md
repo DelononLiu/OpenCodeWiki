@@ -96,6 +96,12 @@ echo "后端 http://localhost:8100  前端 http://localhost:5180"
 # Wiki:     http://localhost:5180/wiki
 ```
 
+## 开发铁律
+
+1. **每个 bugfix 必须带测试。** 找到根因 → 修代码 → 加回归测试 → 跑全量 → commit。没有例外。
+2. **测试只测有意义的。** 不测 LLM 调用（mock 无意义），不测薄 wrapper。测：数据正确性、边界条件、SQL/查询逻辑。
+3. **修 bug 前先复现。** `curl` 能重现才修，修完 `curl` 验证。
+
 ## 运行测试
 
 ```bash
