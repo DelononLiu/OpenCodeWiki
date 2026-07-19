@@ -216,84 +216,89 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Modify: `backend/agent/graph.py`
 
 **Interfaces:**
-- Consumes: `run_sub` returns `{"messages": [...], "sources": [...]}`
-- Produces: `_qa_event_stream` in main.py reads `result.get("sources")`
+- Consumes: `run_sub` 已有 all_msgs 逻辑
+- Produces: `return {"messages": all_msgs, "sources": unique_sources}` — 供 Task 4 (main.py) 的 `_qa_event_stream` 读取
 
-- [ ] **Step 1: 在 run_sub 中解析 tool 调用结果**
+- [ ] **Step 1: 添加 import json**
 
-在 `run_sub` 的 `final = await agent.ainvoke(...)` 之后，添加 sources 解析：
+在 graph.py 头部已有 imports 区追加一行 `import json`
+
+- [ ] **Step 2: 在 `all_msgs` 赋值后追加 sources 解析代码**
+
+位置: `all_msgs = final.get("messages", [])` 之后, `except GraphRecursionError:` 之前
 
 ```python
-# 在 agent/agent/tools.py 确认工具返回格式后，解析 tool messages
-# 当前所有 CODEGRAPH_TOOLS 返回的结构中包含文件路径信息
-
-# Parse sources from tool messages
-sources = []
-for m in all_msgs:
-    role = getattr(m, "type", "")
-    if role == "tool":
-        content = getattr(m, "content", "") or ""
-        name = getattr(m, "name", "")
-        # code_search / code_context / code_grep 的结果包含文件路径
-        if name in ("code_search", "code_context", "code_grep", "code_files", "code_read_wiki"):
-            try:
-                data = json.loads(content) if isinstance(content, str) else content
-                if isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict) and "file" in item:
+        # Parse sources from tool messages
+        sources = []
+        for m in all_msgs:
+            role = getattr(m, "type", "")
+            if role == "tool":
+                content = getattr(m, "content", "") or ""
+                name = getattr(m, "name", "")
+                if name in ("code_search", "code_context", "code_grep", "code_files", "code_read_wiki"):
+                    try:
+                        data = json.loads(content) if isinstance(content, str) else content
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict) and "file" in item:
+                                    sources.append({
+                                        "file": item.get("file", ""),
+                                        "line": item.get("line", ""),
+                                        "snippet": str(item.get("snippet", item.get("content", "")))[:300],
+                                    })
+                        elif isinstance(data, dict) and "file" in data:
                             sources.append({
-                                "file": item.get("file", ""),
-                                "line": item.get("line", ""),
-                                "snippet": str(item.get("snippet", item.get("content", "")))[:300],
+                                "file": data.get("file", ""),
+                                "line": data.get("line", ""),
+                                "snippet": str(data.get("snippet", data.get("content", "")))[:300],
                             })
-                elif isinstance(data, dict) and "file" in data:
-                    sources.append({
-                        "file": data.get("file", ""),
-                        "line": data.get("line", ""),
-                        "snippet": str(data.get("snippet", data.get("content", "")))[:300],
-                    })
-            except (json.JSONDecodeError, TypeError):
-                pass
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
-# 去重
-seen = set()
-unique_sources = []
-for s in sources:
-    key = (s["file"], s["line"])
-    if key not in seen:
-        seen.add(key)
-        unique_sources.append(s)
-
-return {"messages": all_msgs, "sources": unique_sources}
+        # 去重
+        seen = set()
+        unique_sources = []
+        for s in sources:
+            key = (s["file"], s["line"])
+            if key not in seen:
+                seen.add(key)
+                unique_sources.append(s)
 ```
 
-- [ ] **Step 2: 更新 main.py 中 _qa_event_stream 消费 sources**
+- [ ] **Step 3: GraphRecursionError 块加空 sources**
+
+在 `except GraphRecursionError:` 块的 `all_msgs = [AIMessage(content=resp.content)]` 之后加一行:
 
 ```python
-# 在 _qa_event_stream 中，result 现在包含 sources
-sources = result.get("sources", [])
-if sources:
-    yield _sse("sources", {"sources": sources})
+        unique_sources = []
 ```
 
-- [ ] **Step 3: 验证后端启动**
+- [ ] **Step 4: 修改 return 语句**
+
+将 `return {"messages": all_msgs}` 改为:
+
+```python
+    return {"messages": all_msgs, "sources": unique_sources}
+```
+
+- [ ] **Step 5: 验证**
 
 ```bash
 cd /home/long2015/Code/OpenCodeWiki/backend && python -c "from agent.graph import get_graph; g = get_graph(); print('graph OK')"
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add backend/agent/graph.py backend/main.py
-git commit -m "feat: graph.py — run_sub 从 tool messages 解析 sources + SSE emit
+git add backend/agent/graph.py
+git commit -m "feat: graph.py — run_sub 从 tool messages 解析 sources
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 4: main.py — 4 个新端点 + 2 个已有端点修改
+### Task 4: main.py — 4 个新端点 + save 修改 + SSE sources 事件
 
 **Files:**
 - Modify: `backend/main.py`
