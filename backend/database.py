@@ -76,7 +76,23 @@ def _init_qa_db(db: sqlite3.Connection):
         );
         CREATE INDEX IF NOT EXISTS idx_ca_entry
             ON calibrated_answers(qa_entry_id);
+
+        CREATE TABLE IF NOT EXISTS session_topics (
+            session_id  TEXT NOT NULL,
+            topic_slug  TEXT NOT NULL,
+            PRIMARY KEY (session_id, topic_slug)
+        );
     """)
+
+    # 新增列（migration-safe）
+    for col, defn in [
+        ("feedback", "TEXT DEFAULT NULL"),
+        ("changes", "TEXT DEFAULT NULL"),
+    ]:
+        try:
+            db.execute(f"ALTER TABLE qa_entries ADD COLUMN {col} {defn}")
+        except Exception:
+            pass  # column already exists
 
 
 def close_qa_db():
