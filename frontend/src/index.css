@@ -28,3 +28,12 @@
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Answer block hover action bar */
+.answer-block .action-bar {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.answer-block:hover .action-bar {
+  opacity: 1 !important;
+}

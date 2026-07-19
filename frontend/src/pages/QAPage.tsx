@@ -109,12 +109,94 @@ export function QAPage() {
 
           {/* Top bar */}
           <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0">
-            {/* placeholder */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLeftPanelOpen(prev => !prev)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+              >
+                <Sidebar className="w-4 h-4" />
+              </button>
+              {activeSession ? (
+                <>
+                  <span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
+                  <h2 className="text-xs font-bold text-gray-900 truncate max-w-md">{activeSession.question}</h2>
+                </>
+              ) : (
+                <span className="text-xs text-gray-400">对代码库提问</span>
+              )}
+            </div>
+            <button
+              onClick={() => setRightPanelOpen(prev => !prev)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+            >
+              <PanelRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Message area */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar pb-28">
-            {/* placeholder */}
+            {!activeSession && (
+              <div className="text-center text-gray-400 py-20">
+                <h2 className="text-lg font-bold text-gray-700 mb-2">对代码库提问</h2>
+                <p className="text-sm">我可以帮你理解架构、定位代码或解释工作原理</p>
+              </div>
+            )}
+
+            {activeSession && (
+              <>
+                {activeSession.messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {m.role === 'user' ? (
+                      <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-cyber-blue text-white">
+                        {m.content}
+                      </div>
+                    ) : (
+                      <div className="answer-block max-w-[85%] border border-transparent hover:border-slate-100/60 rounded-xl p-2 -mx-2 transition-all duration-200 space-y-4">
+                        <div className="text-sm text-gray-700 leading-relaxed bg-slate-50/40 border border-gray-200 p-4 rounded-xl">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
+
+                        {/* Hover actions */}
+                        <div className="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6"
+                             style={{ opacity: 0, transition: 'opacity 0.15s ease' }}>
+                          <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition" title="回答已采纳">
+                            <ThumbsUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition" title="待验证">
+                            <ThumbsDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            className="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition"
+                            onClick={() => navigator.clipboard.writeText(m.content)}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button className="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition">
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Streaming answer (live or background) */}
+                {activeSession.isStreaming && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-xl p-4 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">
+                      {activeSession.streamingAnswer ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeSession.streamingAnswer}</ReactMarkdown>
+                      ) : (
+                        <div className="flex items-center gap-2 text-gray-400 py-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Agent 思考中...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Bottom input */}
