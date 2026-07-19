@@ -11,7 +11,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Hash, BookOpen } from 'lucide-react'
+import { Hash, BookOpen, Loader2 } from 'lucide-react'
 
 export function WikiPage() {
   const { repo } = useParams<{ repo: string }>()
@@ -20,12 +20,14 @@ export function WikiPage() {
   const [pageType, setPageType] = useState<'wiki' | 'topic'>('wiki')
   const [currentSlug, setCurrentSlug] = useState('')
   const [wikiData, setWikiData] = useState<WikiPageResponse | null>(null)
+  const [loading, setLoading] = useState(false)
   const articleRef = useRef<HTMLDivElement>(null)
 
   const currentHash = location.hash.replace('#', '')
 
   const loadContent = useCallback(async (slug: string) => {
     if (!slug) return
+    setLoading(true)
     setCurrentSlug(slug)
     try {
       const data = await fetchWikiPage(slug)
@@ -36,6 +38,8 @@ export function WikiPage() {
       setWikiData(null)
       setRawContent('')
       setPageType('wiki')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -162,8 +166,13 @@ export function WikiPage() {
                       </ReactMarkdown>
                     </article>
                   </div>
+                ) : loading ? (
+                  <div className="text-center text-gray-400 py-20">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                    <span>加载中...</span>
+                  </div>
                 ) : currentSlug ? (
-                  <div className="text-center text-gray-400 py-20">加载中或页面不存在</div>
+                  <div className="text-center text-gray-400 py-20">页面不存在</div>
                 ) : null}
               </div>
             </div>
