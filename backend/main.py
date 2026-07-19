@@ -335,6 +335,12 @@ async def api_qa_entry(qid: int):
     return _ok(entry)
 
 
+@app.get("/api/qa/entry/{qid}/followups")
+async def api_qa_followups(qid: int):
+    from stores.qa import list_followups
+    return _ok(list_followups(qid))
+
+
 @app.post("/api/qa/entry/{qid}/calibrate")
 async def api_qa_calibrate(qid: int, body: dict):
     answer = (body.get("answer") or "").strip()

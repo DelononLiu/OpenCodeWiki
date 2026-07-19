@@ -174,3 +174,13 @@ def update_domain(qid: int, domain: str):
     db = get_qa_db()
     db.execute("UPDATE qa_entries SET domain = ? WHERE qid = ?", (domain, qid))
     db.commit()
+
+
+def list_followups(parent_qid: int) -> list[dict]:
+    """列出某个 QA 条目的所有追问，按时间正序。"""
+    db = get_qa_db()
+    rows = db.execute(
+        "SELECT qid, question, answer, created_at FROM qa_entries WHERE parent_qid = ? ORDER BY created_at ASC",
+        (parent_qid,),
+    ).fetchall()
+    return [dict(r) for r in rows]

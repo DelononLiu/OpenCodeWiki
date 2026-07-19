@@ -10,6 +10,7 @@ from stores.qa import (
     list_pending,
     search_questions,
     bump_visit,
+    list_followups,
     update_domain,
 )
 from stores.topics import (
@@ -47,6 +48,7 @@ __all__ = [
     "list_pending",
     "search_questions",
     "bump_visit",
+    "list_followups",
     "update_domain",
     "list_sources",
     "get_source",
