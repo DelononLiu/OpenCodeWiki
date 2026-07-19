@@ -1,12 +1,12 @@
 #!/bin/bash
-# OpenCodeWiki 服务管理 Plugin 安装脚本
+# 通用服务管理 Plugin 安装脚本
 # 用法: bash template-install.sh /path/to/target-project
 
 set -e
 
 TARGET="${1:-.}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_NAME="opencodewiki-service"
+PLUGIN_NAME="service-mgmt"
 
 if [ ! -d "$TARGET" ]; then
   echo "❌ 目标目录不存在: $TARGET"
@@ -32,18 +32,18 @@ if [ ! -f ".claude/settings.json" ]; then
   cat > .claude/settings.json <<EOF
 {
   "extraKnownMarketplaces": {
-    "opencodewiki-service": {
+    "$PLUGIN_NAME": {
       "source": {
         "source": "directory",
-        "path": ".claude-plugin/opencodewiki-service"
+        "path": ".claude-plugin/$PLUGIN_NAME"
       }
     }
   }
 }
 EOF
   echo "✅ 已创建 .claude/settings.json"
-elif ! grep -q "opencodewiki-service" .claude/settings.json 2>/dev/null; then
-  echo "⚠️  .claude/settings.json 已存在但未注册，请手动添加 opencodewiki-service marketplace"
+elif ! grep -q "$PLUGIN_NAME" .claude/settings.json 2>/dev/null; then
+  echo "⚠️  .claude/settings.json 已存在但未注册，请手动添加 $PLUGIN_NAME marketplace"
 else
   echo "✅ .claude/settings.json 已注册"
 fi

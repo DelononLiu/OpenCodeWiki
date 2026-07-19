@@ -1,9 +1,9 @@
 {
   "extraKnownMarketplaces": {
-    "opencodewiki-service": {
+    "service-mgmt": {
       "source": {
         "source": "directory",
-        "path": ".claude-plugin/opencodewiki-service"
+        "path": ".claude-plugin/service-mgmt"
       }
     }
   }

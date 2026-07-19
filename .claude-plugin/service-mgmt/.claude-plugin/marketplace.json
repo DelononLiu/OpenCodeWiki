@@ -1,0 +1,11 @@
+{
+  "name": "service-mgmt",
+  "description": "通用服务管理插件 — 启动/停止/日志查看（自动适配前端+后端项目）",
+  "plugins": [
+    {
+      "name": "service",
+      "description": "服务管理工具集",
+      "source": "./"
+    }
+  ]
+}

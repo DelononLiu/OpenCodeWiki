@@ -13,16 +13,16 @@ description: 将服务管理 plugin 安装到另一个项目
 cd /path/to/target-project
 
 # 从本 plugin 拷过去
-cp -r /path/to/opencodewiki/.claude-plugin/opencodewiki-service/ .claude-plugin/
+cp -r /path/to/source-project/.claude-plugin/service-mgmt/ .claude-plugin/
 
 # 创建注册文件
 cat > .claude/settings.json <<'EOF'
 {
   "extraKnownMarketplaces": {
-    "opencodewiki-service": {
+    "service-mgmt": {
       "source": {
         "source": "directory",
-        "path": ".claude-plugin/opencodewiki-service"
+        "path": ".claude-plugin/service-mgmt"
       }
     }
   }
@@ -33,7 +33,11 @@ EOF
 ## 用安装脚本
 
 ```bash
-bash .claude-plugin/opencodewiki-service/template-install.sh /path/to/target-project
+# 脚本在 plugin 目录内
+bash .claude-plugin/service-mgmt/template-install.sh /path/to/target-project
+
+# 或从源项目直接指定路径
+bash /path/to/source-project/.claude-plugin/service-mgmt/template-install.sh /path/to/target-project
 ```
 
 ## 安装后
