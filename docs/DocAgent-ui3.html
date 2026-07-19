@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-[#F8F9FA] text-[#1E293B]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCodeWiki - 克制化反馈机制 (完整版)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        cyber: {
+                            blue: '#4F46E5',    
+                            blueDark: '#4338CA',
+                            green: '#10B981',   
+                            orange: '#F59E0B',  
+                            red: '#EF4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .modern-shadow { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.03); }
+        .code-container { position: relative; background: #1E1E2F; }
+        
+        /* 核心：回答区块未悬停时隐藏小工具栏 */
+        .answer-block .action-bar {
+            opacity: 0;
+            transform: translateY(2px);
+            transition: all 0.2s ease-in-out;
+            pointer-events: none;
+        }
+        .answer-block:hover .action-bar {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        /* 气泡式 Tooltip */
+        .tooltip-trigger { position: relative; }
+        .tooltip-box {
+            position: absolute;
+            bottom: 130%;
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.15s ease-out;
+            white-space: nowrap;
+        }
+        .tooltip-trigger:hover .tooltip-box {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden font-sans antialiased bg-[#F8F9FA]">
+
+    <!-- ================= HEADER ================= -->
+    <header class="bg-white border-b border-gray-200/60 px-8 py-3.5 flex items-center justify-between z-30 shrink-0">
+        <div class="flex items-center gap-3 select-none">
+            <div class="w-6 h-6 bg-cyber-blue rounded-md flex items-center justify-center text-white font-black text-xs font-mono shadow-sm">W</div>
+            <span class="font-sans font-bold text-base tracking-tight text-gray-900">OpenCodeWiki</span>
+        </div>
+        <div class="flex items-center gap-6 text-sm text-gray-600 font-medium">
+            <a href="#" class="flex items-center gap-1.5 hover:text-gray-900 transition"><i data-lucide="home" class="w-4 h-4 text-gray-400"></i> 首页</a>
+            <a href="#" class="flex items-center gap-1.5 hover:text-gray-900 transition"><i data-lucide="book-open" class="w-4 h-4 text-gray-400"></i> Wiki</a>
+            <a href="#" class="flex items-center gap-1.5 text-cyber-blue font-semibold transition"><i data-lucide="messages-square" class="w-4 h-4"></i> 问答</a>
+            <div class="flex items-center gap-2 pl-2 border-l border-gray-200 cursor-pointer">
+                <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[11px] font-bold text-gray-600">L</div>
+                <span class="text-xs text-gray-700">long2015</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= 工作台 ================= -->
+    <div class="flex-1 flex overflow-hidden w-full px-6 py-4 gap-4 relative">
+
+        <!-- ================= 🏷️ 左栏：历史与思维弹夹 (已找回相关问题) ================= -->
+        <aside id="left-panel" class="w-64 bg-white border border-gray-200/60 rounded-xl p-4 flex flex-col shrink-0 gap-5 shadow-sm transition-all duration-300 overflow-y-auto no-scrollbar">
+            <div class="space-y-5 text-xs">
+                <!-- 1. 关联主题 -->
+                <div>
+                    <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1"><i data-lucide="hash" class="w-3.5 h-3.5 inline text-cyber-blue mr-0.5"></i> 关联主题</h3>
+                    <div class="px-2.5 py-1.5 rounded-lg bg-cyber-blue/5 border border-cyber-blue/20 text-cyber-blue font-mono font-bold text-[11px]">#qa-engine</div>
+                </div>
+
+                <!-- 2. 相关问题 (找回并升级状态标签) -->
+                <div class="pt-4 border-t border-gray-200/60">
+                    <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 px-1 flex items-center gap-1">
+                        <i data-lucide="help-circle" class="w-3.5 h-3.5 text-cyber-blue"></i> 相关问题
+                    </h3>
+                    <ul class="space-y-2 text-[11px]">
+                        <li>
+                            <button onclick="alert('无缝切换至相关知识')" class="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1">
+                                <span class="leading-snug">❓ 异步加载后如何做预热保护避免空指针？</span>
+                                <span class="text-[9px] px-1 py-0.2 rounded bg-cyber-green/10 text-cyber-green self-start font-bold">已有规范解</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button onclick="alert('无缝切换至相关知识')" class="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1">
+                                <span class="leading-snug">❓ 全量本地内存索引会引发 OOM 溢出吗？</span>
+                                <span class="text-[9px] px-1 py-0.2 rounded bg-cyber-red/10 text-cyber-red self-start font-bold">待挂账会诊</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <!-- 3. 历史对话 -->
+                <div class="pt-4 border-t border-gray-200/60">
+                    <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1"><i data-lucide="clock" class="w-3.5 h-3.5 inline mr-0.5"></i> 历史对话</h3>
+                    <div class="bg-slate-100 text-gray-900 p-2 rounded-lg font-mono text-[11px] flex justify-between items-center">
+                        <span class="truncate">LSH冷启动300ms停顿</span>
+                        <span id="status-tag" class="hidden text-[9px] px-1 py-0.2 rounded bg-cyber-red/10 text-cyber-red font-sans font-bold">未决</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中栏 (核心对话交火区) -->
+        <main class="flex-1 bg-white border border-gray-200/50 modern-shadow rounded-xl flex flex-col overflow-hidden relative">
+            <div class="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleLeftPanel()" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"><i data-lucide="sidebar" class="w-4 h-4"></i></button>
+                    <span class="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
+                    <h2 class="text-xs font-bold text-gray-900">高并发冷启动阶段，系统偶发 300ms 严重卡死怎么解决？</h2>
+                </div>
+                <button onclick="toggleRightPanel()" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"><i data-lucide="sidebar-right" class="w-4 h-4"></i></button>
+            </div>
+
+            <!-- 对话正文流 -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-36">
+                
+                <div class="answer-block border border-transparent hover:border-slate-100/60 rounded-xl p-2 -mx-2 transition-all duration-200 space-y-4">
+                    <div class="space-y-4">
+                        <p class="text-xs text-gray-700 leading-relaxed bg-slate-50/40 border border-gray-200 p-4 rounded-xl">
+                            此延迟是由于本地 LSH 索引库在冷启动初始化时，触发了同步反序列化操作（使用了 <code>readFileSync</code>），从而直接在主线程上造成了约 300ms 的事件循环阻塞。
+                            <span onclick="openSourceInRight('ref')" class="mx-0.5 px-1.5 py-0.5 bg-cyber-blue/10 text-cyber-blue hover:bg-cyber-blue hover:text-white text-[10px] font-mono font-bold rounded cursor-pointer transition-all">① 参考引用</span>。
+                        </p>
+                        
+                        <div class="border border-gray-200 rounded-xl overflow-hidden text-xs">
+                            <div class="bg-slate-50 border-b border-gray-100 px-4 py-2 flex justify-between items-center text-[10px] font-mono text-gray-400">
+                                <span>修改路径: src/server/router.ts</span>
+                                <span onclick="openSourceInRight('change')" class="text-cyber-orange font-bold cursor-pointer bg-cyber-orange/10 px-1.5 py-0.5 rounded">② 关联影响确认</span>
+                            </div>
+                            <div class="p-4 bg-[#1E1E2F] text-gray-300 font-mono text-[11px] leading-relaxed">
+<span class="text-cyber-green">//  ✔️ 正确改造：重构为异步非阻塞加载</span>
+<span class="text-cyber-green">const indexData = await fs.promises.readFile(path.join(__dirname, 'lsh.index'));</span>
+<span class="text-cyber-green">this.lshEngine.init(indexData);</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 结案反馈工具栏（静默隐藏，悬停显示） -->
+                    <div class="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6">
+                        <div class="tooltip-trigger">
+                            <button onclick="submitFeedback(true)" class="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition flex items-center justify-center">
+                                <i data-lucide="thumbs-up" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <div class="tooltip-box bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg shadow-xl flex flex-col gap-0.5 z-20">
+                                <span class="font-bold text-gray-200 flex items-center gap-1"><i data-lucide="sparkles" class="w-3 h-3 text-amber-400"></i> 帮助提升回答质量</span>
+                                <span class="text-gray-400">若方案成功解决，请给予反馈以供系统调优</span>
+                            </div>
+                        </div>
+
+                        <div class="tooltip-trigger">
+                            <button onclick="submitFeedback(false)" class="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition flex items-center justify-center">
+                                <i data-lucide="thumbs-down" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <div class="tooltip-box bg-slate-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg shadow-xl flex flex-col gap-0.5 z-20">
+                                <span class="font-bold text-gray-200 flex items-center gap-1"><i data-lucide="shield-alert" class="w-3 h-3 text-cyber-red"></i> 方案仍有错误？</span>
+                                <span class="text-gray-400">点击将自动挂账诊断，排查检索或盲区问题</span>
+                            </div>
+                        </div>
+
+                        <button onclick="alert('已复制')" class="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition flex items-center justify-center"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                        <button class="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition flex items-center justify-center"><i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i></button>
+
+                        <span id="feedback-done-tag" class="hidden text-[10px] font-medium text-cyber-green ml-2 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/50">
+                            <i data-lucide="check" class="w-3 h-3"></i> 已收集反馈，谢谢您帮助提升质量
+                        </span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 常驻底部提问框 -->
+            <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pointer-events-none p-4 z-10">
+                <div class="w-full bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
+                    <input type="text" class="w-full bg-transparent border-none text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1 px-2" placeholder="在此继续追问...">
+                    <button class="bg-cyber-blue text-white rounded-lg px-4 py-1.5 text-xs font-semibold shrink-0">发送</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右栏 (DeepWiki 物理切片沙箱) -->
+        <aside id="right-panel" class="w-[450px] bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm transition-all duration-300">
+            <div class="flex border-b border-gray-100 bg-slate-50/50 p-1 text-[11px] font-medium text-gray-500 select-none">
+                <button id="tab-btn-ref" onclick="switchRightTab('ref')" class="flex-1 py-1.5 text-center rounded-md transition-all font-bold text-cyber-blue bg-white shadow-sm">参考引用</button>
+                <button id="tab-btn-change" onclick="switchRightTab('change')" class="flex-1 py-1.5 text-center rounded-md transition-all">关联配置/变更</button>
+            </div>
+
+            <div id="right-panel-content" class="flex-1 p-4 overflow-y-auto no-scrollbar">
+                <div id="tab-content-ref" class="space-y-3">
+                    <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono"><span>📄 物理规范：docs/02-qa-engine.md</span><span>L14 - L15</span></div>
+                    <div class="code-container rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                        <div class="text-white font-medium">14 | 1. 系统分流引擎在冷启动阶段加载索引时，必须严格采用异步非阻塞I/O；</div>
+                    </div>
+                </div>
+                <div id="tab-content-change" class="space-y-3 hidden">
+                    <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono"><span>⚙️ 关联配置：config/app.yml</span><span>L46</span></div>
+                    <div class="code-container rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                        <div class="text-amber-400">46 |   bootstrap.timeout: 500</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- ================= 🧠 控制脚本 ================= -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); });
+
+        let leftExpanded = true;
+        let rightExpanded = true;
+
+        function toggleLeftPanel() {
+            const panel = document.getElementById('left-panel');
+            leftExpanded = !leftExpanded;
+            panel.style.width = leftExpanded ? '16rem' : '0px';
+            panel.style.opacity = leftExpanded ? '1' : '0';
+            panel.style.borderWidth = leftExpanded ? '1px' : '0px';
+            panel.style.padding = leftExpanded ? '1rem' : '0px';
+        }
+
+        function toggleRightPanel() {
+            const panel = document.getElementById('right-panel');
+            rightExpanded = !rightExpanded;
+            panel.style.width = rightExpanded ? '450px' : '0px';
+            panel.style.opacity = rightExpanded ? '1' : '0';
+            panel.style.borderWidth = rightExpanded ? '1px' : '0px';
+        }
+
+        function switchRightTab(tabId) {
+            const tabs = ['ref', 'change'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const content = document.getElementById(`tab-content-${t}`);
+                btn.className = (t === tabId) ? "flex-1 py-1.5 text-center rounded-md transition-all font-bold text-cyber-blue bg-white shadow-sm" : "flex-1 py-1.5 text-center rounded-md transition-all text-gray-500";
+                if(t === tabId) content.classList.remove('hidden'); else content.classList.add('hidden');
+            });
+        }
+
+        function openSourceInRight(tabId) {
+            if (!rightExpanded) toggleRightPanel();
+            switchRightTab(tabId);
+        }
+
+        function submitFeedback(isSuccess) {
+            const triggers = document.querySelectorAll('.action-bar .tooltip-trigger');
+            triggers.forEach(t => t.classList.add('hidden'));
+            document.getElementById('feedback-done-tag').classList.remove('hidden');
+
+            if (!isSuccess) {
+                document.getElementById('status-tag').classList.remove('hidden');
+                if (!rightExpanded) toggleRightPanel();
+                document.getElementById('right-panel-content').innerHTML = `
+                    <div class="p-4 space-y-3">
+                        <div class="text-cyber-red font-bold text-[11px] flex items-center gap-1"><i data-lucide="shield-alert" class="w-4 h-4"></i> 缺陷已挂账诊断</div>
+                        <p class="text-xs text-gray-600 leading-relaxed">后台数据审计模块已成功记录上下文，管理员将在后台深度分析是RAG检索偏移还是缺乏核心知识源。</p>
+                    </div>`;
+                lucide.createIcons();
+            }
+        }
+    </script>
+</body>
+</html>

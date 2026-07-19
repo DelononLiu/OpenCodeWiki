@@ -3,7 +3,7 @@
     "service-mgmt": {
       "source": {
         "source": "directory",
-        "path": ".claude-plugin/service-mgmt"
+        "path": ".claude/service-mgmt"
       }
     }
   }
