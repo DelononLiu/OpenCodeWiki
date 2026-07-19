@@ -93,3 +93,104 @@ class TestQAEntryOperations:
         assert resp.status_code == 200
         data = resp.json()
         assert data["data"]["question"] == "单个获取"
+
+
+class TestSessions:
+    def test_list_sessions(self, client):
+        """GET /api/sessions 返回 session 列表"""
+        from stores.qa import create_entry
+        create_entry({"question": "会话测试", "answer": "A", "session_id": "sess-route-test"})
+
+        resp = client.get("/api/sessions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        sessions = data["data"]["sessions"]
+        assert any(s["session_id"] == "sess-route-test" for s in sessions)
+        s = next(s for s in sessions if s["session_id"] == "sess-route-test")
+        assert "root_question" in s
+        assert "message_count" in s
+
+
+class TestQASave:
+    def test_save_creates_entry(self, client):
+        """POST /api/qa/save 创建条目"""
+        resp = client.post("/api/qa/save", json={
+            "question": "保存测试", "answer": "答案内容",
+            "session_id": "save-route-test", "session_create": False,
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["data"]["qid"] > 0
+        assert data["data"]["session_id"] == "save-route-test"
+
+    def test_save_missing_question(self, client):
+        """POST /api/qa/save 缺少 question 返回错误"""
+        resp = client.post("/api/qa/save", json={"answer": "X"})
+        assert resp.status_code == 400
+
+
+class TestFeedback:
+    def test_save_feedback(self, client):
+        """POST /api/qa/entry/{qid}/feedback 保存反馈"""
+        from stores.qa import create_entry
+        entry = create_entry({"question": "反馈测试", "answer": "A", "session_id": "fb-route"})
+
+        resp = client.post(f"/api/qa/entry/{entry['qid']}/feedback",
+                           json={"feedback": "accepted"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["data"]["feedback"] == "accepted"
+
+    def test_feedback_invalid(self, client):
+        """反馈值无效返回错误"""
+        resp = client.post("/api/qa/entry/1/feedback", json={"feedback": "bad"})
+        assert resp.status_code == 400
+
+    def test_feedback_not_found(self, client):
+        """反馈不存在的条目返回 404"""
+        resp = client.post("/api/qa/entry/99999/feedback",
+                           json={"feedback": "accepted"})
+        assert resp.status_code == 404
+
+
+class TestSources:
+    def test_get_sources(self, client):
+        """GET /api/qa/entry/{qid}/sources 返回参考引用"""
+        from stores.qa import create_entry
+        entry = create_entry({
+            "question": "引用测试", "answer": "A",
+            "session_id": "src-route",
+            "sources": [{"file": "a.py", "line": "L1", "snippet": "code"}],
+        })
+
+        resp = client.get(f"/api/qa/entry/{entry['qid']}/sources")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert len(data["data"]["sources"]) == 1
+        assert data["data"]["sources"][0]["file"] == "a.py"
+
+    def test_get_sources_empty(self, client):
+        """无引用时返回空列表"""
+        from stores.qa import create_entry
+        entry = create_entry({"question": "空引用", "session_id": "src-empty"})
+
+        resp = client.get(f"/api/qa/entry/{entry['qid']}/sources")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["sources"] == []
+
+
+class TestRelated:
+    def test_get_related_empty(self, client):
+        """GET /api/qa/entry/{qid}/related 无匹配 topic 返回空"""
+        from stores.qa import create_entry
+        entry = create_entry({"question": "Q1", "answer": "A", "session_id": "rel-no-topic"})
+
+        resp = client.get(f"/api/qa/entry/{entry['qid']}/related")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["data"]["related"] == []
