@@ -128,6 +128,7 @@ export function QAPage() {
     setActiveSessionId(sid!)
 
     let collectedAnswer = ''
+    let errorMsg = ''
     streamAbortedRef.current = false
 
     await stream('/api/qa', { question }, (msg) => {
@@ -140,6 +141,8 @@ export function QAPage() {
             streamingAnswer: collectedAnswer,
           },
         }))
+      } else if (msg.type === 'error' && msg.message) {
+        errorMsg = msg.message as string
       }
     })
 
@@ -156,7 +159,7 @@ export function QAPage() {
     // Stream complete — add assistant message
     const assistantMsg: Message = {
       role: 'assistant',
-      content: collectedAnswer || '(未生成回答)',
+      content: collectedAnswer || (errorMsg ? `> ⚠️ ${errorMsg}` : ''),
     }
 
     setSessions(prev => ({
