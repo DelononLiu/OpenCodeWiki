@@ -22,22 +22,22 @@
 
 ```bash
 # 注册一个代码仓库
-curl -X POST http://localhost:8000/api/repos -H "Content-Type: application/json" \
+curl -X POST http://localhost:8100/api/repos -H "Content-Type: application/json" \
   -d '{"path": "/home/user/Code/my-project"}'
 
 # 提一个问答（SSE 流式返回）
-curl -N http://localhost:8000/api/qa -H "Content-Type: application/json" \
+curl -N http://localhost:8100/api/qa -H "Content-Type: application/json" \
   -d '{"question": "这个项目的入口在哪？", "repo": "my-project"}'
 
 # 查看已校准的 QA 条目
-curl http://localhost:8000/api/qa/entries?status=active
+curl http://localhost:8100/api/qa/entries?status=active
 ```
 
 ## 快速启动
 
 ```bash
 # 后端
-cd backend && source .venv/bin/activate && uvicorn main:app --port 8000 --reload
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100 --reload
 
 # 前端开发
 cd frontend && npm run dev
@@ -50,13 +50,13 @@ cd frontend && npm run build
 
 ```bash
 docker build -t opencodewiki .
-docker run -d -p 8000:8000 -v ~/.opencodewiki:/root/.opencodewiki opencodewiki
+docker run -d -p 8100:8100 -v ~/.opencodewiki:/root/.opencodewiki opencodewiki
 ```
 
 挂载 `~/.opencodewiki` 以持久化 SQLite 数据。通过环境变量配置 LLM：
 
 ```bash
-docker run -d -p 8000:8000 \
+docker run -d -p 8100:8100 \
   -v ~/.opencodewiki:/root/.opencodewiki \
   -e LLM_API_KEY=sk-xxx \
   -e LLM_MODEL=deepseek-v4-flash \

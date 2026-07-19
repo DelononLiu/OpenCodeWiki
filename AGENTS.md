@@ -62,8 +62,8 @@ opencodewiki/
 
 ```bash
 # 后端
-cd backend && source .venv/bin/activate && uvicorn main:app --port 8000 
-# 前端开发 (Vite 代理 API 到 :8000)
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8100
+# 前端开发 (Vite 代理 API 到 :8100)
 cd frontend && npm run dev
 
 # 生产 (Python 直接 serve 构建产物)
