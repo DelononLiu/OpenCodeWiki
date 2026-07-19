@@ -40,6 +40,7 @@ export function QAPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const autoSubmitDoneRef = useRef(false)
   const streamAbortedRef = useRef(false)
+  const messageAreaRef = useRef<HTMLDivElement>(null)
 
   // ── Backend data ────────────────────────────────────────
   const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string; message_count: number; topic_slug?: string}[]>([])
@@ -201,6 +202,13 @@ export function QAPage() {
   }, [])
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null
+
+  // Auto-scroll to bottom when messages or streaming answer update
+  useEffect(() => {
+    if (messageAreaRef.current) {
+      messageAreaRef.current.scrollTop = messageAreaRef.current.scrollHeight
+    }
+  }, [activeSession?.messages, activeSession?.streamingAnswer])
 
   // Load a session from backend (for history clicks / ?qid= links)
   const loadSession = useCallback(async (sessionId: string, rootQid: number) => {
@@ -419,7 +427,7 @@ export function QAPage() {
           </div>
 
           {/* Message area */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar pb-28">
+          <div ref={messageAreaRef} className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar pb-28">
             {!activeSession && (
               <div className="text-center text-gray-400 py-20">
                 <h2 className="text-lg font-bold text-gray-700 mb-2">对代码库提问</h2>
@@ -488,9 +496,10 @@ export function QAPage() {
                       {activeSession.streamingAnswer ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeSession.streamingAnswer}</ReactMarkdown>
                       ) : (
-                        <div className="flex items-center gap-2 text-gray-400 py-2">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Agent 思考中...</span>
+                        <div className="flex items-center gap-1.5 text-gray-400 py-2">
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                       )}
                     </div>
