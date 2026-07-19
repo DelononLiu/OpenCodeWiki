@@ -210,12 +210,14 @@ def list_sessions() -> list[dict]:
     """返回所有 session 摘要，按时间倒序。"""
     db = get_qa_db()
     rows = db.execute(
-        "SELECT session_id, question AS root_question, created_at, "
-        "(SELECT COUNT(*) FROM qa_entries e2 WHERE e2.session_id = qa_entries.session_id) AS message_count "
-        "FROM qa_entries "
-        "WHERE session_id != '' "
-        "GROUP BY session_id "
-        "ORDER BY MIN(created_at) DESC"
+        "SELECT q.session_id, q.qid AS root_qid, q.question AS root_question, q.created_at, "
+        "(SELECT COUNT(*) FROM qa_entries e2 WHERE e2.session_id = q.session_id) AS message_count, "
+        "st.topic_slug "
+        "FROM qa_entries q "
+        "LEFT JOIN session_topics st ON st.session_id = q.session_id "
+        "WHERE q.session_id != '' "
+        "AND q.qid = (SELECT MIN(e2.qid) FROM qa_entries e2 WHERE e2.session_id = q.session_id) "
+        "ORDER BY q.created_at DESC"
     ).fetchall()
     return [dict(r) for r in rows]
 

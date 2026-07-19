@@ -35,18 +35,17 @@ describe('QAPage (new chat layout)', () => {
     expect(screen.getByText('我可以帮你理解架构、定位代码或解释工作原理')).toBeInTheDocument()
   })
 
-  it('should render left panel sections', () => {
+  it('should render left panel section headers', () => {
     renderQAPage()
     expect(screen.getByText('关联主题')).toBeInTheDocument()
-    expect(screen.getByText('#qa-engine')).toBeInTheDocument()
     expect(screen.getByText('相关问题')).toBeInTheDocument()
     expect(screen.getByText('历史对话')).toBeInTheDocument()
   })
 
-  it('should render left panel static content', () => {
+  it('should show empty placeholders when no data', () => {
     renderQAPage()
-    expect(screen.getByText('回答已采纳')).toBeInTheDocument()
-    expect(screen.getByText('待验证')).toBeInTheDocument()
+    expect(screen.getByText('暂无相关问题')).toBeInTheDocument()
+    expect(screen.getByText('暂无对话')).toBeInTheDocument()
   })
 
   it('should render bottom input bar', () => {
@@ -56,10 +55,10 @@ describe('QAPage (new chat layout)', () => {
     expect(screen.getByText('发送')).toBeInTheDocument()
   })
 
-  it('should render right panel sections', () => {
+  it('should render right panel with reference section', () => {
     renderQAPage()
     expect(screen.getByText('参考引用')).toBeInTheDocument()
-    expect(screen.getByText('关联变更')).toBeInTheDocument()
+    expect(screen.getByText('暂无引用来源')).toBeInTheDocument()
   })
 
   it('should render panel toggle buttons in top bar', () => {

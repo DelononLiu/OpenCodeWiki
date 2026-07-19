@@ -41,6 +41,46 @@ export function QAPage() {
   const autoSubmitDoneRef = useRef(false)
   const streamAbortedRef = useRef(false)
 
+  // ── Backend data ────────────────────────────────────────
+  const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string; message_count: number; topic_slug?: string}[]>([])
+  const [relatedQuestions, setRelatedQuestions] = useState<{qid: number; question: string; status: string}[]>([])
+  const [sourceRefs, setSourceRefs] = useState<{file: string; line: string; snippet: string}[]>([])
+  const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
+
+  // Fetch session history
+  const fetchSessionList = useCallback(() => {
+    fetch('/api/sessions').then(r => r.json()).then(d => {
+      if (d.ok) setSessionList(d.data.sessions || [])
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchSessionList() }, [fetchSessionList])
+
+  // When active session changes, look up root_qid and fetch related + sources
+  useEffect(() => {
+    if (!activeSessionId) {
+      setActiveRootQid(null)
+      setRelatedQuestions([])
+      setSourceRefs([])
+      return
+    }
+    const info = sessionList.find(s => s.session_id === activeSessionId)
+    const rootQid = info?.root_qid
+    setActiveRootQid(rootQid || null)
+
+    if (rootQid) {
+      fetch(`/api/qa/entry/${rootQid}/related`).then(r => r.json()).then(d => {
+        if (d.ok) setRelatedQuestions(d.data.related || [])
+      }).catch(() => {})
+      fetch(`/api/qa/entry/${rootQid}/sources`).then(r => r.json()).then(d => {
+        if (d.ok) setSourceRefs(d.data.sources || [])
+      }).catch(() => {})
+    } else {
+      setRelatedQuestions([])
+      setSourceRefs([])
+    }
+  }, [activeSessionId, sessionList])
+
   const createSession = useCallback((question: string): Session => {
     return {
       sessionId: genSessionId(),
@@ -129,6 +169,7 @@ export function QAPage() {
     }))
 
     // Persist to backend
+    const isNewSession = !sessionId && !activeSessionId
     try {
       await fetch('/api/qa/save', {
         method: 'POST',
@@ -138,12 +179,15 @@ export function QAPage() {
           answer: collectedAnswer || '(未生成回答)',
           repo: '',
           session_id: sid,
+          session_create: isNewSession,
         }),
       })
+      // Refresh session list so left panel shows updated history
+      fetchSessionList()
     } catch { /* ignore */ }
 
     setLoading(false)
-  }, [activeSessionId, sessions, stream, createSession])
+  }, [activeSessionId, sessions, stream, createSession, fetchSessionList])
 
   const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
     setSessions(prev => {
@@ -191,15 +235,20 @@ export function QAPage() {
                 <Sidebar className="w-3.5 h-3.5" />
               </button>
               {/* 关联主题 */}
-              <div>
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1 flex items-center gap-1">
-                  <Hash className="w-3.5 h-3.5 text-cyber-blue" />
-                  关联主题
-                </h3>
-                <div className="px-2.5 py-1.5 rounded-lg bg-cyber-blue/5 border border-cyber-blue/20 text-cyber-blue font-mono font-bold text-[11px]">
-                  #qa-engine
-                </div>
-              </div>
+              {(() => {
+                const topicSlug = sessionList.find(s => s.session_id === activeSessionId)?.topic_slug
+                return (
+                  <div>
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1 flex items-center gap-1">
+                      <Hash className="w-3.5 h-3.5 text-cyber-blue" />
+                      关联主题
+                    </h3>
+                    <div className="px-2.5 py-1.5 rounded-lg bg-cyber-blue/5 border border-cyber-blue/20 text-cyber-blue font-mono font-bold text-[11px]">
+                      {topicSlug ? `#${topicSlug}` : '—'}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* 相关问题 */}
               <div className="pt-4 border-t border-gray-200/60">
@@ -207,20 +256,28 @@ export function QAPage() {
                   <HelpCircle className="w-3.5 h-3.5 text-cyber-blue" />
                   相关问题
                 </h3>
-                <ul className="space-y-2 text-[11px]">
-                  <li>
-                    <button className="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1">
-                      <span className="leading-snug">异步加载后如何做预热保护避免空指针？</span>
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-cyber-green/10 text-cyber-green self-start font-bold">回答已采纳</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button className="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1">
-                      <span className="leading-snug">全量本地内存索引会引发 OOM 溢出吗？</span>
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-cyber-red/10 text-cyber-red self-start font-bold">待验证</span>
-                    </button>
-                  </li>
-                </ul>
+                {relatedQuestions.length > 0 ? (
+                  <ul className="space-y-2 text-[11px]">
+                    {relatedQuestions.map(rq => (
+                      <li key={rq.qid}>
+                        <button
+                          onClick={() => {
+                            const info = sessionList.find(s => s.root_qid === rq.qid)
+                            if (info) setActiveSessionId(info.session_id)
+                          }}
+                          className="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1"
+                        >
+                          <span className="leading-snug">{rq.question}</span>
+                          <span className={`text-[9px] px-1 py-0.5 rounded self-start font-bold ${rq.status === 'active' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-cyber-red/10 text-cyber-red'}`}>
+                            {rq.status === 'active' ? '回答已采纳' : '待验证'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-gray-400 px-1">暂无相关问题</p>
+                )}
               </div>
 
               {/* 历史对话 */}
@@ -229,9 +286,22 @@ export function QAPage() {
                   <Clock className="w-3.5 h-3.5" />
                   历史对话
                 </h3>
-                <div className="bg-slate-100 text-gray-900 p-2 rounded-lg font-mono text-[11px] flex justify-between items-center">
-                  <span className="truncate">LSH冷启动300ms停顿</span>
-                </div>
+                {sessionList.length > 0 ? (
+                  <div className="space-y-1">
+                    {sessionList.map(sl => (
+                      <button
+                        key={sl.session_id}
+                        onClick={() => setActiveSessionId(sl.session_id)}
+                        className={`w-full text-left p-2 rounded-lg font-mono text-[11px] flex justify-between items-center transition ${activeSessionId === sl.session_id ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-slate-100 text-gray-900 hover:bg-gray-200'}`}
+                      >
+                        <span className="truncate">{sl.root_question}</span>
+                        <span className="text-[9px] text-gray-400 shrink-0 ml-1">{sl.message_count}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-400 px-1">暂无对话</p>
+                )}
               </div>
             </div>
           )}
@@ -420,34 +490,21 @@ export function QAPage() {
                 <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
                   <span>参考引用</span>
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
-                  <span>docs/02-qa-engine.md</span>
-                  <span>L14 - L15</span>
-                </div>
-                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
-                  <div className="text-white font-medium">
-                    系统分流引擎在冷启动阶段加载索引时，必须严格采用异步非阻塞I/O
-                  </div>
-                </div>
-              </div>
-
-              {/* 分隔线 */}
-              <div className="border-t border-gray-100" />
-
-              {/* 关联变更 */}
-              <div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
-                  <span>关联变更</span>
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
-                  <span>config/app.yml</span>
-                  <span>L46</span>
-                </div>
-                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
-                  <div className="text-cyber-orange font-medium">
-                    bootstrap.timeout: 500
-                  </div>
-                </div>
+                {sourceRefs.length > 0 ? (
+                  sourceRefs.map((src, i) => (
+                    <div key={i} className="mb-3">
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+                        <span>{src.file}</span>
+                        <span>{src.line}</span>
+                      </div>
+                      <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                        <div className="text-white font-medium">{src.snippet}</div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[11px] text-gray-400">暂无引用来源</p>
+                )}
               </div>
             </div>
           )}
