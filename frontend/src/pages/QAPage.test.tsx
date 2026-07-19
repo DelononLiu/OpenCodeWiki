@@ -17,26 +17,23 @@ describe('QAPage', () => {
     expect(screen.getByText('OpenCodeWiki')).toBeInTheDocument()
   })
 
-  it('should render search input', () => {
+  it('should render the page title', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('搜索 QA...')
-    expect(input).toBeInTheDocument()
+    expect(screen.getByText('OpenCodeWiki 问答')).toBeInTheDocument()
   })
 
-  it('should render the welcome message', () => {
+  it('should render new question button', () => {
     renderQAPage()
-    expect(screen.getByText('对代码库提问')).toBeInTheDocument()
+    expect(screen.getByText('新问题')).toBeInTheDocument()
   })
 
-  it('should render the question input', () => {
+  it('should render history button', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('对代码库提问...')
-    expect(input).toBeInTheDocument()
+    expect(screen.getByText('历史')).toBeInTheDocument()
   })
 
   it('should show QA entries after loading', async () => {
     renderQAPage()
-    // MSW 返回了 QA 条目，应该能看到
     const qaEntry = await screen.findByText('如何配置数据库')
     expect(qaEntry).toBeInTheDocument()
   })
