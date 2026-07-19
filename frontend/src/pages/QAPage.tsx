@@ -235,7 +235,7 @@ export function QAPage() {
         <main className="flex-1 bg-white border border-gray-200/50 shadow-sm rounded-xl flex flex-col overflow-hidden relative min-w-0">
 
           {/* Top bar */}
-          <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0">
+          <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setLeftPanelOpen(prev => !prev)}
@@ -256,6 +256,9 @@ export function QAPage() {
               >
                 <Plus className="w-4 h-4" />
               </button>
+            </div>
+
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
               {activeSession ? (
                 <>
                   <span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
@@ -265,6 +268,7 @@ export function QAPage() {
                 <span className="text-xs text-gray-400">对代码库提问</span>
               )}
             </div>
+
             <button
               onClick={() => setRightPanelOpen(prev => !prev)}
               className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
