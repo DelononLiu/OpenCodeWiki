@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd $(git rev-parse --show-toplevel 2>/dev/null) && BACKEND_PORT=$(grep -oP 'http://localhost:\\K\\d+' frontend/vite.config.ts 2>/dev/null || echo 8000) && FRONTEND_PORT=$(grep -oP 'port:\\s*\\K\\d+' frontend/vite.config.ts 2>/dev/null || echo 5173) && lsof -ti:$BACKEND_PORT | xargs kill 2>/dev/null; lsof -ti:$FRONTEND_PORT | xargs kill 2>/dev/null; true",
+            "statusMessage": "自动关闭开发服务..."
+          }
+        ]
+      }
+    ]
+  }
+}

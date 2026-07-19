@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "opencodewiki-service": {
+      "source": {
+        "source": "directory",
+        "path": ".claude-plugin/opencodewiki-service"
+      }
+    }
+  }
+}

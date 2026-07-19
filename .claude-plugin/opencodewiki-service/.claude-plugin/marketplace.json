@@ -1,0 +1,11 @@
+{
+  "name": "opencodewiki-service",
+  "description": "OpenCodeWiki 服务管理插件 — 启动/停止/日志查看",
+  "plugins": [
+    {
+      "name": "service",
+      "description": "OpenCodeWiki 服务管理工具集",
+      "source": "./"
+    }
+  ]
+}
