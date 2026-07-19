@@ -204,3 +204,91 @@ def list_followups(qid: int) -> list[dict]:
             (qid,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def list_sessions() -> list[dict]:
+    """返回所有 session 摘要，按时间倒序。"""
+    db = get_qa_db()
+    rows = db.execute(
+        "SELECT session_id, question AS root_question, created_at, "
+        "(SELECT COUNT(*) FROM qa_entries e2 WHERE e2.session_id = qa_entries.session_id) AS message_count "
+        "FROM qa_entries "
+        "WHERE session_id != '' "
+        "GROUP BY session_id "
+        "ORDER BY MIN(created_at) DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_sources(qid: int) -> list[dict]:
+    """返回某个 QA 条目的参考引用来源。"""
+    db = get_qa_db()
+    row = db.execute("SELECT sources FROM qa_entries WHERE qid = ?", (qid,)).fetchone()
+    if not row:
+        return []
+    return _parse_json(row["sources"])
+
+
+def get_related(qid: int, limit: int = 5) -> list[dict]:
+    """返回同 topic 的其他 QA 问题（排除 #general）。"""
+    db = get_qa_db()
+    entry = db.execute("SELECT session_id FROM qa_entries WHERE qid = ?", (qid,)).fetchone()
+    if not entry:
+        return []
+    sid = entry["session_id"]
+
+    rows = db.execute(
+        "SELECT DISTINCT e.qid, e.question, e.status, e.created_at "
+        "FROM qa_entries e "
+        "JOIN session_topics st ON st.session_id = e.session_id "
+        "WHERE st.topic_slug IN ("
+        "  SELECT topic_slug FROM session_topics WHERE session_id = ? AND topic_slug != 'general'"
+        ") AND e.session_id != ? "
+        "AND e.session_id != '' "
+        "AND e.qid = (SELECT MIN(e2.qid) FROM qa_entries e2 WHERE e2.session_id = e.session_id) "
+        "ORDER BY e.created_at DESC "
+        "LIMIT ?",
+        (sid, sid, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_feedback(qid: int, fb: str) -> bool:
+    """保存用户反馈。"""
+    if fb not in ("accepted", "rejected"):
+        return False
+    db = get_qa_db()
+    db.execute("UPDATE qa_entries SET feedback = ? WHERE qid = ?", (fb, qid))
+    db.commit()
+    return db.total_changes > 0
+
+
+def match_topic(session_id: str, question: str, answer: str):
+    """LLM 匹配 topic，写入 session_topics。从 knowledge.db 获取已有 topics 列表。"""
+    from database import get_knowledge_db
+    from config import get_llm_config
+    from agent.agent import _build_llm as build_llm
+
+    kdb = get_knowledge_db()
+    topics = kdb.execute("SELECT slug, name FROM topics").fetchall()
+    if not topics:
+        return
+
+    topic_list = "\n".join(f"- {t['slug']}: {t['name']}" for t in topics)
+    llm = build_llm(get_llm_config())
+    prompt = (
+        f"问题：{question}\n回答：{answer[:500]}\n\n"
+        f"已有主题列表：\n{topic_list}\n\n"
+        f"从列表中选择最匹配的主题 slug。如果没有匹配的，输出 general。只输出 slug 名称。"
+    )
+    resp = llm.invoke(prompt)
+    slug = resp.content.strip().lower()
+    if slug not in {t["slug"] for t in topics}:
+        slug = "general"
+
+    db = get_qa_db()
+    db.execute(
+        "INSERT OR IGNORE INTO session_topics (session_id, topic_slug) VALUES (?, ?)",
+        (session_id, slug),
+    )
+    db.commit()
