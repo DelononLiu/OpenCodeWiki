@@ -130,6 +130,10 @@ export function QAPage() {
     if (!followups[qid]) {
       fetchFollowups(qid)
     }
+    // 滚动到对应条目
+    setTimeout(() => {
+      document.getElementById(`qa-entry-${qid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
   }, [followups, fetchFollowups])
 
   const groupedHistory = groupByDate(qaEntries)
@@ -187,6 +191,7 @@ export function QAPage() {
 
             return (
               <div
+                id={`qa-entry-${entry.qid}`}
                 key={entry.qid}
                 className={`bg-white border rounded-xl shadow-sm transition-all ${
                   isExpanded

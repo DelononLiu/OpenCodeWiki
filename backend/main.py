@@ -681,7 +681,7 @@ async def classify_domain(question: str, answer: str) -> str:
 async def api_qa_save(body: dict):
     question = body.get("question", "").strip()
     answer = body.get("answer", "").strip()
-    if not question or not answer:
+    if not question:
         return _err("Missing question or answer")
     entry = create_entry({
         "question": question,
@@ -689,6 +689,7 @@ async def api_qa_save(body: dict):
         "repo": body.get("repo", ""),
         "sessionId": body.get("session_id", ""),
         "mode": body.get("mode", "deep"),
+        "parent_qid": body.get("parent_qid"),
         "sources": body.get("sources", []),
     })
     domain = await classify_domain(question, answer)

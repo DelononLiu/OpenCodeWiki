@@ -25,8 +25,8 @@ def create_entry(data: dict) -> dict:
     db.execute(
         """INSERT INTO qa_entries
            (id, qid, session_id, repo, question, answer, mode, domain,
-            status, sources, tags, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            status, sources, tags, parent_qid, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             eid, qid,
             data.get("sessionId", ""),
@@ -38,6 +38,7 @@ def create_entry(data: dict) -> dict:
             "pending",
             json.dumps(data.get("sources", [])),
             json.dumps(data.get("tags", [])),
+            data.get("parent_qid"),
             now, now,
         ),
     )
