@@ -243,6 +243,19 @@ export function QAPage() {
               >
                 <Sidebar className="w-4 h-4" />
               </button>
+              <button
+                onClick={() => {
+                  setActiveSessionId(null)
+                  setTimeout(() => {
+                    const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
+                    inp?.focus()
+                  }, 50)
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
+                title="新问题"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
               {activeSession ? (
                 <>
                   <span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
@@ -252,19 +265,6 @@ export function QAPage() {
                 <span className="text-xs text-gray-400">对代码库提问</span>
               )}
             </div>
-            <button
-              onClick={() => {
-                setActiveSessionId(null)
-                setTimeout(() => {
-                  const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
-                  inp?.focus()
-                }, 50)
-              }}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
-              title="新问题"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
             <button
               onClick={() => setRightPanelOpen(prev => !prev)}
               className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
