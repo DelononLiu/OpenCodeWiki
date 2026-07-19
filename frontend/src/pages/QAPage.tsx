@@ -6,8 +6,8 @@ import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  Loader2, Plus, ChevronLeft, ChevronRight,
-  ThumbsUp, ThumbsDown, Copy, MoreHorizontal, X,
+  Loader2, Sidebar, PanelRight, Plus,
+  ThumbsUp, ThumbsDown, Copy, MoreHorizontal,
   Hash, HelpCircle, Clock, Check,
 } from 'lucide-react'
 
@@ -178,25 +178,13 @@ export function QAPage() {
       <div className="flex-1 flex overflow-hidden w-full px-4 py-3 gap-3">
 
         {/* Left Panel */}
-        <div className="relative shrink-0">
-          <aside
-            className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
-            style={{ width: leftPanelOpen ? '16rem' : '0px', opacity: leftPanelOpen ? 1 : 0, padding: leftPanelOpen ? '1rem' : '0', borderWidth: leftPanelOpen ? '1px' : '0' }}
-          >
-            {leftPanelOpen && (
-              <div className="space-y-5 text-xs">
-                {/* Panel header with close */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">面板</span>
-                  <button
-                    onClick={() => setLeftPanelOpen(false)}
-                    className="p-0.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700 transition"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* 关联主题 */}
+        <aside
+          className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
+          style={{ width: leftPanelOpen ? '16rem' : '0px', opacity: leftPanelOpen ? 1 : 0, padding: leftPanelOpen ? '1rem' : '0', borderWidth: leftPanelOpen ? '1px' : '0' }}
+        >
+          {leftPanelOpen && (
+            <div className="space-y-5 text-xs">
+              {/* 关联主题 */}
               <div>
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1 flex items-center gap-1">
                   <Hash className="w-3.5 h-3.5 text-cyber-blue" />
@@ -242,37 +230,35 @@ export function QAPage() {
             </div>
           )}
         </aside>
-        {!leftPanelOpen && (
-          <button
-            onClick={() => setLeftPanelOpen(true)}
-            className="absolute top-3 -right-8 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-sm hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition z-10"
-            title="展开面板"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
-      </div>
 
         {/* Center Panel */}
         <main className="flex-1 bg-white border border-gray-200/50 shadow-sm rounded-xl flex flex-col overflow-hidden relative min-w-0">
 
           {/* Top bar */}
-          <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-center shrink-0 relative">
-            <button
-              onClick={() => {
-                setActiveSessionId(null)
-                setTimeout(() => {
-                  const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
-                  inp?.focus()
-                }, 50)
-              }}
-              className="absolute left-3 p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
-              title="新问题"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-
+          <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative">
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLeftPanelOpen(prev => !prev)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+              >
+                <Sidebar className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSessionId(null)
+                  setTimeout(() => {
+                    const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
+                    inp?.focus()
+                  }, 50)
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
+                title="新问题"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
               {activeSession ? (
                 <>
                   <span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
@@ -282,6 +268,13 @@ export function QAPage() {
                 <span className="text-xs text-gray-400">对代码库提问</span>
               )}
             </div>
+
+            <button
+              onClick={() => setRightPanelOpen(prev => !prev)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+            >
+              <PanelRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Message area */}
@@ -400,71 +393,49 @@ export function QAPage() {
         </main>
 
         {/* Right Panel */}
-        <div className="relative shrink-0">
-          <aside
-            className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
-            style={{ width: rightPanelOpen ? '450px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
-          >
-            {rightPanelOpen && (
-              <div className="space-y-4">
-                {/* Panel header with close */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">源码引用</span>
-                  <button
-                    onClick={() => setRightPanelOpen(false)}
-                    className="p-0.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700 transition"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+        <aside
+          className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
+          style={{ width: rightPanelOpen ? '450px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
+        >
+          {rightPanelOpen && (
+            <div className="space-y-4">
+              {/* 参考引用 */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
+                  <span>参考引用</span>
                 </div>
-
-                {/* 参考引用 */}
-                <div>
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
-                    <span>参考引用</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
-                    <span>docs/02-qa-engine.md</span>
-                    <span>L14 - L15</span>
-                  </div>
-                  <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
-                    <div className="text-white font-medium">
-                      系统分流引擎在冷启动阶段加载索引时，必须严格采用异步非阻塞I/O
-                    </div>
-                  </div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+                  <span>docs/02-qa-engine.md</span>
+                  <span>L14 - L15</span>
                 </div>
-
-                {/* 分隔线 */}
-                <div className="border-t border-gray-100" />
-
-                {/* 关联变更 */}
-                <div>
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
-                    <span>关联变更</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
-                    <span>config/app.yml</span>
-                    <span>L46</span>
-                  </div>
-                  <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
-                    <div className="text-cyber-orange font-medium">
-                      bootstrap.timeout: 500
-                    </div>
+                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                  <div className="text-white font-medium">
+                    系统分流引擎在冷启动阶段加载索引时，必须严格采用异步非阻塞I/O
                   </div>
                 </div>
               </div>
-            )}
-          </aside>
-          {!rightPanelOpen && (
-            <button
-              onClick={() => setRightPanelOpen(true)}
-              className="absolute top-3 -left-8 bg-white border border-gray-200 rounded-l-lg p-1.5 shadow-sm hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition z-10"
-              title="展开源码引用"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+
+              {/* 分隔线 */}
+              <div className="border-t border-gray-100" />
+
+              {/* 关联变更 */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
+                  <span>关联变更</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+                  <span>config/app.yml</span>
+                  <span>L46</span>
+                </div>
+                <div className="bg-[#1E1E2F] rounded-xl text-[11px] text-slate-300 font-mono p-4">
+                  <div className="text-cyber-orange font-medium">
+                    bootstrap.timeout: 500
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+        </aside>
       </div>
     </div>
   )
