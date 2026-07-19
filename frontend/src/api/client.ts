@@ -31,19 +31,11 @@ export function fetchQaEntries(params?: {
   return request(`/qa/entries?${qs.toString()}`)
 }
 
-export function fetchQaEntry(qid: number): Promise<QaEntry> {
-  return request(`/qa/entry/${qid}`)
-}
-
 export function calibrateQaEntry(qid: number, answer: string, calibrator = 'admin'): Promise<{ calibrated: boolean }> {
   return request(`/qa/entry/${qid}/calibrate`, {
     method: 'POST',
     body: JSON.stringify({ answer, calibrator }),
   })
-}
-
-export function fetchQaSuggest(q: string): Promise<{ suggestions: { qid: number; question: string }[] }> {
-  return request(`/qa/suggest?q=${encodeURIComponent(q)}&limit=5`)
 }
 
 // ── Wiki ──

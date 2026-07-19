@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fetchRepos, fetchQaEntries, fetchQaSuggest, fetchWikiPage, fetchTopics, fetchSettings } from './client'
+import { fetchRepos, fetchQaEntries, fetchWikiPage, fetchTopics, fetchSettings } from './client'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/server'
 
@@ -17,17 +17,6 @@ describe('API client', () => {
       qid: expect.any(Number),
       question: expect.any(String),
     })
-  })
-
-  it('should fetch QA suggest with results', async () => {
-    const result = await fetchQaSuggest('数据库')
-    expect(result.suggestions.length).toBeGreaterThanOrEqual(1)
-    expect(result.suggestions[0].question).toContain('数据库')
-  })
-
-  it('should return empty suggestion for short query', async () => {
-    const result = await fetchQaSuggest('a')
-    expect(result.suggestions).toEqual([])
   })
 
   it('should fetch wiki page', async () => {

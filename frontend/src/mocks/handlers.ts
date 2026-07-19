@@ -82,14 +82,6 @@ export const handlers = [
     })
   }),
 
-  http.get('/api/qa/next-qid', () =>
-    HttpResponse.json({ ok: true, data: { qid: 42 } })
-  ),
-
-  http.get('/api/qa/pending', () =>
-    HttpResponse.json({ ok: true, data: [] })
-  ),
-
   http.post('/api/qa/save', () =>
     HttpResponse.json({ ok: true, data: { qid: 42, id: 'mock-id', domain: 'general', session_id: 'mock-session' } })
   ),
@@ -132,10 +124,6 @@ export const handlers = [
       },
     })
   }),
-
-  http.post('/api/topics', () =>
-    HttpResponse.json({ ok: true, data: { slug: 'new-topic', status: 'pool' } })
-  ),
 
   http.get('/api/topics/:slug/draft', () =>
     HttpResponse.json({ ok: true, data: null })

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { LeftSidebar } from '@/components/layout/LeftSidebar'
