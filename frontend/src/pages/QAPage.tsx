@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
-import { fetchQaEntries } from '@/api/client'
 import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  Loader2, Send, Sidebar, PanelRight,
+  Loader2, Sidebar, PanelRight,
   ThumbsUp, ThumbsDown, Copy, MoreHorizontal,
   Hash, HelpCircle, Clock, Check,
 } from 'lucide-react'
@@ -285,16 +284,19 @@ export function QAPage() {
                         </div>
 
                         {/* Hover actions */}
+                        {activeSession.feedback == null && (
                         <div className="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6">
                           <button
                             className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition"
                             onClick={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
+                            title="回答已采纳"
                           >
                             <ThumbsUp className="w-3.5 h-3.5" />
                           </button>
                           <button
                             className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition"
                             onClick={() => handleFeedback(activeSession!.sessionId, i, 'rejected')}
+                            title="待验证"
                           >
                             <ThumbsDown className="w-3.5 h-3.5" />
                           </button>
@@ -308,6 +310,7 @@ export function QAPage() {
                             <MoreHorizontal className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                        )}
 
                         {/* Feedback status */}
                         {activeSession.feedback === 'accepted' && (
