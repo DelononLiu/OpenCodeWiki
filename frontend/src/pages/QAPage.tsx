@@ -183,7 +183,7 @@ export function QAPage() {
           style={{ width: leftPanelOpen ? '16rem' : '0px', opacity: leftPanelOpen ? 1 : 0, padding: leftPanelOpen ? '1rem' : '0', borderWidth: leftPanelOpen ? '1px' : '0' }}
         >
           {leftPanelOpen && (
-            <div className="space-y-5 text-xs">
+            <div className="space-y-5 text-xs flex flex-col">
               <button
                 onClick={() => setLeftPanelOpen(false)}
                 className="self-end p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700 transition"
