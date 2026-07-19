@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm'
 import {
   Loader2, Sidebar, PanelRight, Plus,
   ThumbsUp, ThumbsDown, Copy, MoreHorizontal,
-  Hash, HelpCircle, Clock, Check,
+  Hash, HelpCircle, Clock, Check, ChevronDown,
 } from 'lucide-react'
 
 interface Message {
@@ -34,6 +34,7 @@ export function QAPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const { stream, abort } = useSSE()
@@ -349,30 +350,38 @@ export function QAPage() {
                 )}
               </div>
 
-              {/* 历史对话 */}
+              {/* 历史对话 — collapsible */}
               <div className="pt-4 border-t border-gray-200/60">
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  历史对话
-                </h3>
-                {sessionList.length > 0 ? (
-                  <div className="space-y-1">
-                    {sessionList.map(sl => (
-                      <button
-                        key={sl.session_id}
-                        onClick={() => {
-                          if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
-                          setActiveSessionId(sl.session_id)
-                        }}
-                        className={`w-full text-left p-2 rounded-lg font-mono text-[11px] flex justify-between items-center transition ${activeSessionId === sl.session_id ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-slate-100 text-gray-900 hover:bg-gray-200'}`}
-                      >
-                        <span className="truncate">{sl.root_question}</span>
-                        <span className="text-[9px] text-gray-400 shrink-0 ml-1">{sl.message_count}</span>
-                      </button>
-                    ))}
+                <button
+                  onClick={() => setHistoryExpanded(prev => !prev)}
+                  className="w-full flex items-center justify-between px-1"
+                >
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    历史对话
+                  </h3>
+                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} />
+                </button>
+                {historyExpanded && (
+                  <div className="mt-2 space-y-1">
+                    {sessionList.length > 0 ? (
+                      sessionList.map(sl => (
+                        <button
+                          key={sl.session_id}
+                          onClick={() => {
+                            if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
+                            setActiveSessionId(sl.session_id)
+                          }}
+                          className={`w-full text-left p-2 rounded-lg font-mono text-[11px] flex justify-between items-center transition ${activeSessionId === sl.session_id ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-slate-100 text-gray-900 hover:bg-gray-200'}`}
+                        >
+                          <span className="truncate">{sl.root_question}</span>
+                          <span className="text-[9px] text-gray-400 shrink-0 ml-1">{sl.message_count}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-gray-400 px-1">暂无对话</p>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-gray-400 px-1">暂无对话</p>
                 )}
               </div>
             </div>
@@ -548,7 +557,7 @@ export function QAPage() {
         {/* Right Panel */}
         <aside
           className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
-          style={{ width: rightPanelOpen ? '450px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
+          style={{ width: rightPanelOpen ? '360px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
         >
           {rightPanelOpen && (
             <div className="space-y-4">

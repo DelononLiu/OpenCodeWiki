@@ -45,7 +45,7 @@ describe('QAPage (new chat layout)', () => {
   it('should show empty placeholders when no data', () => {
     renderQAPage()
     expect(screen.getByText('暂无相关问题')).toBeInTheDocument()
-    expect(screen.getByText('暂无对话')).toBeInTheDocument()
+    expect(screen.getByText('历史对话')).toBeInTheDocument()
   })
 
   it('should render bottom input bar', () => {
