@@ -313,14 +313,16 @@ async def code_grep(pattern: str, project: str = "") -> str:
     if not rg_path.exists():
         return '{"error": "rg binary not found in vendor/"}'
 
-    # 查找 repo 路径
-    search_dir = str(Path.cwd())
+    # 查找 repo 路径。无指定 project 时搜所有导入源目录
     if project:
         registry = _load_registry()
+        search_dir = str(Path.cwd())
         for entry in registry:
             if entry.get("name") == project:
                 search_dir = str(REPOS_DIR / entry["name"])
                 break
+    else:
+        search_dir = str(REPOS_DIR)
 
     try:
         result = subprocess.run(
