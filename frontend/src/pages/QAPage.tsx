@@ -184,6 +184,12 @@ export function QAPage() {
         >
           {leftPanelOpen && (
             <div className="space-y-5 text-xs">
+              <button
+                onClick={() => setLeftPanelOpen(false)}
+                className="self-end p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700 transition"
+              >
+                <Sidebar className="w-3.5 h-3.5" />
+              </button>
               {/* 关联主题 */}
               <div>
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1 flex items-center gap-1">
@@ -237,12 +243,14 @@ export function QAPage() {
           {/* Top bar */}
           <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative">
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setLeftPanelOpen(prev => !prev)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
-              >
-                <Sidebar className="w-4 h-4" />
-              </button>
+              {!leftPanelOpen && (
+                <button
+                  onClick={() => setLeftPanelOpen(true)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+                >
+                  <Sidebar className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={() => {
                   setActiveSessionId(null)
@@ -269,12 +277,14 @@ export function QAPage() {
               )}
             </div>
 
-            <button
-              onClick={() => setRightPanelOpen(prev => !prev)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
-            >
-              <PanelRight className="w-4 h-4" />
-            </button>
+            {!rightPanelOpen && (
+              <button
+                onClick={() => setRightPanelOpen(true)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+              >
+                <PanelRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Message area */}
@@ -399,6 +409,12 @@ export function QAPage() {
         >
           {rightPanelOpen && (
             <div className="space-y-4">
+              <button
+                onClick={() => setRightPanelOpen(false)}
+                className="self-start p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700 transition"
+              >
+                <PanelRight className="w-3.5 h-3.5" />
+              </button>
               {/* 参考引用 */}
               <div>
                 <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-2">
