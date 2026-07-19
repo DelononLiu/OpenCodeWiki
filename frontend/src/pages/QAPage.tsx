@@ -42,7 +42,135 @@ export function QAPage() {
   const autoSubmitDoneRef = useRef(false)
   const streamAbortedRef = useRef(false)
 
+  const createSession = useCallback((question: string): Session => {
+    return {
+      sessionId: genSessionId(),
+      question,
+      messages: [],
+      streamingAnswer: '',
+      isStreaming: false,
+    }
+  }, [])
+
+  const cancelStream = useCallback(() => {
+    streamAbortedRef.current = true
+    abort()
+  }, [abort])
+
+  const submitQuestion = useCallback(async (question: string, sessionId?: string) => {
+    if (!question.trim()) return
+    setLoading(true)
+
+    // Determine or create session
+    let sid = sessionId || activeSessionId
+    let session: Session
+    if (sid && sessions[sid]) {
+      session = sessions[sid]
+    } else {
+      session = createSession(question)
+      sid = session.sessionId
+      setSessions(prev => ({ ...prev, [sid!]: session }))
+    }
+
+    // Add user message
+    const userMsg: Message = { role: 'user', content: question }
+    const updatedMessages = [...session.messages, userMsg]
+
+    setSessions(prev => ({
+      ...prev,
+      [sid!]: {
+        ...prev[sid!],
+        messages: updatedMessages,
+        isStreaming: true,
+        streamingAnswer: '',
+      },
+    }))
+    setActiveSessionId(sid!)
+
+    let collectedAnswer = ''
+    streamAbortedRef.current = false
+
+    await stream('/api/qa', { question }, (msg) => {
+      if (msg.type === 'token' && msg.content) {
+        collectedAnswer += msg.content as string
+        setSessions(prev => ({
+          ...prev,
+          [sid!]: {
+            ...prev[sid!],
+            streamingAnswer: collectedAnswer,
+          },
+        }))
+      }
+    })
+
+    if (streamAbortedRef.current) {
+      setSessions(prev => {
+        const s = prev[sid!]
+        if (!s) return prev
+        return { ...prev, [sid!]: { ...s, isStreaming: false } }
+      })
+      setLoading(false)
+      return
+    }
+
+    // Stream complete — add assistant message
+    const assistantMsg: Message = {
+      role: 'assistant',
+      content: collectedAnswer || '(未生成回答)',
+    }
+
+    setSessions(prev => ({
+      ...prev,
+      [sid!]: {
+        ...prev[sid!],
+        messages: [...prev[sid!].messages, assistantMsg],
+        streamingAnswer: '',
+        isStreaming: false,
+      },
+    }))
+
+    // Persist to backend
+    try {
+      await fetch('/api/qa/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          answer: collectedAnswer || '(未生成回答)',
+          repo: '',
+          session_id: sid,
+        }),
+      })
+    } catch { /* ignore */ }
+
+    setLoading(false)
+  }, [activeSessionId, sessions, stream, createSession])
+
+  const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
+    setSessions(prev => {
+      const s = prev[sessionId]
+      if (!s) return prev
+      return { ...prev, [sessionId]: { ...s, feedback: type } }
+    })
+    if (type === 'rejected') {
+      setRightPanelOpen(true)
+    }
+  }, [])
+
   const activeSession = activeSessionId ? sessions[activeSessionId] : null
+
+  useEffect(() => {
+    if (autoSubmitDoneRef.current) return
+    const q = searchParams.get('q')
+    if (q) {
+      autoSubmitDoneRef.current = true
+      const clean = new URLSearchParams(searchParams)
+      clean.delete('q')
+      setSearchParams(clean, { replace: true })
+      submitQuestion(q)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
@@ -159,10 +287,16 @@ export function QAPage() {
                         {/* Hover actions */}
                         <div className="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6"
                              style={{ opacity: 0, transition: 'opacity 0.15s ease' }}>
-                          <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition" title="回答已采纳">
+                          <button
+                            className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition"
+                            onClick={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
+                          >
                             <ThumbsUp className="w-3.5 h-3.5" />
                           </button>
-                          <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition" title="待验证">
+                          <button
+                            className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition"
+                            onClick={() => handleFeedback(activeSession!.sessionId, i, 'rejected')}
+                          >
                             <ThumbsDown className="w-3.5 h-3.5" />
                           </button>
                           <button
@@ -175,6 +309,13 @@ export function QAPage() {
                             <MoreHorizontal className="w-3.5 h-3.5" />
                           </button>
                         </div>
+
+                        {/* Feedback status */}
+                        {activeSession.feedback === 'accepted' && (
+                          <span className="text-[10px] font-medium text-cyber-green flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/50">
+                            <Check className="w-3 h-3" /> 已收集反馈，谢谢您帮助提升质量
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -201,7 +342,33 @@ export function QAPage() {
 
           {/* Bottom input */}
           <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pointer-events-none p-3 z-10">
-            {/* placeholder */}
+            <div className="w-full bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !loading) {
+                    submitQuestion(input)
+                    setInput('')
+                  }
+                }}
+                className="w-full bg-transparent border-none text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1 px-2"
+                placeholder="在此继续追问..."
+                disabled={loading}
+              />
+              <Button
+                size="sm"
+                className="bg-cyber-blue text-white rounded-lg px-4 py-1.5 text-xs font-semibold shrink-0"
+                onClick={() => {
+                  submitQuestion(input)
+                  setInput('')
+                }}
+                disabled={loading || !input.trim()}
+              >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '发送'}
+              </Button>
+            </div>
           </div>
         </main>
 
