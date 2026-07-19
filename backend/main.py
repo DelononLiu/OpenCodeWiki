@@ -453,11 +453,6 @@ async def api_qa(request: Request):
     question = (body.get("question") or "").strip()
     session_id = body.get("sessionId") or str(uuid.uuid4())
     repo = body.get("repo") or body.get("project") or ""
-    if not repo:
-        from stores.sources import list_sources
-        srcs = list_sources("code")
-        if srcs:
-            repo = srcs[0]["name"]
     context = body.get("context")
 
     if not question:
