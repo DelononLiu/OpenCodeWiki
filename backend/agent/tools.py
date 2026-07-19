@@ -68,7 +68,8 @@ def _project_for_repo(repo_name: str) -> str | None:
     registry = _load_registry()
     for entry in registry:
         if entry.get("name") == repo_name:
-            return _repo_path_to_project_name(entry["path"])
+            path = str(REPOS_DIR / entry["name"])
+            return _repo_path_to_project_name(path)
     return None
 
 
@@ -318,7 +319,7 @@ async def code_grep(pattern: str, project: str = "") -> str:
         registry = _load_registry()
         for entry in registry:
             if entry.get("name") == project:
-                search_dir = entry["path"]
+                search_dir = str(REPOS_DIR / entry["name"])
                 break
 
     try:
