@@ -433,14 +433,14 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
             if role in ("ai", "assistant") and hasattr(m, "content") and m.content:
                 final_answer += m.content
 
+        sources = result.get("sources", [])
+        if sources:
+            yield _sse("sources", {"sources": sources})
+
         if final_answer:
             yield _sse("token", {"content": final_answer})
         else:
             yield _sse("error", {"message": "Agent did not produce an answer"})
-
-        sources = result.get("sources", [])
-        if sources:
-            yield _sse("sources", {"sources": sources})
     except Exception as e:
         yield _sse("error", {"message": f"Agent error: {e}"})
     finally:
@@ -706,24 +706,6 @@ except ImportError:
 
 
 # ── QA Save ──────────────────────────────────────────────────────
-
-DOMAINS = ['bug-analysis', 'log-analysis', 'program-analysis', 'build-issue', 'stack-analysis', 'general']
-
-
-async def classify_domain(question: str, answer: str) -> str:
-    try:
-        from langchain_openai import ChatOpenAI
-        from config import get_llm_config
-        llm = ChatOpenAI(**get_llm_config(), temperature=0)
-        text = f"{question[:300]}\n{answer[:500]}"
-        resp = await llm.ainvoke(
-            f"将以下问答分类到以下类别之一: {', '.join(DOMAINS)}。只输出类别名，不要解释。\n\n{text}"
-        )
-        domain = resp.content.strip()
-        return domain if domain in DOMAINS else 'general'
-    except Exception:
-        return 'general'
-
 
 @app.post("/api/qa/save")
 async def api_qa_save(body: dict):

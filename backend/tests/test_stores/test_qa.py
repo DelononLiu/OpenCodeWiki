@@ -283,3 +283,33 @@ def test_get_sources(patch_stores):
     sources = get_sources(entry["qid"])
     assert len(sources) == 1
     assert sources[0]["file"] == "f.py"
+
+
+def test_get_related(patch_stores, qa_db):
+    """get_related 返回同 topic 的其他会话 QA，排除 #general 主题"""
+    from stores.qa import create_entry, get_related
+
+    sid_a = "sess-rel-a"
+    sid_b = "sess-rel-b"
+    sid_c = "sess-rel-c"
+
+    e1 = create_entry({"question": "Bug 排查方法", "answer": "回答1", "session_id": sid_a})
+    e2 = create_entry({"question": "Bug 定位技巧", "answer": "回答2", "session_id": sid_b})
+    e3 = create_entry({"question": "通用问题",    "answer": "回答3", "session_id": sid_c})
+
+    # 直接 SQL 写入 session_topics（跳过 LLM 调用的 match_topic）
+    qa_db.execute("INSERT INTO session_topics (session_id, topic_slug) VALUES (?, ?)",
+                  (sid_a, "bug-analysis"))
+    qa_db.execute("INSERT INTO session_topics (session_id, topic_slug) VALUES (?, ?)",
+                  (sid_b, "bug-analysis"))
+    qa_db.execute("INSERT INTO session_topics (session_id, topic_slug) VALUES (?, ?)",
+                  (sid_c, "general"))
+    qa_db.commit()
+
+    related = get_related(e1["qid"])
+    qids = [r["qid"] for r in related]
+
+    # 同 topic (bug-analysis) 的会话 B 应出现在相关条目中
+    assert e2["qid"] in qids, f"Expected {e2['qid']} in related, got {qids}"
+    # topic 为 general 的会话 C 不应出现
+    assert e3["qid"] not in qids, f"Expected {e3['qid']} NOT in related, got {qids}"

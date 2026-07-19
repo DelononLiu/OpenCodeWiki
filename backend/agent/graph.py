@@ -29,6 +29,7 @@ class GraphState(TypedDict):
     project: str
     intent: str
     messages: Sequence
+    sources: list
 
 # ── 意图配置 ────────────────────────────────────────────────
 
