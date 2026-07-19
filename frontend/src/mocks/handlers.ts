@@ -16,6 +16,7 @@ export const handlers = [
         entries: [
           {
             qid: 1,
+            session_id: 'mock-session-1',
             question: '如何配置数据库',
             answer: '修改 config.json',
             repo: 'test-repo',
@@ -44,6 +45,7 @@ export const handlers = [
       ok: true,
       data: {
         qid,
+        session_id: 'mock-session-1',
         question: '测试问题',
         answer: '测试答案',
         repo: '',
@@ -85,6 +87,14 @@ export const handlers = [
   ),
 
   http.get('/api/qa/pending', () =>
+    HttpResponse.json({ ok: true, data: [] })
+  ),
+
+  http.post('/api/qa/save', () =>
+    HttpResponse.json({ ok: true, data: { qid: 42, id: 'mock-id', domain: 'general', session_id: 'mock-session' } })
+  ),
+
+  http.get('/api/qa/entry/:qid/followups', () =>
     HttpResponse.json({ ok: true, data: [] })
   ),
 

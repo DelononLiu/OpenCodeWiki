@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { fetchQaEntries } from '@/api/client'
@@ -6,6 +7,7 @@ import type { QaEntry } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Plus, History, X } from 'lucide-react'
+import { useSSE } from '@/hooks/useSSE'
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
@@ -41,9 +43,24 @@ export function QAPage() {
   const [followups, setFollowups] = useState<Record<number, QaEntry[]>>({})
   const [newQuestionMode, setNewQuestionMode] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [streamingQuestion, setStreamingQuestion] = useState('')
+  const [streamingAnswer, setStreamingAnswer] = useState('')
+  const { stream, abort } = useSSE()
+  const streamAbortedRef = useRef(false)
+  const autoSubmitDoneRef = useRef(false) // prevent StrictMode double-fire at the source
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // ── Data refresh ──────────────────────────────────────────
 
   useEffect(() => {
     fetchQaEntries({ limit: 100 }).then(d => setQaEntries(d.entries)).catch(() => {})
+  }, [])
+
+  const refreshEntries = useCallback(async () => {
+    try {
+      const d = await fetchQaEntries({ limit: 100 })
+      setQaEntries(d.entries)
+    } catch { /* ignore */ }
   }, [])
 
   const fetchFollowups = useCallback(async (qid: number) => {
@@ -56,18 +73,135 @@ export function QAPage() {
     } catch { /* ignore */ }
   }, [])
 
-  const refreshEntries = useCallback(async () => {
+  // ── Core submit: one session per conversation ─────────────
+
+  const genSessionId = () => crypto.randomUUID()
+
+  const submitQuestion = useCallback(async (question: string, opts?: {
+    sessionId?: string          // reuse for follow-ups; generate new for root
+    parentQuestion?: string     // ai context only
+    parentAnswer?: string       // ai context only
+    repo?: string
+  }) => {
+    if (!question.trim()) return
+
+    // Explicitly passed sessionId takes priority (even empty string for legacy)
+    // Only generate new UUID when sessionId is truly absent (undefined)
+    const sessionId = opts?.sessionId !== undefined ? opts.sessionId : genSessionId()
+
+    setLoading(true)
+    setStreamingQuestion(question)
+    setStreamingAnswer('')
+
+    // AI context for follow-ups (does not affect data model)
+    let context: Record<string, string> | undefined
+    if (opts?.parentQuestion) {
+      context = {
+        parent_question: opts.parentQuestion,
+        parent_answer: opts.parentAnswer || '',
+      }
+    }
+
+    let collectedAnswer = ''
+    await stream('/api/qa', {
+      question,
+      repo: opts?.repo || '',
+      ...(context ? { context } : {}),
+    }, (msg) => {
+      if (msg.type === 'token' && msg.content) {
+        collectedAnswer += msg.content as string
+        setStreamingAnswer(collectedAnswer)
+      }
+    })
+
+    if (streamAbortedRef.current) {
+      streamAbortedRef.current = false
+      setLoading(false)
+      return
+    }
+
+    const isFollowup = !!opts?.parentQuestion
     try {
-      const d = await fetchQaEntries({ limit: 100 })
-      setQaEntries(d.entries)
-    } catch { /* ignore */ }
-  }, [])
+      const body: Record<string, unknown> = {
+        question,
+        answer: collectedAnswer || '(未生成回答)',
+        repo: opts?.repo || '',
+        session_id: sessionId,
+      }
+      const res = await fetch('/api/qa/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      setStreamingQuestion('')
+      setStreamingAnswer('')
+      setNewQuestionMode(false)
+      await refreshEntries()
+      if (isFollowup) {
+        // refresh follow-ups under the parent entry
+        const saved = await res.json()
+        if (saved.ok && expandedQid) {
+          await fetchFollowups(expandedQid)
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }, [stream, refreshEntries, fetchFollowups, expandedQid])
+
+  // ── One-shot: consume ?q= / ?qid= from URL on mount ──────
+  //     useRef gate ensures it runs exactly once, even under StrictMode
+
+  useEffect(() => {
+    if (autoSubmitDoneRef.current) return
+    const q = searchParams.get('q')
+    const qid = searchParams.get('qid')
+    const contextTag = searchParams.get('context_entity_slug')
+
+    if (q) {
+      autoSubmitDoneRef.current = true
+      // Wipe params before async submit to prevent any chance of re-trigger
+      const clean = new URLSearchParams(searchParams)
+      clean.delete('q')
+      clean.delete('context_entity_slug')
+      setSearchParams(clean, { replace: true })
+      submitQuestion(q, { repo: contextTag || undefined })
+    } else if (qid) {
+      autoSubmitDoneRef.current = true
+      const qidNum = parseInt(qid, 10)
+      if (!isNaN(qidNum)) {
+        const clean = new URLSearchParams(searchParams)
+        clean.delete('qid')
+        setSearchParams(clean, { replace: true })
+        setExpandedQid(qidNum)
+        setNewQuestionMode(false)
+        if (!followups[qidNum]) {
+          fetchFollowups(qidNum)
+        }
+        setTimeout(() => {
+          document.getElementById(`qa-entry-${qidNum}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 200)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount-only; ref gate is the single-fire mechanism
+
+  // ── Cancel stream ─────────────────────────────────────────
+
+  const cancelStream = useCallback(() => {
+    streamAbortedRef.current = true
+    abort()
+    setStreamingQuestion('')
+    setStreamingAnswer('')
+    setLoading(false)
+  }, [abort])
 
   const handleToggleExpand = useCallback(async (qid: number) => {
     if (expandedQid === qid) {
       setExpandedQid(null)
       setInput('')
     } else {
+      cancelStream()
       setExpandedQid(qid)
       setNewQuestionMode(false)
       setInput('')
@@ -75,54 +209,58 @@ export function QAPage() {
         await fetchFollowups(qid)
       }
     }
-  }, [expandedQid, followups, fetchFollowups])
+  }, [expandedQid, followups, fetchFollowups, cancelStream])
 
-  const handleSaveQuestion = useCallback(async (q: string, parentQid?: number) => {
-    if (!q.trim()) return
-    setLoading(true)
-    try {
-      const body: Record<string, unknown> = {
-        question: q.trim(),
-        answer: '',
-        repo: '',
-      }
-      if (parentQid) body.parent_qid = parentQid
-      await fetch('/api/qa/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      setInput('')
-      setNewQuestionMode(false)
-      await refreshEntries()
-      if (parentQid) {
-        await fetchFollowups(parentQid)
-      }
-    } catch { /* ignore */ } finally {
-      setLoading(false)
-    }
-  }, [refreshEntries, fetchFollowups])
-
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const q = input.trim()
     if (!q || loading) return
-    // /new command: create a brand-new question, not a follow-up
+
+    // /new command: save without AI
     if (q.startsWith('/new ')) {
       const newQ = q.slice(5).trim()
-      if (newQ) handleSaveQuestion(newQ)
+      if (!newQ) return
+      setLoading(true)
+      try {
+        await fetch('/api/qa/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: newQ, answer: '', repo: '' }),
+        })
+        setInput('')
+        setNewQuestionMode(false)
+        await refreshEntries()
+      } finally {
+        setLoading(false)
+      }
       return
     }
-    // With an expanded entry, save as follow-up; otherwise as a new question
-    handleSaveQuestion(q, expandedQid ?? undefined)
-  }, [input, loading, expandedQid, handleSaveQuestion])
+
+    // Build follow-up context from expanded entry
+    let sessionId: string | undefined
+    let parentQuestion: string | undefined
+    let parentAnswer: string | undefined
+    if (expandedQid) {
+      const parentEntry = qaEntries.find(e => e.qid === expandedQid)
+      if (parentEntry) {
+        sessionId = parentEntry.session_id
+        parentQuestion = parentEntry.question
+        parentAnswer = parentEntry.answer || ''
+      }
+    }
+
+    setInput('')
+    await submitQuestion(q, { sessionId, parentQuestion, parentAnswer })
+  }, [input, loading, expandedQid, qaEntries, submitQuestion, refreshEntries])
 
   const handleNewQuestion = useCallback(() => {
+    cancelStream()
     setNewQuestionMode(true)
     setExpandedQid(null)
     setInput('')
-  }, [])
+  }, [cancelStream])
 
   const handleHistorySelect = useCallback((qid: number) => {
+    cancelStream()
     setShowHistory(false)
     setExpandedQid(qid)
     setNewQuestionMode(false)
@@ -134,7 +272,7 @@ export function QAPage() {
     setTimeout(() => {
       document.getElementById(`qa-entry-${qid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 100)
-  }, [followups, fetchFollowups])
+  }, [followups, fetchFollowups, cancelStream])
 
   const groupedHistory = groupByDate(qaEntries)
 
@@ -180,6 +318,23 @@ export function QAPage() {
                 <Button size="sm" onClick={handleSend} disabled={loading}>
                   {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '发送'}
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Streaming answer card */}
+          {streamingQuestion && (
+            <div className="bg-white border border-cyber-blue/20 rounded-xl p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">{streamingQuestion}</h3>
+              <div className="text-sm text-gray-700">
+                {streamingAnswer ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</ReactMarkdown>
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-400 py-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Agent 思考中...</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

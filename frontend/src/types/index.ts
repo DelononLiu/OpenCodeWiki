@@ -5,6 +5,7 @@ export interface Repo {
 
 export interface QaEntry {
   qid: number
+  session_id: string
   question: string
   answer: string | null
   repo: string

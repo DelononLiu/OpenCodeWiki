@@ -21,15 +21,16 @@ def create_entry(data: dict) -> dict:
     db = get_qa_db()
     eid = data.get("id") or str(uuid.uuid4())
     qid = data.get("qid") or get_next_qid()
+    session_id = data.get("session_id") or data.get("sessionId") or str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     db.execute(
         """INSERT INTO qa_entries
            (id, qid, session_id, repo, question, answer, mode, domain,
-            status, sources, tags, parent_qid, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            status, sources, tags, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             eid, qid,
-            data.get("sessionId", ""),
+            session_id,
             data.get("repo", ""),
             data.get("question", ""),
             data.get("answer"),
@@ -38,12 +39,11 @@ def create_entry(data: dict) -> dict:
             "pending",
             json.dumps(data.get("sources", [])),
             json.dumps(data.get("tags", [])),
-            data.get("parent_qid"),
             now, now,
         ),
     )
     db.commit()
-    return {"id": eid, "qid": qid}
+    return {"id": eid, "qid": qid, "session_id": session_id}
 
 
 def _parse_json(val: str | None, default: list = None) -> list:
@@ -91,6 +91,10 @@ def list_entries(query: dict) -> dict:
         conditions.append("domain = ?")
         params.append(query["domain"])
 
+    # Only root entries per session: first message in each session
+    conditions.append(
+        "(session_id = '' OR qid = (SELECT MIN(e2.qid) FROM qa_entries e2 WHERE e2.session_id = qa_entries.session_id))"
+    )
     where = " AND ".join(conditions) if conditions else "1=1"
     sort_map = {"latest": "created_at DESC", "popular": "visit_count DESC", "visit": "visit_count DESC"}
     order = sort_map.get(query.get("sort", ""), "created_at DESC")
@@ -177,11 +181,26 @@ def update_domain(qid: int, domain: str):
     db.commit()
 
 
-def list_followups(parent_qid: int) -> list[dict]:
-    """列出某个 QA 条目的所有追问，按时间正序。"""
+def list_followups(qid: int) -> list[dict]:
+    """返回同一 session 中除根消息外的所有追问，按时间正序。"""
     db = get_qa_db()
-    rows = db.execute(
-        "SELECT qid, question, answer, created_at FROM qa_entries WHERE parent_qid = ? ORDER BY created_at ASC",
-        (parent_qid,),
-    ).fetchall()
+    entry = db.execute("SELECT session_id FROM qa_entries WHERE qid = ?", (qid,)).fetchone()
+    if not entry:
+        return []
+    session_id = entry["session_id"]
+    if session_id:
+        rows = db.execute(
+            "SELECT qid, question, answer, created_at FROM qa_entries "
+            "WHERE session_id = ? AND qid != ? "
+            "ORDER BY created_at ASC",
+            (session_id, qid),
+        ).fetchall()
+    else:
+        # Legacy: entries with empty session_id, fallback to parent_qid
+        rows = db.execute(
+            "SELECT qid, question, answer, created_at FROM qa_entries "
+            "WHERE parent_qid = ? "
+            "ORDER BY created_at ASC",
+            (qid,),
+        ).fetchall()
     return [dict(r) for r in rows]

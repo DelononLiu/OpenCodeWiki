@@ -370,9 +370,21 @@ async def api_qa_suggest(q: str, limit: int = 5):
 from agent.graph import get_graph
 
 
-async def _qa_event_stream(question: str, session_id: str, repo: str = "") -> AsyncGenerator[str, None]:
+async def _qa_event_stream(question: str, session_id: str, repo: str = "", context: dict | None = None) -> AsyncGenerator[str, None]:
     """LangGraph SSE 流式输出"""
     graph = get_graph()
+
+    # 追问时注入原始问答上下文，让 Agent 知道对话背景
+    augmented_question = question
+    if context and context.get("parent_question"):
+        parent_q = context["parent_question"]
+        parent_a = context.get("parent_answer", "")
+        augmented_question = (
+            f"[追问场景]\n"
+            f"原始问题：{parent_q}\n"
+            f"原始回答：{parent_a}\n\n"
+            f"追问：{question}"
+        )
 
     def _sse(event_type: str, data: dict) -> str:
         return f"data: {json.dumps({'type': event_type, **data}, ensure_ascii=False)}\n\n"
@@ -382,7 +394,7 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "") -> As
     final_answer = ""
     try:
         result = await graph.ainvoke(
-            {"question": question, "project": repo, "intent": "", "messages": []},
+            {"question": augmented_question, "project": repo, "intent": "", "messages": []},
             config={"configurable": {"thread_id": session_id}},
         )
         for m in result.get("messages", []):
@@ -406,6 +418,7 @@ async def api_qa(request: Request):
     question = (body.get("question") or "").strip()
     session_id = body.get("sessionId") or str(uuid.uuid4())
     repo = body.get("repo") or body.get("project") or ""
+    context = body.get("context")
 
     if not question:
         return StreamingResponse(
@@ -414,7 +427,7 @@ async def api_qa(request: Request):
         )
 
     return StreamingResponse(
-        _qa_event_stream(question, session_id, repo),
+        _qa_event_stream(question, session_id, repo, context),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
@@ -683,13 +696,13 @@ async def api_qa_save(body: dict):
     answer = body.get("answer", "").strip()
     if not question:
         return _err("Missing question or answer")
+    session_id = body.get("session_id") or ""
     entry = create_entry({
         "question": question,
         "answer": answer,
         "repo": body.get("repo", ""),
-        "sessionId": body.get("session_id", ""),
+        "session_id": session_id,
         "mode": body.get("mode", "deep"),
-        "parent_qid": body.get("parent_qid"),
         "sources": body.get("sources", []),
     })
     domain = await classify_domain(question, answer)
