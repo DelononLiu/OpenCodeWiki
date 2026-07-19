@@ -6,7 +6,7 @@ import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  Loader2, Sidebar, PanelRight,
+  Loader2, Sidebar, PanelRight, Plus,
   ThumbsUp, ThumbsDown, Copy, MoreHorizontal,
   Hash, HelpCircle, Clock, Check,
 } from 'lucide-react'
@@ -253,6 +253,19 @@ export function QAPage() {
               )}
             </div>
             <button
+              onClick={() => {
+                setActiveSessionId(null)
+                setTimeout(() => {
+                  const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
+                  inp?.focus()
+                }, 50)
+              }}
+              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
+              title="新问题"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setRightPanelOpen(prev => !prev)}
               className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
             >
@@ -357,6 +370,7 @@ export function QAPage() {
                 }}
                 className="w-full bg-transparent border-none text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1 px-2"
                 placeholder="在此继续追问..."
+                data-qa-input
                 disabled={loading}
               />
               <Button
