@@ -202,15 +202,70 @@ export function QAPage() {
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null
 
+  // Load a session from backend (for history clicks / ?qid= links)
+  const loadSession = useCallback(async (sessionId: string, rootQid: number) => {
+    if (sessions[sessionId]?.messages.length) return  // already loaded
+
+    const [entryRes, fuRes] = await Promise.all([
+      fetch(`/api/qa/entry/${rootQid}`),
+      fetch(`/api/qa/entry/${rootQid}/followups`),
+    ])
+    const entry = await entryRes.json()
+    const followups = await fuRes.json()
+
+    if (!entry.ok) return
+
+    const e = entry.data
+    const msgs: Message[] = [
+      { role: 'user', content: e.question },
+      { role: 'assistant', content: e.answer || '' },
+    ]
+    if (followups.ok && followups.data) {
+      for (const f of followups.data) {
+        msgs.push({ role: 'user', content: f.question })
+        if (f.answer) msgs.push({ role: 'assistant', content: f.answer })
+      }
+    }
+
+    setSessions(prev => ({
+      ...prev,
+      [sessionId]: {
+        sessionId,
+        question: e.question,
+        messages: msgs,
+        streamingAnswer: '',
+        isStreaming: false,
+      },
+    }))
+  }, [sessions])
+
+  // Auto-submit ?q= or load ?qid=
   useEffect(() => {
     if (autoSubmitDoneRef.current) return
     const q = searchParams.get('q')
+    const qid = searchParams.get('qid')
+
     if (q) {
       autoSubmitDoneRef.current = true
       const clean = new URLSearchParams(searchParams)
       clean.delete('q')
       setSearchParams(clean, { replace: true })
       submitQuestion(q)
+    } else if (qid) {
+      const qidNum = parseInt(qid, 10)
+      if (!isNaN(qidNum)) {
+        autoSubmitDoneRef.current = true
+        const clean = new URLSearchParams(searchParams)
+        clean.delete('qid')
+        setSearchParams(clean, { replace: true })
+        // Find session from list, or load via entry API
+        fetch(`/api/qa/entry/${qidNum}`).then(r => r.json()).then(d => {
+          if (d.ok && d.data.session_id) {
+            loadSession(d.data.session_id, qidNum)
+            setActiveSessionId(d.data.session_id)
+          }
+        }).catch(() => {})
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -263,7 +318,10 @@ export function QAPage() {
                         <button
                           onClick={() => {
                             const info = sessionList.find(s => s.root_qid === rq.qid)
-                            if (info) setActiveSessionId(info.session_id)
+                            if (info) {
+                              if (info.root_qid) loadSession(info.session_id, info.root_qid)
+                              setActiveSessionId(info.session_id)
+                            }
                           }}
                           className="w-full text-left p-2 rounded-lg border border-gray-200 bg-slate-50/60 text-gray-600 hover:border-cyber-blue transition flex flex-col gap-1"
                         >
@@ -291,7 +349,10 @@ export function QAPage() {
                     {sessionList.map(sl => (
                       <button
                         key={sl.session_id}
-                        onClick={() => setActiveSessionId(sl.session_id)}
+                        onClick={() => {
+                          if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
+                          setActiveSessionId(sl.session_id)
+                        }}
                         className={`w-full text-left p-2 rounded-lg font-mono text-[11px] flex justify-between items-center transition ${activeSessionId === sl.session_id ? 'bg-cyber-blue/10 text-cyber-blue' : 'bg-slate-100 text-gray-900 hover:bg-gray-200'}`}
                       >
                         <span className="truncate">{sl.root_question}</span>
