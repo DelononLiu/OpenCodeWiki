@@ -491,19 +491,19 @@ export function QAPage() {
 
                 {/* Streaming answer (live or background) */}
                 {activeSession.isStreaming && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-xl p-4 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">
-                      {activeSession.streamingAnswer ? (
+                  activeSession.streamingAnswer ? (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] rounded-xl p-4 text-sm bg-white border border-gray-200/50 shadow-sm text-gray-800">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeSession.streamingAnswer}</ReactMarkdown>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-gray-400 py-2">
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-gray-400 py-2 pl-5">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  )
                 )}
               </>
             )}
