@@ -365,6 +365,37 @@ async def api_qa_suggest(q: str, limit: int = 5):
     return _ok({"suggestions": search_questions(q, limit)})
 
 
+@app.get("/api/sessions")
+async def api_sessions():
+    from stores.qa import list_sessions
+    return _ok({"sessions": list_sessions()})
+
+
+@app.get("/api/qa/entry/{qid}/sources")
+async def api_qa_sources(qid: int):
+    from stores.qa import get_sources
+    sources = get_sources(qid)
+    return _ok({"sources": sources})
+
+
+@app.get("/api/qa/entry/{qid}/related")
+async def api_qa_related(qid: int):
+    from stores.qa import get_related
+    return _ok({"related": get_related(qid)})
+
+
+@app.post("/api/qa/entry/{qid}/feedback")
+async def api_qa_feedback(qid: int, body: dict):
+    fb = (body.get("feedback") or "").strip()
+    if fb not in ("accepted", "rejected"):
+        return _err("feedback must be 'accepted' or 'rejected'")
+    from stores.qa import save_feedback
+    ok = save_feedback(qid, fb)
+    if not ok:
+        raise HTTPException(404, f"#Q{qid} not found")
+    return _ok({"qid": qid, "feedback": fb})
+
+
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
 from agent.graph import get_graph
@@ -406,6 +437,10 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
             yield _sse("token", {"content": final_answer})
         else:
             yield _sse("error", {"message": "Agent did not produce an answer"})
+
+        sources = result.get("sources", [])
+        if sources:
+            yield _sse("sources", {"sources": sources})
     except Exception as e:
         yield _sse("error", {"message": f"Agent error: {e}"})
     finally:
@@ -697,18 +732,24 @@ async def api_qa_save(body: dict):
     if not question:
         return _err("Missing question or answer")
     session_id = body.get("session_id") or ""
+    sources = body.get("sources", [])
+    session_create = body.get("session_create", False)
+
     entry = create_entry({
         "question": question,
         "answer": answer,
         "repo": body.get("repo", ""),
         "session_id": session_id,
         "mode": body.get("mode", "deep"),
-        "sources": body.get("sources", []),
+        "sources": sources,
     })
-    domain = await classify_domain(question, answer)
-    from stores.qa import update_domain
-    update_domain(entry["qid"], domain)
-    return _ok({"qid": entry["qid"], "id": entry["id"], "domain": domain})
+
+    # Topic matching — only on session creation
+    if session_create and session_id:
+        from stores.qa import match_topic
+        match_topic(session_id, question, answer)
+
+    return _ok({"qid": entry["qid"], "id": entry["id"], "session_id": entry["session_id"]})
 
 
 # ── Global Search ───────────────────────────────────────────────
