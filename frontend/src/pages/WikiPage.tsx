@@ -5,7 +5,7 @@ import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
 import { TopicRightSidebar } from '@/components/layout/TopicRightSidebar'
 import { BottomInput } from '@/components/layout/BottomInput'
-import { fetchWikiPage } from '@/api/client'
+import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -40,8 +40,16 @@ export function WikiPage() {
   }, [])
 
   useEffect(() => {
-    if (currentHash) loadContent(currentHash)
-    else loadContent('overview')
+    if (currentHash) {
+      loadContent(currentHash)
+      return
+    }
+    // Default to first available document
+    fetchWikiModules().then(modules => {
+      const first = modules.find((m: any) => m.type === 'source') || modules[0]
+      if (first) loadContent(first.slug)
+      else loadContent('overview')
+    }).catch(() => loadContent('overview'))
   }, [currentHash, loadContent])
 
   // 从 React children 提取文本
