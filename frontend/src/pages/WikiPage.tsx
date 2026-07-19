@@ -25,9 +25,9 @@ export function WikiPage() {
 
   const currentHash = location.hash.replace('#', '')
 
-  const loadContent = useCallback(async (slug: string) => {
+  const loadContent = useCallback(async (slug: string, initial = false) => {
     if (!slug) return
-    setLoading(true)
+    if (!initial) setLoading(true)
     setCurrentSlug(slug)
     try {
       const data = await fetchWikiPage(slug)
@@ -39,7 +39,7 @@ export function WikiPage() {
       setRawContent('')
       setPageType('wiki')
     } finally {
-      setLoading(false)
+      if (!initial) setLoading(false)
     }
   }, [])
 
@@ -51,9 +51,9 @@ export function WikiPage() {
     // Default to first available document
     fetchWikiModules().then(modules => {
       const first = modules.find((m: any) => m.type === 'source') || modules[0]
-      if (first) loadContent(first.slug)
-      else loadContent('overview')
-    }).catch(() => loadContent('overview'))
+      if (first) loadContent(first.slug, true)
+      else loadContent('overview', true)
+    }).catch(() => loadContent('overview', true))
   }, [currentHash, loadContent])
 
   // 从 React children 提取文本
