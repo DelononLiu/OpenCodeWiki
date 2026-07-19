@@ -258,9 +258,9 @@ def save_feedback(qid: int, fb: str) -> bool:
     if fb not in ("accepted", "rejected"):
         return False
     db = get_qa_db()
-    db.execute("UPDATE qa_entries SET feedback = ? WHERE qid = ?", (fb, qid))
+    cur = db.execute("UPDATE qa_entries SET feedback = ? WHERE qid = ?", (fb, qid))
     db.commit()
-    return db.total_changes > 0
+    return cur.rowcount > 0
 
 
 def match_topic(session_id: str, question: str, answer: str):

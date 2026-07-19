@@ -5,6 +5,8 @@ test_qa.py — QA 存储层单元测试
 使用内存 SQLite + patch_stores fixture，不依赖真实数据库文件。
 """
 
+import uuid
+
 import pytest
 from unittest.mock import patch
 
@@ -244,3 +246,40 @@ class TestListSorted:
         hot_entry = next(e for e in entries if e["qid"] == hot["qid"])
         cold_entry = next(e for e in entries if e["qid"] == cold["qid"])
         assert hot_entry["visit_count"] > cold_entry["visit_count"]
+
+
+def test_list_sessions(patch_stores):
+    from stores.qa import list_sessions, create_entry
+    sid = "test-sess-" + str(uuid.uuid4())[:8]
+    create_entry({"question": "root", "answer": "a", "session_id": sid})
+    create_entry({"question": "followup", "answer": "b", "session_id": sid})
+    sessions = list_sessions()
+    assert any(s["session_id"] == sid for s in sessions)
+    s = next(s for s in sessions if s["session_id"] == sid)
+    assert s["message_count"] >= 2
+
+
+def test_save_feedback(patch_stores):
+    from stores.qa import save_feedback, create_entry, get_entry
+    entry = create_entry({"question": "feedback test", "answer": "x", "session_id": "fb-test"})
+    assert save_feedback(entry["qid"], "accepted") is True
+    e = get_entry(entry["qid"])
+    assert e["feedback"] == "accepted"
+    assert save_feedback(99999, "accepted") is False
+
+
+def test_save_feedback_invalid(patch_stores):
+    from stores.qa import save_feedback
+    assert save_feedback(1, "invalid") is False
+
+
+def test_get_sources(patch_stores):
+    from stores.qa import get_sources, create_entry
+    entry = create_entry({
+        "question": "sources test", "answer": "x",
+        "session_id": "src-test",
+        "sources": [{"file": "f.py", "line": "L10", "snippet": "code"}]
+    })
+    sources = get_sources(entry["qid"])
+    assert len(sources) == 1
+    assert sources[0]["file"] == "f.py"
