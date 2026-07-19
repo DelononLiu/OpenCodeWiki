@@ -285,8 +285,7 @@ export function QAPage() {
                         </div>
 
                         {/* Hover actions */}
-                        <div className="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6"
-                             style={{ opacity: 0, transition: 'opacity 0.15s ease' }}>
+                        <div className="action-bar flex items-center gap-1 text-gray-400 select-none pl-1 h-6">
                           <button
                             className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition"
                             onClick={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
