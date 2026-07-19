@@ -5,6 +5,7 @@ StateGraph: 按意图路由的自定义 Agent 流程。
 """
 
 import asyncio
+import json
 import uuid
 from typing import AsyncGenerator, Literal
 
@@ -124,6 +125,42 @@ async def run_sub(state: GraphState) -> dict:
     try:
         final = await agent.ainvoke({"messages": msgs}, config)
         all_msgs = final.get("messages", [])
+
+        # Parse sources from tool messages
+        sources = []
+        for m in all_msgs:
+            role = getattr(m, "type", "")
+            if role == "tool":
+                content = getattr(m, "content", "") or ""
+                name = getattr(m, "name", "")
+                if name in ("code_search", "code_context", "code_grep", "code_files", "code_read_wiki"):
+                    try:
+                        data = json.loads(content) if isinstance(content, str) else content
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict) and "file" in item:
+                                    sources.append({
+                                        "file": item.get("file", ""),
+                                        "line": item.get("line", ""),
+                                        "snippet": str(item.get("snippet", item.get("content", "")))[:300],
+                                    })
+                        elif isinstance(data, dict) and "file" in data:
+                            sources.append({
+                                "file": data.get("file", ""),
+                                "line": data.get("line", ""),
+                                "snippet": str(data.get("snippet", data.get("content", "")))[:300],
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+        # 去重
+        seen = set()
+        unique_sources = []
+        for s in sources:
+            key = (s["file"], s["line"])
+            if key not in seen:
+                seen.add(key)
+                unique_sources.append(s)
     except GraphRecursionError:
         # 触底时直接用 LLM 回答，不做状态恢复
         llm = build_llm(get_llm_config())
@@ -132,8 +169,9 @@ async def run_sub(state: GraphState) -> dict:
             f"在代码库中搜索了{limit}步未找到完整信息，请基于已有知识直接回答。"
         )
         all_msgs = [AIMessage(content=resp.content)]
+        unique_sources = []
 
-    return {"messages": all_msgs}
+    return {"messages": all_msgs, "sources": unique_sources}
 
 
 # ── 构建图 ──────────────────────────────────────────────────
