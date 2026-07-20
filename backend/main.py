@@ -307,33 +307,42 @@ def _extract_text(filename: str, content: bytes) -> str:
 
 @app.get("/api/documents")
 async def api_documents():
-    """列出所有已上传的文档。"""
+    """列出所有知识库下的上传文档。"""
     from datetime import datetime, timezone
     docs = []
     if KNOWLEDGE_DIR.exists():
-        for md_path in sorted(KNOWLEDGE_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
-            docs.append({
-                "slug": md_path.stem,
-                "filename": md_path.name,
-                "size": md_path.stat().st_size,
-                "updated_at": datetime.fromtimestamp(md_path.stat().st_mtime, tz=timezone.utc).isoformat(),
-            })
+        for kb_dir in sorted(KNOWLEDGE_DIR.iterdir()):
+            if not kb_dir.is_dir():
+                continue
+            for md_path in sorted(kb_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
+                docs.append({
+                    "slug": md_path.stem,
+                    "kb_name": kb_dir.name,
+                    "filename": md_path.name,
+                    "size": md_path.stat().st_size,
+                    "updated_at": datetime.fromtimestamp(md_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                })
     return _ok(docs)
 
 
 @app.delete("/api/documents/{slug}")
 async def api_delete_document(slug: str):
-    """删除已上传的文档文件。"""
-    md_path = KNOWLEDGE_DIR / f"{slug}.md"
-    if not md_path.exists():
-        raise HTTPException(404, f"Document '{slug}' not found")
-    md_path.unlink()
-    return _ok({"deleted": True})
+    """删除已上传的文档文件（在所有知识库目录下搜索）。"""
+    if KNOWLEDGE_DIR.exists():
+        for kb_dir in KNOWLEDGE_DIR.iterdir():
+            if not kb_dir.is_dir():
+                continue
+            md_path = kb_dir / f"{slug}.md"
+            if md_path.exists():
+                md_path.unlink()
+                return _ok({"deleted": True, "kb_name": kb_dir.name})
+    raise HTTPException(404, f"Document '{slug}' not found")
 
 
 @app.post("/api/documents/upload")
 async def api_document_upload(
     file: UploadFile = File(...),
+    name: str = Form(""),
     tags: str = Form(""),
 ):
     filename = file.filename or "unknown"
@@ -347,19 +356,23 @@ async def api_document_upload(
 
     text = _extract_text(filename, content)
     slug = Path(filename).stem
+    kb_name = name.strip() or slug
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
 
-    # 写入 markdown
+    # 写入 markdown 到 knowledge/{name}/{slug}.md
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     header = f"---\nsource: upload\noriginal_filename: {filename}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
-    md_path = KNOWLEDGE_DIR / f"{slug}.md"
+    kb_dir = KNOWLEDGE_DIR / kb_name
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    md_path = kb_dir / f"{slug}.md"
     md_path.write_text(header + text, encoding="utf-8")
 
     return _ok({
         "slug": slug,
         "title": slug,
+        "kb_name": kb_name,
         "page_type": "uploaded",
         "size": len(content),
         "tags": tag_list,

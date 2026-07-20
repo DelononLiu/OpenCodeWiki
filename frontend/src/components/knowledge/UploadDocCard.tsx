@@ -2,13 +2,14 @@ import { FileText, Trash2 } from 'lucide-react'
 
 interface UploadDocCardProps {
   slug: string
+  kbName?: string
   filename: string
   size: number
   updatedAt: string
   onDelete: () => void
 }
 
-export function UploadDocCard({ slug, filename, size, updatedAt, onDelete }: UploadDocCardProps) {
+export function UploadDocCard({ slug, kbName, filename, size, updatedAt, onDelete }: UploadDocCardProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
       <div className="flex items-center gap-2.5">
@@ -17,7 +18,7 @@ export function UploadDocCard({ slug, filename, size, updatedAt, onDelete }: Upl
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-gray-900 truncate">{slug}</div>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">upload</span>
+          {kbName && <span className="text-[10px] text-gray-400 font-mono">📁 {kbName}</span>}
         </div>
       </div>
       <div className="text-[10px] text-gray-400 truncate font-mono">{filename} ({(size / 1024).toFixed(1)} KB)</div>

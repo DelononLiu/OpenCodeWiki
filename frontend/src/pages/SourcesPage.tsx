@@ -46,7 +46,7 @@ export function SourcesPage() {
   }
 
   // 上传的文档列表
-  const [uploadedDocs, setUploadedDocs] = useState<{slug: string; filename: string; size: number; updated_at: string}[]>([])
+  const [uploadedDocs, setUploadedDocs] = useState<{slug: string; kb_name?: string; filename: string; size: number; updated_at: string}[]>([])
 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -76,9 +76,11 @@ export function SourcesPage() {
         // 上传本地文档
         if (!addFiles || addFiles.length === 0) return
         let ok = 0
+        const kbName = addName.trim() || 'untitled'
         for (const file of Array.from(addFiles)) {
           const form = new FormData()
           form.append('file', file)
+          form.append('name', kbName)
           form.append('tags', 'uploaded')
           try {
             const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
@@ -160,8 +162,9 @@ export function SourcesPage() {
               {/* 上传的文档卡片 */}
               {uploadedDocs.map(d => (
                 <UploadDocCard
-                  key={`doc-${d.slug}`}
+                  key={`doc-${d.slug}-${d.kb_name}`}
                   slug={d.slug}
+                  kbName={d.kb_name}
                   filename={d.filename}
                   size={d.size}
                   updatedAt={d.updated_at}
@@ -272,23 +275,16 @@ export function SourcesPage() {
                     ) : (
                       <div>
                         <p className="text-sm font-bold text-gray-600 mb-1">点击选择文件</p>
-                        <p className="text-[10px] text-gray-400">选择文件夹，自动导入全部 .md .txt 文件</p>
+                        <p className="text-[10px] text-gray-400">支持 .md .txt 文件，可多选</p>
                       </div>
                     )}
                   </div>
-                  <input type="file" /* @ts-ignore */
-                    webkitdirectory
+                  <input type="file" multiple accept=".md,.txt"
                     onChange={e => {
                       const files = e.target.files
                       setAddFiles(files)
-                      if (!files || files.length === 0) return
-                      // 取文件夹名作为知识库名称
-                      const first = files[0] as File & { webkitRelativePath?: string }
-                      if (first.webkitRelativePath) {
-                        const folderName = first.webkitRelativePath.split('/')[0]
-                        setAddName(folderName || first.name.replace(/\.(md|txt)$/i, ''))
-                      } else if (!addName) {
-                        setAddName(files.length === 1 ? files[0].name.replace(/\.(md|txt)$/i, '') : '')
+                      if (files && files.length > 0 && !addName) {
+                        setAddName(files[0].name.replace(/\.(md|txt)$/i, ''))
                       }
                     }}
                     className="hidden" />
@@ -296,9 +292,6 @@ export function SourcesPage() {
                 {addFiles && addFiles.length > 0 && (
                   <div className="text-[10px] text-gray-400 mt-1.5">
                     已选 {addFiles.length} 个文件
-                    {addFiles[0] && (addFiles[0] as any).webkitRelativePath && (
-                      <>，来自 <span className="font-mono font-bold">{(addFiles[0] as any).webkitRelativePath.split('/')[0]}/</span></>
-                    )}
                   </div>
                 )}
                 <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mt-3">
