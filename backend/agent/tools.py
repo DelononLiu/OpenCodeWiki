@@ -13,7 +13,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from stores.sources import REPOS_DIR
+from stores.sources import KNOWLEDGE_DIR
 
 # ── 配置 ─────────────────────────────────────────────────────
 
@@ -349,10 +349,10 @@ async def code_grep(pattern: str, project: str = "") -> str:
         search_dir = str(Path.cwd())
         for entry in registry:
             if entry.get("name") == project:
-                search_dir = str(REPOS_DIR / entry["name"])
+                search_dir = str(KNOWLEDGE_DIR / entry["name"])
                 break
     else:
-        search_dir = str(REPOS_DIR)
+        search_dir = str(KNOWLEDGE_DIR)
 
     try:
         result = subprocess.run(
@@ -389,7 +389,7 @@ async def docs_read(project: str = "") -> str:
     parts = []
 
     # 1. openwiki/ — 代码生成的 wiki 文档
-    wiki_base = REPOS_DIR / project / "openwiki"
+    wiki_base = KNOWLEDGE_DIR / project / "openwiki"
     if wiki_base.exists():
         for md_path in sorted(wiki_base.rglob("*.md")):
             text = md_path.read_text()
@@ -398,8 +398,8 @@ async def docs_read(project: str = "") -> str:
             parts.append(text)
 
     # 2. uploaded/ — 用户上传的文档（按项目名子目录）
-    from stores.sources import SOURCES_DIR
-    upload_dir = SOURCES_DIR / project
+    from stores.sources import KNOWLEDGE_DIR
+    upload_dir = KNOWLEDGE_DIR / project
     if upload_dir.exists():
         for md_path in sorted(upload_dir.rglob("*.md")):
             text = md_path.read_text()

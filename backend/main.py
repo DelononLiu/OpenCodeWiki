@@ -103,7 +103,7 @@ async def api_sources(type: str | None = None):
     # 对 code 源追加当前版本号（只读本地 .git，毫秒级）
     for src in sources:
         if src.get("type") == "code":
-            repo_path = REPOS_DIR / src["name"]
+            repo_path = KNOWLEDGE_DIR / src["name"]
             git_dir = repo_path / ".git"
             if git_dir.exists():
                 try:
@@ -122,7 +122,7 @@ async def api_source(name: str):
         raise HTTPException(404, f"Source '{name}' not found")
     # 对 code 类型的源，追加 git 版本信息
     if src.get("type") == "code":
-        repo_path = REPOS_DIR / name
+        repo_path = KNOWLEDGE_DIR / name
         if repo_path.exists():
             try:
                 import subprocess
@@ -170,8 +170,8 @@ async def api_create_source(body: dict):
                 "encrypted_password": encrypted,
             })
             # 首次检出
-            from stores.sources import svn_checkout, REPOS_DIR
-            dest = REPOS_DIR / name
+            from stores.sources import svn_checkout, KNOWLEDGE_DIR
+            dest = KNOWLEDGE_DIR / name
             svn_checkout(svn_url, dest, username, password)
             return _ok(result)
         else:
@@ -211,7 +211,7 @@ async def api_upload_source(
 
 @app.post("/api/sources/{name}/sync")
 async def api_sync_source(name: str):
-    from stores.sources import get_source, svn_checkout, REPOS_DIR
+    from stores.sources import get_source, svn_checkout, KNOWLEDGE_DIR
     src = get_source(name)
     if not src:
         raise HTTPException(404, f"Source '{name}' not found")
@@ -226,7 +226,7 @@ async def api_sync_source(name: str):
         if encrypted:
             from utils.crypto import decrypt_credential
             password = decrypt_credential(encrypted)
-        dest = REPOS_DIR / name
+        dest = KNOWLEDGE_DIR / name
         # 清理旧目录重新检出
         import shutil
         if dest.exists():
@@ -292,8 +292,8 @@ async def api_settings_update(body: dict):
 
 # ── Documents ──────────────────────────────────────────────────
 
-UPLOAD_DIR = Path.home() / ".opencodewiki" / "pages" / "uploaded"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+from stores.sources import KNOWLEDGE_DIR
+KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
@@ -320,8 +320,8 @@ async def api_documents():
     """列出所有已上传的文档。"""
     from datetime import datetime, timezone
     docs = []
-    if UPLOAD_DIR.exists():
-        for md_path in sorted(UPLOAD_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
+    if KNOWLEDGE_DIR.exists():
+        for md_path in sorted(KNOWLEDGE_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
             docs.append({
                 "slug": md_path.stem,
                 "filename": md_path.name,
@@ -334,7 +334,7 @@ async def api_documents():
 @app.delete("/api/documents/{slug}")
 async def api_delete_document(slug: str):
     """删除已上传的文档文件。"""
-    md_path = UPLOAD_DIR / f"{slug}.md"
+    md_path = KNOWLEDGE_DIR / f"{slug}.md"
     if not md_path.exists():
         raise HTTPException(404, f"Document '{slug}' not found")
     md_path.unlink()
@@ -364,7 +364,7 @@ async def api_document_upload(
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     header = f"---\nsource: upload\noriginal_filename: {filename}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
-    md_path = UPLOAD_DIR / f"{slug}.md"
+    md_path = KNOWLEDGE_DIR / f"{slug}.md"
     md_path.write_text(header + text, encoding="utf-8")
 
     return _ok({
@@ -585,7 +585,7 @@ async def api_qa(request: Request):
 
 # ── Wiki ────────────────────────────────────────────────────────
 
-from stores.sources import list_sources, REPOS_DIR, SOURCES_DIR
+from stores.sources import list_sources, KNOWLEDGE_DIR
 
 
 @app.get("/api/wiki/modules")
@@ -606,9 +606,9 @@ async def api_wiki_modules():
     for src in list_sources():
         name = src["name"]
         if src.get("type") == "code":
-            wiki_dir = REPOS_DIR / name / "openwiki"
+            wiki_dir = KNOWLEDGE_DIR / name / "openwiki"
         else:
-            wiki_dir = SOURCES_DIR / name
+            wiki_dir = KNOWLEDGE_DIR / name
         if wiki_dir.exists():
             for md_file in sorted(wiki_dir.glob("*.md")):
                 slug = md_file.stem
@@ -683,9 +683,9 @@ async def api_wiki_page(slug: str):
     for src in list_sources():
         name = src["name"]
         if src.get("type") == "code":
-            md_path = REPOS_DIR / name / "openwiki" / f"{slug}.md"
+            md_path = KNOWLEDGE_DIR / name / "openwiki" / f"{slug}.md"
         else:
-            md_path = SOURCES_DIR / name / f"{slug}.md"
+            md_path = KNOWLEDGE_DIR / name / f"{slug}.md"
         if md_path.exists():
             content = md_path.read_text(encoding="utf-8")
             return _ok({
@@ -860,8 +860,8 @@ async def api_search(q: str = "", limit: int = 10):
     wiki_results = []
 
     # 搜上传文档目录
-    if UPLOAD_DIR.exists():
-        for md_path in UPLOAD_DIR.rglob("*.md"):
+    if KNOWLEDGE_DIR.exists():
+        for md_path in KNOWLEDGE_DIR.rglob("*.md"):
             if len(wiki_results) >= 3:
                 break
             try:

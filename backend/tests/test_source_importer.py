@@ -2,7 +2,7 @@
 test_source_importer.py — source_importer 模块测试。
 
 测试覆盖：
-- mock_env fixture：将 REPOS_DIR / SOURCES_DIR / VECTORS_DIR 指向临时目录
+- mock_env fixture：将 KNOWLEDGE_DIR / SOURCES_DIR / VECTORS_DIR 指向临时目录
 - import_code_git：git clone + 索引 + 注册表写入
 - import_docs_git：.md 文件复制
 - import_docs_zip / import_code_zip：zip 解压 + 复制
@@ -23,7 +23,7 @@ import pytest
 
 @pytest.fixture
 def mock_env(tmp_path):
-    """Mock REPOS_DIR / SOURCES_DIR / VECTORS_DIR → tmp_path，同时隔离 JSON 注册表。"""
+    """Mock KNOWLEDGE_DIR / SOURCES_DIR / VECTORS_DIR → tmp_path，同时隔离 JSON 注册表。"""
     repos = tmp_path / "repos"
     sources = tmp_path / "sources"
     vectors = tmp_path / "vectors"
@@ -35,11 +35,10 @@ def mock_env(tmp_path):
     reg.parent.mkdir(parents=True, exist_ok=True)
     reg.write_text("[]")
 
-    with patch("source_importer.REPOS_DIR", repos):
-        with patch("source_importer.SOURCES_DIR", sources):
-            with patch("source_importer.VECTORS_DIR", vectors):
-                with patch("stores.sources.REGISTRY_PATH", reg):
-                    yield repos, sources, vectors, reg
+    with patch("source_importer.KNOWLEDGE_DIR", repos):
+        with patch("source_importer.VECTORS_DIR", vectors):
+            with patch("stores.sources.REGISTRY_PATH", reg):
+                yield repos, vectors, reg
 
 
 # ── Helper: 模拟 _git_clone ─────────────────────────────────────
@@ -287,7 +286,7 @@ class TestImportDocsZip:
 @pytest.mark.asyncio
 class TestRemoveSource:
     async def test_remove_code_source(self, mock_env):
-        """删除 code 类型 source：清理 REPOS_DIR 目录 + 注册表条目。"""
+        """删除 code 类型 source：清理 KNOWLEDGE_DIR 目录 + 注册表条目。"""
         repos, sources, vectors, reg = mock_env
 
         from stores.sources import create_source, get_source

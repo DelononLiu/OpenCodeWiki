@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from stores.sources import (
-    REPOS_DIR,
-    SOURCES_DIR,
+    KNOWLEDGE_DIR,
+    KNOWLEDGE_DIR,
     VECTORS_DIR,
     create_source,
     delete_source as delete_registry_entry,
@@ -84,14 +84,14 @@ async def _copy_md_files(src: Path, dest: Path):
 async def import_code_git(name: str, url: str) -> dict:
     """从 git 仓库导入代码知识源。
 
-    - git clone 到 REPOS_DIR / name
+    - git clone 到 KNOWLEDGE_DIR / name
     - 调用 codebase-memory-mcp 索引
     - 调用 openwiki 构建 wiki
     - 在注册表中创建记录
     """
     # 先注册，让用户立即看到
     result = create_source({"name": name, "type": "code", "url": url})
-    dest = REPOS_DIR / name
+    dest = KNOWLEDGE_DIR / name
     try:
         await _git_clone(url, dest)
         from agent.tools import BINARY
@@ -111,7 +111,7 @@ async def import_code_zip(name: str, zip_path: Path) -> dict:
     """从 zip 文件导入代码知识源。"""
     # 先注册，让用户立即看到
     result = create_source({"name": name, "type": "code"})
-    dest = REPOS_DIR / name
+    dest = KNOWLEDGE_DIR / name
     try:
         dest.mkdir(parents=True, exist_ok=True)
         await _unzip(zip_path, dest)
@@ -132,13 +132,13 @@ async def import_docs_git(name: str, url: str) -> dict:
     """从 git 仓库导入文档知识源。
 
     - git clone 到临时目录
-    - 复制 .md 文件到 SOURCES_DIR / name
+    - 复制 .md 文件到 KNOWLEDGE_DIR / name
     - 在注册表中创建记录
     """
     with tempfile.TemporaryDirectory() as tmp:
         clone_dir = Path(tmp) / name
         await _git_clone(url, clone_dir)
-        await _copy_md_files(clone_dir, SOURCES_DIR / name)
+        await _copy_md_files(clone_dir, KNOWLEDGE_DIR / name)
 
     return create_source({"name": name, "type": "docs", "url": url})
 
@@ -148,7 +148,7 @@ async def import_docs_zip(name: str, zip_path: Path) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         extract_dir = Path(tmp) / name
         await _unzip(zip_path, extract_dir)
-        await _copy_md_files(extract_dir, SOURCES_DIR / name)
+        await _copy_md_files(extract_dir, KNOWLEDGE_DIR / name)
 
     return create_source({"name": name, "type": "docs"})
 
@@ -171,7 +171,7 @@ async def sync_source(name: str) -> dict:
     now = datetime.now(timezone.utc).isoformat()
 
     if source.get("type") == "code":
-        repo_path = REPOS_DIR / name
+        repo_path = KNOWLEDGE_DIR / name
         # 如果目录不是完整 git 仓库（如 clone 失败），重新 clone
         git_dir = repo_path / ".git"
         if not git_dir.exists():
@@ -194,7 +194,7 @@ async def sync_source(name: str) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             clone_dir = Path(tmp) / name
             await _git_clone(source["url"], clone_dir)
-            dest = SOURCES_DIR / name
+            dest = KNOWLEDGE_DIR / name
             if dest.exists():
                 shutil.rmtree(dest)
             await _copy_md_files(clone_dir, dest)
@@ -210,12 +210,12 @@ async def remove_source(name: str) -> bool:
         return False
 
     if source.get("type") == "code":
-        repo_path = REPOS_DIR / name
+        repo_path = KNOWLEDGE_DIR / name
         if repo_path.exists():
             shutil.rmtree(repo_path)
 
     elif source.get("type") == "docs":
-        pages_path = SOURCES_DIR / name
+        pages_path = KNOWLEDGE_DIR / name
         if pages_path.exists():
             shutil.rmtree(pages_path)
 

@@ -12,8 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
-REPOS_DIR = Path.home() / ".opencodewiki" / "repos"
-SOURCES_DIR = Path.home() / ".opencodewiki" / "pages" / "sources"
+KNOWLEDGE_DIR = Path.home() / ".opencodewiki" / "knowledge"
 VECTORS_DIR = Path.home() / ".opencodewiki" / "vectors"
 
 
@@ -75,9 +74,9 @@ def create_source(data: dict) -> dict:
     if data.get("path"):
         entry["path"] = data["path"]
     elif data.get("type") == "code":
-        entry["path"] = str(REPOS_DIR / data["name"])
+        entry["path"] = str(KNOWLEDGE_DIR / data["name"])
     elif data.get("type") == "svn":
-        entry["path"] = str(REPOS_DIR / data["name"])
+        entry["path"] = str(KNOWLEDGE_DIR / data["name"])
         if data.get("svn_url"):
             entry["svn_url"] = data["svn_url"]
         if data.get("encrypted_password"):

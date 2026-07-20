@@ -12,44 +12,35 @@ export function SourcesPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
 
-  // 上传本地文档弹窗
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [uploadFiles, setUploadFiles] = useState<FileList | null>(null)
-  const [uploading, setUploading] = useState(false)
+  // 统一添加弹窗
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addMode, setAddMode] = useState<'upload' | 'online'>('upload')
+  const [addName, setAddName] = useState('')
+  const [addUrl, setAddUrl] = useState('')
+  const [addFiles, setAddFiles] = useState<FileList | null>(null)
+  const [addType, setAddType] = useState<'code' | 'docs'>('code')
+  const [addProtocol, setAddProtocol] = useState<'git' | 'svn'>('git')
+  const [addSubmitting, setAddSubmitting] = useState(false)
 
-  // 添加在线文档弹窗
-  const [showOnlineModal, setShowOnlineModal] = useState(false)
-  const [onlineUrl, setOnlineUrl] = useState('')
-  const [onlineName, setOnlineName] = useState('')
-  const [onlineType, setOnlineType] = useState<'code' | 'docs'>('code')
-  const [onlineMode, setOnlineMode] = useState<'git' | 'svn'>('git')
-  const [addingOnline, setAddingOnline] = useState(false)
-
-  // 从 URL 智能推断名称和类型
+  // 从 URL 智能推断名称和协议
   const parseUrl = (url: string) => {
     const trimmed = url.trim()
-    if (!trimmed) { setOnlineName(''); return }
+    if (!trimmed) return
 
-    // 检测 git vs svn
     if (trimmed.startsWith('svn://') || trimmed.startsWith('svn+ssh://')) {
-      setOnlineMode('svn')
+      setAddProtocol('svn')
     } else {
-      setOnlineMode('git')
+      setAddProtocol('git')
     }
 
-    // 从 URL 提取项目名
     let name = ''
-    // git@github.com:user/repo.git → repo
-    // https://github.com/user/repo.git → repo
-    // svn://example.com/svn/project/trunk → project
     const m = trimmed.match(/[\/:](\w[\w.-]*?)(?:\.git)?\/?$/)
     if (m) name = m[1]
-    // 如果还没有，取最后一段
     if (!name) {
       const parts = trimmed.replace(/\/+$/, '').split('/')
       name = parts[parts.length - 1].replace(/\.git$/, '')
     }
-    setOnlineName(name || '')
+    if (name) setAddName(name)
   }
 
   // 上传的文档列表
@@ -73,78 +64,57 @@ export function SourcesPage() {
 
   useEffect(() => { loadAll() }, [])
 
-  // 上传文档
-  const handleUploadDocs = async () => {
-    if (!uploadFiles || uploadFiles.length === 0) return
-    setUploading(true)
-    let ok = 0
-    for (const file of Array.from(uploadFiles)) {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('tags', 'uploaded')
+  // 统一提交
+  const handleAddSubmit = async () => {
+    setAddSubmitting(true)
+    setShowAddModal(false)
+
+    if (addMode === 'upload') {
+      // 上传本地文档
+      if (!addFiles || addFiles.length === 0) { setAddSubmitting(false); return }
+      let ok = 0
+      for (const file of Array.from(addFiles)) {
+        const form = new FormData()
+        form.append('file', file)
+        form.append('tags', 'uploaded')
+        try {
+          const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
+          if (resp.ok) ok++
+        } catch { /* skip */ }
+      }
+      showSuccess(`成功上传 ${ok}/${addFiles.length} 个文档`)
+    } else {
+      // 添加在线文档
+      const tempName = addName.trim()
+      if (!tempName || !addUrl.trim()) { setAddSubmitting(false); return }
+      // 立即插入"同步中"条目
+      setSources(prev => [...prev, {
+        name: tempName, type: addType, url: addUrl.trim(),
+        _status: 'syncing',
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      } as SourceItem])
       try {
-        const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
-        const data = await resp.json()
-        if (resp.ok) ok++
-      } catch { /* skip */ }
+        const body: Record<string, string> = { name: tempName, type: addType }
+        if (addProtocol === 'svn') {
+          body.url = addUrl.trim(); body.svn_url = addUrl.trim()
+        } else {
+          body.url = addUrl.trim()
+        }
+        const res = await fetch('/api/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        const data = await res.json()
+        if (!data.ok) throw new Error(data.error || '添加失败')
+        showSuccess(`「${tempName}」添加成功`)
+      } catch (e: any) {
+        setSources(prev => prev.map(s => s.name === tempName ? { ...s, _status: 'error' as const } : s))
+        showError(`「${tempName}」添加失败: ${e.message || '请查看后台日志'}`)
+        setAddSubmitting(false)
+        loadAll()
+        return
+      }
     }
-    setUploading(false)
-    setShowUploadModal(false)
-    setUploadFiles(null)
-    showSuccess(`成功上传 ${ok}/${uploadFiles.length} 个文档`)
-    // 刷新列表
+    setAddName(''); setAddUrl(''); setAddFiles(null)
     loadAll()
-  }
-
-  // 添加在线文档
-  const handleAddOnline = async () => {
-    if (!onlineName.trim() || !onlineUrl.trim()) return
-    setAddingOnline(true)
-    setShowOnlineModal(false)
-
-    // 立即插入一条"同步中"条目
-    const tempName = onlineName.trim()
-    setSources(prev => [...prev, {
-      name: tempName,
-      type: onlineType as 'code' | 'docs',
-      url: onlineUrl.trim(),
-      _status: 'syncing',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as SourceItem])
-
-    try {
-      const body: Record<string, string> = {
-        name: tempName,
-        type: onlineType,
-      }
-      if (onlineMode === 'svn') {
-        body.url = onlineUrl.trim()
-        body.svn_url = onlineUrl.trim()
-      } else {
-        body.url = onlineUrl.trim()
-      }
-      const res = await fetch('/api/sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!data.ok) throw new Error(data.error || data.error || '添加失败')
-      setOnlineUrl(''); setOnlineName('')
-      showSuccess(`「${tempName}」添加成功`)
-    } catch (e: any) {
-      // 更新为失败状态
-      setSources(prev => prev.map(s =>
-        s.name === tempName ? { ...s, _status: 'error' as const } : s
-      ))
-      showError(`「${tempName}」添加失败: ${e.message || '请查看后台日志'}`)
-      return
-    }
-    // 刷新真实数据
-    const s = await fetchSources().catch(() => [])
-    setSources(s)
-    setAddingOnline(false)
+    setAddSubmitting(false)
   }
 
   return (
@@ -173,13 +143,13 @@ export function SourcesPage() {
             </h2>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setShowAddModal(true) }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-cyber-blue/5 hover:border-cyber-blue hover:text-cyber-blue transition"
               >
                 <Upload className="w-3.5 h-3.5" /> 上传本地文档
               </button>
               <button
-                onClick={() => setShowOnlineModal(true)}
+                onClick={() => { setAddMode('online'); setAddName(''); setAddUrl(''); setAddFiles(null); setShowAddModal(true) }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition"
               >
                 <Globe className="w-3.5 h-3.5" /> 添加在线文档
@@ -308,137 +278,95 @@ export function SourcesPage() {
         </div>
       </main>
 
-      {/* ── 上传本地文档弹窗 ── */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowUploadModal(false)}>
+      {/* ── 统一添加弹窗 ── */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-cyber-blue" /> 上传本地文档
+                {addMode === 'upload' ? <Upload className="w-4 h-4 text-cyber-blue" /> : <Globe className="w-4 h-4 text-cyber-green" />}
+                {addMode === 'upload' ? '上传本地文档' : '添加在线文档'}
               </h2>
-              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+              <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
             </div>
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-cyber-blue transition">
-              <FileText className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-              <p className="text-xs text-gray-500 mb-3">支持 .md .txt .pdf，可多选</p>
-              <input
-                type="file"
-                multiple
-                accept=".md,.txt,.pdf"
-                onChange={e => setUploadFiles(e.target.files)}
-                className="text-sm w-full"
-              />
+
+            {/* 名称 */}
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">名称</label>
+              <input value={addName} onChange={e => setAddName(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
+                placeholder={addMode === 'online' ? '自动从 URL 识别...' : '文件名自动填入...'} />
             </div>
-            {uploadFiles && uploadFiles.length > 0 && (
-              <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-                已选 {uploadFiles.length} 个文件
+
+            {/* 在线：URL 输入 */}
+            {addMode === 'online' && (
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">仓库地址</label>
+                <input value={addUrl} onChange={e => { setAddUrl(e.target.value); parseUrl(e.target.value) }}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 font-mono"
+                  placeholder="git@github.com:user/repo.git 或 svn://..." />
               </div>
             )}
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => { setShowUploadModal(false); setUploadFiles(null) }}
-                className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
-              <button onClick={handleUploadDocs} disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
-                className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
-                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                {uploading ? '上传中...' : '上传'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── 添加在线文档弹窗 ── */}
-      {showOnlineModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowOnlineModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <Globe className="w-4 h-4 text-cyber-green" /> 添加在线文档
-              </h2>
-              <button onClick={() => setShowOnlineModal(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-            </div>
-
-            {/* URL 输入 — 核心 */}
-            <div>
-              <label className="text-xs text-gray-500 mb-1.5 block font-medium">仓库地址</label>
-              <input
-                value={onlineUrl}
-                onChange={e => {
-                  setOnlineUrl(e.target.value)
-                  parseUrl(e.target.value)
-                }}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 font-mono"
-                placeholder="git@github.com:user/repo.git 或 svn://..."
-              />
-            </div>
+            {/* 本地：文件选择 */}
+            {addMode === 'upload' && (
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">文件</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-cyber-blue transition">
+                  <FileText className="w-8 h-8 mx-auto text-gray-300 mb-1" />
+                  <p className="text-xs text-gray-400 mb-2">支持 .md .txt .pdf，可多选</p>
+                  <input type="file" multiple accept=".md,.txt,.pdf"
+                    onChange={e => {
+                      setAddFiles(e.target.files)
+                      if (e.target.files && e.target.files[0] && !addName) {
+                        setAddName(e.target.files[0].name.replace(/\.(md|txt|pdf)$/, ''))
+                      }
+                    }}
+                    className="text-sm w-full" />
+                </div>
+                {addFiles && addFiles.length > 0 && (
+                  <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mt-2">
+                    已选 {addFiles.length} 个文件
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 自动识别结果 */}
-            {onlineUrl.trim() && (
+            {(addMode === 'online' && addUrl.trim()) && (
               <div className="bg-gray-50 rounded-lg p-3 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-10">名称</span>
-                  <span className="text-xs font-mono font-bold text-gray-700">{onlineName || '—'}</span>
-                </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-400 w-10">协议</span>
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => setOnlineMode('git')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${
-                        onlineMode === 'git'
-                          ? 'bg-orange-100 border-orange-300 text-orange-700'
-                          : 'border-gray-200 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      Git
-                    </button>
-                    <button
-                      onClick={() => setOnlineMode('svn')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${
-                        onlineMode === 'svn'
-                          ? 'bg-purple-100 border-purple-300 text-purple-700'
-                          : 'border-gray-200 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      SVN
-                    </button>
+                    <button onClick={() => setAddProtocol('git')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'git' ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>Git</button>
+                    <button onClick={() => setAddProtocol('svn')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'svn' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>SVN</button>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-400 w-10">类型</span>
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => setOnlineType('code')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${
-                        onlineType === 'code'
-                          ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue'
-                          : 'border-gray-200 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      代码
-                    </button>
-                    <button
-                      onClick={() => setOnlineType('docs')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${
-                        onlineType === 'docs'
-                          ? 'bg-cyber-green/10 border-cyber-green text-cyber-green'
-                          : 'border-gray-200 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      文档
-                    </button>
+                    <button onClick={() => setAddType('code')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
+                    <button onClick={() => setAddType('docs')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
                   </div>
                 </div>
               </div>
             )}
 
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setShowOnlineModal(false); setOnlineUrl(''); setOnlineName('') }}
+              <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}
                 className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
-              <button onClick={handleAddOnline} disabled={!onlineName.trim() || !onlineUrl.trim() || addingOnline}
-                className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-green text-white rounded-lg hover:bg-cyber-green-dark transition disabled:opacity-50">
-                {addingOnline ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                {addingOnline ? '添加中...' : '添加'}
+              <button onClick={handleAddSubmit} disabled={
+                (addMode === 'online' && (!addName.trim() || !addUrl.trim())) ||
+                (addMode === 'upload' && (!addFiles || addFiles.length === 0)) ||
+                addSubmitting
+              }
+                className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
+                {addSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (addMode === 'upload' ? <Upload className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />)}
+                {addSubmitting ? '提交中...' : (addMode === 'upload' ? '上传' : '添加')}
               </button>
             </div>
           </div>

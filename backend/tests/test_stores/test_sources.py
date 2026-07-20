@@ -167,17 +167,11 @@ class TestUpdateSource:
 
 
 class TestConstants:
-    def test_repos_dir(self):
-        """REPOS_DIR 指向 ~/.opencodewiki/repos"""
-        from stores.sources import REPOS_DIR
+    def test_knowledge_dir(self):
+        """KNOWLEDGE_DIR 指向 ~/.opencodewiki/knowledge"""
+        from stores.sources import KNOWLEDGE_DIR
 
-        assert str(REPOS_DIR).endswith(".opencodewiki/repos")
-
-    def test_sources_dir(self):
-        """SOURCES_DIR 指向 ~/.opencodewiki/pages/sources"""
-        from stores.sources import SOURCES_DIR
-
-        assert str(SOURCES_DIR).endswith(".opencodewiki/pages/sources")
+        assert str(KNOWLEDGE_DIR).endswith(".opencodewiki/knowledge")
 
     def test_vectors_dir(self):
         """VECTORS_DIR 指向 ~/.opencodewiki/vectors"""
