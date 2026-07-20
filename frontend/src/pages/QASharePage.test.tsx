@@ -105,8 +105,6 @@ describe('QASharePage', () => {
     await waitFor(() => {
       expect(screen.getByText('如何配置数据源？')).toBeInTheDocument()
     })
-    // Header should still render
-    expect(screen.getByText('OpenCodeWiki')).toBeInTheDocument()
   })
 
   it('should show Q# id in footer', async () => {

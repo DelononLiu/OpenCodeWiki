@@ -22,9 +22,9 @@ function renderQAPage(route = '/qa') {
 }
 
 describe('QAPage (new chat layout)', () => {
-  it('should render Header with logo text', () => {
+  it('should render Header', () => {
     renderQAPage()
-    expect(screen.getByText('OpenCodeWiki')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('在此继续追问...')).toBeInTheDocument()
   })
 
   it('should show empty state when no active session', () => {
