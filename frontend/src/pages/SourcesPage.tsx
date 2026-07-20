@@ -184,7 +184,7 @@ export function SourcesPage() {
 
               {/* 新建知识库卡片 */}
               <button
-                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setShowAddModal(true) }}
+                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setAddType('code'); setAddProtocol('git'); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[180px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -199,39 +199,74 @@ export function SourcesPage() {
         </div>
       </main>
 
-      {/* ── 统一添加弹窗 ── */}
+      {/* ── 新建知识库弹窗（Tab 切换） ── */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                {addMode === 'upload' ? <Upload className="w-4 h-4 text-cyber-blue" /> : <Globe className="w-4 h-4 text-cyber-green" />}
-                {addMode === 'upload' ? '上传本地文档' : '添加在线文档'}
-              </h2>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            {/* 标题 */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-gray-900">新建知识库</h2>
               <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
             </div>
 
+            {/* Tab */}
+            <div className="flex border-b border-gray-200 mb-4">
+              <button
+                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl('') }}
+                className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'upload' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                <Upload className="w-3.5 h-3.5 inline mr-1" />上传本地文件
+              </button>
+              <button
+                onClick={() => { setAddMode('online'); setAddName(''); setAddUrl(''); setAddFiles(null) }}
+                className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'online' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                <Globe className="w-3.5 h-3.5 inline mr-1" />添加在线仓库
+              </button>
+            </div>
+
             {/* 名称 */}
-            <div>
+            <div className="mb-3">
               <label className="text-xs text-gray-500 mb-1 block">名称</label>
               <input value={addName} onChange={e => setAddName(e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
                 placeholder={addMode === 'online' ? '自动从 URL 识别...' : '文件名自动填入...'} />
             </div>
 
-            {/* 在线：URL 输入 */}
-            {addMode === 'online' && (
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">仓库地址</label>
-                <input value={addUrl} onChange={e => { setAddUrl(e.target.value); parseUrl(e.target.value) }}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 font-mono"
-                  placeholder="git@github.com:user/repo.git 或 svn://..." />
-              </div>
-            )}
-
-            {/* 本地：文件选择 */}
-            {addMode === 'upload' && (
-              <div>
+            {/* Tab 内容 */}
+            {addMode === 'online' ? (
+              <>
+                <div className="mb-3">
+                  <label className="text-xs text-gray-500 mb-1 block">仓库地址</label>
+                  <input value={addUrl} onChange={e => { setAddUrl(e.target.value); parseUrl(e.target.value) }}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 font-mono"
+                    placeholder="git@github.com:user/repo.git 或 svn://..." />
+                </div>
+                {addUrl.trim() && (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10">协议</span>
+                      <div className="flex gap-1">
+                        <button onClick={() => setAddProtocol('git')}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'git' ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>Git</button>
+                        <button onClick={() => setAddProtocol('svn')}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'svn' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>SVN</button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10">类型</span>
+                      <div className="flex gap-1">
+                        <button onClick={() => setAddType('code')}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
+                        <button onClick={() => setAddType('docs')}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mb-3">
                 <label className="text-xs text-gray-500 mb-1 block">文件</label>
                 <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-cyber-blue transition">
                   <FileText className="w-8 h-8 mx-auto text-gray-300 mb-1" />
@@ -253,31 +288,7 @@ export function SourcesPage() {
               </div>
             )}
 
-            {/* 自动识别结果 */}
-            {(addMode === 'online' && addUrl.trim()) && (
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-10">协议</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => setAddProtocol('git')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'git' ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>Git</button>
-                    <button onClick={() => setAddProtocol('svn')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addProtocol === 'svn' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>SVN</button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-10">类型</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => setAddType('code')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
-                    <button onClick={() => setAddType('docs')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}
                 className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
               <button onClick={handleAddSubmit} disabled={
