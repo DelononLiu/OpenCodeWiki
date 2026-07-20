@@ -159,27 +159,56 @@ export function SourcesPage() {
                 />
               ))}
 
-              {/* 上传的文档卡片 */}
-              {uploadedDocs.map(d => (
-                <UploadDocCard
-                  key={`doc-${d.slug}-${d.kb_name}`}
-                  slug={d.slug}
-                  kbName={d.kb_name}
-                  filename={d.filename}
-                  size={d.size}
-                  updatedAt={d.updated_at}
-                  onDelete={async () => {
-                    if (!confirm(`确认删除文档「${d.slug}」？`)) return
-                    try {
-                      const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
-                      const data = await res.json()
-                      if (!data.ok) throw new Error(data.error)
-                      showSuccess(`「${d.slug}」已删除`)
-                      loadAll()
-                    } catch { showError('删除失败') }
-                  }}
-                />
-              ))}
+              {/* 上传文档 — 按知识库分组 */}
+              {(() => {
+                const groups = new Map<string, typeof uploadedDocs>()
+                for (const d of uploadedDocs) {
+                  const key = d.kb_name || '_root'
+                  if (!groups.has(key)) groups.set(key, [])
+                  groups.get(key)!.push(d)
+                }
+                return Array.from(groups.entries()).map(([kbName, docs]) => (
+                  <div key={`kb-${kbName}`} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-yellow-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold text-gray-900 truncate">{kbName === '_root' ? '未分类' : kbName}</div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                          upload · {docs.length} 个文件
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-gray-400">
+                      最后更新: {docs.reduce((latest, d) => d.updated_at > latest ? d.updated_at : latest, docs[0]?.updated_at || '').slice(0, 10)}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {docs.slice(0, 4).map(d => (
+                        <span key={d.slug} className="text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 truncate max-w-[100px]">{d.slug}</span>
+                      ))}
+                      {docs.length > 4 && <span className="text-[10px] text-gray-400">+{docs.length - 4}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 pt-2 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition">
+                      <button onClick={async () => {
+                        if (!confirm(`确认删除知识库「${kbName}」及所有文件？`)) return
+                        let deleted = 0
+                        for (const d of docs) {
+                          try {
+                            const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
+                            if (res.ok) deleted++
+                          } catch {}
+                        }
+                        showSuccess(`已删除 ${deleted}/${docs.length} 个文件`)
+                        loadAll()
+                      }}
+                        className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
+                        🗑 删除
+                      </button>
+                    </div>
+                  </div>
+                ))
+              })()}
 
               {/* 新建知识库卡片 */}
               <button
