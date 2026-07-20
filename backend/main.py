@@ -398,24 +398,29 @@ async def api_qa_feedback(qid: int, body: dict):
 
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
+from langchain_core.messages import HumanMessage, AIMessage
 from agent.graph import get_graph
 
 
-async def _qa_event_stream(question: str, session_id: str, repo: str = "", context: dict | None = None) -> AsyncGenerator[str, None]:
+async def _qa_event_stream(question: str, session_id: str, repo: str = "", context: dict | None = None, history: list | None = None) -> AsyncGenerator[str, None]:
     """LangGraph SSE 流式输出"""
     graph = get_graph()
 
-    # 追问时注入原始问答上下文，让 Agent 知道对话背景
+    # 构建历史消息上下文
+    prior_messages = []
+    if history:
+        for m in history:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if role == "user":
+                prior_messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                prior_messages.append(AIMessage(content=content))
+
+    # 追问场景 - 问题前缀指引 LLM 基于上文回答
     augmented_question = question
-    if context and context.get("parent_question"):
-        parent_q = context["parent_question"]
-        parent_a = context.get("parent_answer", "")
-        augmented_question = (
-            f"[追问场景]\n"
-            f"原始问题：{parent_q}\n"
-            f"原始回答：{parent_a}\n\n"
-            f"追问：{question}"
-        )
+    if prior_messages:
+        augmented_question = f"[多轮对话，请基于上文继续回答]\n{question}"
 
     def _sse(event_type: str, data: dict) -> str:
         return f"data: {json.dumps({'type': event_type, **data}, ensure_ascii=False)}\n\n"
@@ -425,7 +430,7 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
     final_answer = ""
     try:
         result = await graph.ainvoke(
-            {"question": augmented_question, "project": repo, "intent": "", "messages": []},
+            {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
             config={"configurable": {"thread_id": session_id}},
         )
         for m in result.get("messages", []):
@@ -454,6 +459,7 @@ async def api_qa(request: Request):
     session_id = body.get("sessionId") or str(uuid.uuid4())
     repo = body.get("repo") or body.get("project") or ""
     context = body.get("context")
+    history_messages = body.get("messages") or []
 
     if not question:
         return StreamingResponse(
@@ -462,7 +468,7 @@ async def api_qa(request: Request):
         )
 
     return StreamingResponse(
-        _qa_event_stream(question, session_id, repo, context),
+        _qa_event_stream(question, session_id, repo, context, history_messages),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )

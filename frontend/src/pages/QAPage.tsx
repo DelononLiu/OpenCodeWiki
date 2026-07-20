@@ -133,7 +133,9 @@ export function QAPage() {
     let errorMsg = ''
     streamAbortedRef.current = false
 
-    await stream('/api/qa', { question }, (msg) => {
+    // Pass message history for multi-turn context
+    const history = isNewSession ? [] : session.messages
+    await stream('/api/qa', { question, messages: history }, (msg) => {
       if (msg.type === 'token' && msg.content) {
         collectedAnswer += msg.content as string
         setSessions(prev => ({
