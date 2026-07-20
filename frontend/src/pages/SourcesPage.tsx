@@ -225,15 +225,7 @@ export function SourcesPage() {
               </button>
             </div>
 
-            {/* 名称 */}
-            <div className="mb-3">
-              <label className="text-xs text-gray-500 mb-1 block">名称</label>
-              <input value={addName} onChange={e => setAddName(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                placeholder={addMode === 'online' ? '自动从 URL 识别...' : '文件名自动填入...'} />
-            </div>
-
-            {/* Tab 内容 */}
+            {/* Tab 内容 — 核心操作放首位 */}
             {addMode === 'online' ? (
               <>
                 <div className="mb-3">
@@ -244,6 +236,10 @@ export function SourcesPage() {
                 </div>
                 {addUrl.trim() && (
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10">名称</span>
+                      <span className="text-xs font-mono font-bold text-gray-700">{addName || '—'}</span>
+                    </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-10">协议</span>
                       <div className="flex gap-1">
@@ -267,10 +263,21 @@ export function SourcesPage() {
               </>
             ) : (
               <div className="mb-3">
-                <label className="text-xs text-gray-500 mb-1 block">文件</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-cyber-blue transition">
-                  <FileText className="w-8 h-8 mx-auto text-gray-300 mb-1" />
-                  <p className="text-xs text-gray-400 mb-2">支持 .md .txt .pdf，可多选</p>
+                <label className="cursor-pointer">
+                  <div className={`border-2 border-dashed rounded-xl p-6 text-center transition ${addFiles && addFiles.length > 0 ? 'border-cyber-blue bg-cyber-blue/5' : 'border-gray-300 hover:border-cyber-blue hover:bg-gray-50'}`}>
+                    <FileText className={`w-8 h-8 mx-auto mb-1 ${addFiles && addFiles.length > 0 ? 'text-cyber-blue' : 'text-gray-300'}`} />
+                    {addFiles && addFiles.length > 0 ? (
+                      <div>
+                        <p className="text-sm font-bold text-cyber-blue mb-1">已选 {addFiles.length} 个文件</p>
+                        <p className="text-[10px] text-gray-400">点击重新选择</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-bold text-gray-600 mb-1">点击选择文件</p>
+                        <p className="text-[10px] text-gray-400">支持 .md .txt .pdf，可多选</p>
+                      </div>
+                    )}
+                  </div>
                   <input type="file" multiple accept=".md,.txt,.pdf"
                     onChange={e => {
                       setAddFiles(e.target.files)
@@ -278,17 +285,22 @@ export function SourcesPage() {
                         setAddName(e.target.files[0].name.replace(/\.(md|txt|pdf)$/, ''))
                       }
                     }}
-                    className="text-sm w-full" />
-                </div>
-                {addFiles && addFiles.length > 0 && (
-                  <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mt-2">
-                    已选 {addFiles.length} 个文件
-                  </div>
-                )}
+                    className="hidden" />
+                </label>
               </div>
             )}
 
-            <div className="flex gap-2 justify-end pt-2">
+            {/* 名称（自动填充，放在下面） */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">
+                名称 <span className="text-gray-300">（自动识别）</span>
+              </label>
+              <input value={addName} onChange={e => setAddName(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
+                placeholder={addMode === 'online' ? '自动从 URL 识别...' : '自动从文件名识别...'} />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
               <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}
                 className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
               <button onClick={handleAddSubmit} disabled={
