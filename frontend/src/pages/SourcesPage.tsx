@@ -276,41 +276,58 @@ export function SourcesPage() {
                     ) : (
                       <div>
                         <p className="text-sm font-bold text-gray-600 mb-1">点击选择文件</p>
-                        <p className="text-[10px] text-gray-400">支持 .md .txt .pdf，可多选</p>
+                        <p className="text-[10px] text-gray-400">支持 .md .txt .zip，可多选</p>
                       </div>
                     )}
                   </div>
-                  <input type="file" multiple accept=".md,.txt,.pdf"
+                  <input type="file" multiple accept=".md,.txt,.zip"
                     onChange={e => {
-                      setAddFiles(e.target.files)
-                      if (e.target.files && e.target.files[0] && !addName) {
-                        setAddName(e.target.files[0].name.replace(/\.(md|txt|pdf)$/, ''))
+                      const files = e.target.files
+                      setAddFiles(files)
+                      if (!files || files.length === 0 || addName) return
+                      // 单个 zip → 用 zip 名
+                      if (files.length === 1 && files[0].name.endsWith('.zip')) {
+                        setAddName(files[0].name.replace(/\.zip$/i, ''))
+                        return
+                      }
+                      // 多文件 → 取公共目录名
+                      const dirs = new Set<string>()
+                      for (const f of Array.from(files)) {
+                        const parts = (f as any).webkitRelativePath ? (f as any).webkitRelativePath.split('/') : f.name.split(/[/\\]/)
+                        if (parts.length > 1) dirs.add(parts[0])
+                      }
+                      if (dirs.size === 1) {
+                        setAddName([...dirs][0])
+                      } else if (dirs.size === 0 && files.length === 1) {
+                        setAddName(files[0].name.replace(/\.(md|txt)$/i, ''))
                       }
                     }}
                     className="hidden" />
                 </label>
-                {/* 类型选择 */}
-                <div className="flex items-center gap-3 mt-3">
-                  <span className="text-xs text-gray-400">类型</span>
-                  <div className="flex gap-1">
-                    <button onClick={() => setAddType('code')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
-                    <button onClick={() => setAddType('docs')}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
+                {addFiles && addFiles.length > 1 && (
+                  <div className="text-[10px] text-gray-400 mt-1.5">
+                    来自 {addFiles[0].webkitRelativePath?.split('/')[0] || '本地文件夹'}
+                  </div>
+                )}
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mt-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400 w-10">名称</span>
+                    <input value={addName} onChange={e => setAddName(e.target.value)}
+                      className="flex-1 text-xs bg-transparent border-0 border-b border-dashed border-gray-300 px-0 py-0.5 focus:outline-none focus:border-cyber-blue font-mono font-bold text-gray-700"
+                      placeholder="自动从文件名识别..." />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400 w-10">类型</span>
+                    <div className="flex gap-1">
+                      <button onClick={() => setAddType('code')}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
+                      <button onClick={() => setAddType('docs')}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* 名称（自动填充，放在下面） */}
-            <div className="mb-3">
-              <label className="text-xs text-gray-400 mb-1 block">
-                名称 <span className="text-gray-300">（自动识别）</span>
-              </label>
-              <input value={addName} onChange={e => setAddName(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                placeholder={addMode === 'online' ? '自动从 URL 识别...' : '自动从文件名识别...'} />
-            </div>
 
             <div className="flex gap-2 justify-end pt-1">
               <button onClick={() => { setShowAddModal(false); setAddName(''); setAddUrl(''); setAddFiles(null) }}

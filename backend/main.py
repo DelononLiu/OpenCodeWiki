@@ -294,23 +294,13 @@ async def api_settings_update(body: dict):
 
 from stores.sources import KNOWLEDGE_DIR
 KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
-ALLOWED_EXTENSIONS = {".md", ".txt", ".pdf"}
+ALLOWED_EXTENSIONS = {".md", ".txt"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 def _extract_text(filename: str, content: bytes) -> str:
     ext = Path(filename).suffix.lower()
-    if ext == ".pdf":
-        try:
-            import io
-            from PyPDF2 import PdfReader
-            reader = PdfReader(io.BytesIO(content))
-            return "\n".join(page.extract_text() or "" for page in reader.pages)
-        except ImportError:
-            return "[PDF解析需要安装PyPDF2: pip install PyPDF2]"
-        except Exception as e:
-            return f"[PDF解析失败: {e}]"
-    elif ext in (".md", ".txt"):
+    if ext in (".md", ".txt"):
         return content.decode("utf-8", errors="replace")
     return ""
 
