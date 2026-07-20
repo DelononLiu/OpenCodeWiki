@@ -492,7 +492,7 @@ export function QAPage() {
 
           {/* Bottom input */}
           <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pointer-events-none p-3 z-10">
-            <div className="w-full bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
+            <div className="w-[80%] bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
               <input
                 type="text"
                 value={input}
