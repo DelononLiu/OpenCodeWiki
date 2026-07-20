@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { fetchSources, syncSource, deleteSourceApi } from '@/api/client'
 import type { SourceItem } from '@/api/client'
 import { KnowledgeCard } from '@/components/knowledge/KnowledgeCard'
 import { UploadDocCard } from '@/components/knowledge/UploadDocCard'
+import { useLayout } from '@/contexts/LayoutContext'
 import {
   Upload, Globe, Database, Loader2,
   FileText, Plus, Check,
@@ -13,6 +15,21 @@ export function SourcesPage() {
   const [sources, setSources] = useState<SourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const { setDrawerContent } = useLayout()
+
+  // Set drawer content (knowledge base list)
+  useEffect(() => {
+    setDrawerContent({
+      title: '知识库',
+      items: sources.map(s => ({
+        id: s.name,
+        label: s.name,
+        active: false,
+        onClick: () => navigate(`/wiki/${s.name}`),
+      })),
+    })
+  }, [sources])
 
   // 统一添加弹窗
   const [showAddModal, setShowAddModal] = useState(false)

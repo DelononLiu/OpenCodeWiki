@@ -1,90 +1,114 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  BookOpen, MessagesSquare, Database, Settings,
-  Search, ChevronDown, Shield, LogOut,
+  BookOpen, MessageSquare, Database, Settings,
+  Plus, ChevronRight,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useLayout, type TabType } from '@/contexts/LayoutContext'
 
-const NAV_ITEMS = [
-  { path: '/wiki', icon: BookOpen, label: 'Wiki' },
-  { path: '/qa', icon: MessagesSquare, label: '问答' },
-  { path: '/sources', icon: Database, label: '知识库' },
+const TABS: { key: TabType; icon: typeof BookOpen; label: string }[] = [
+  { key: 'read', icon: BookOpen, label: '阅读' },
+  { key: 'qa', icon: MessageSquare, label: '问答' },
+  { key: 'manage', icon: Database, label: '知识库' },
 ]
 
 export function AppSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const currentUser = 'long2015'
-  const isAdmin = true
+  const { activeTab, setActiveTab, drawerOpen, toggleDrawer, drawerContent } = useLayout()
 
-  const isActive = (path: string) => {
-    if (path === '/wiki') return location.pathname.startsWith('/wiki')
-    if (path === '/qa') return location.pathname === '/qa' || location.pathname.startsWith('/qa/q/')
-    return location.pathname === path
+  const handleTabClick = (tab: TabType) => {
+    if (activeTab === tab && drawerOpen) {
+      closeDrawerAndReset()
+    } else {
+      setActiveTab(tab)
+      if (!drawerOpen) toggleDrawer()
+    }
+  }
+
+  const closeDrawerAndReset = () => {
+    setActiveTab(null)
+    toggleDrawer()
+  }
+
+  const handleNewQuestion = () => {
+    navigate('/qa')
+    setActiveTab('qa')
   }
 
   return (
-    <aside className="w-14 h-screen border-r border-gray-200 bg-white flex flex-col items-center py-3 shrink-0">
-      {/* Logo */}
-      <button onClick={() => navigate('/')}
-        className="w-8 h-8 bg-cyber-blue rounded-lg flex items-center justify-center text-white font-black text-sm font-mono mb-6 hover:bg-cyber-blue-dark transition">
-        W
-      </button>
-
-      {/* Nav */}
-      <nav className="flex flex-col items-center gap-1">
-        {NAV_ITEMS.map(item => (
-          <button key={item.path} onClick={() => navigate(item.path)}
-            title={item.label}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${
-              isActive(item.path)
-                ? 'bg-cyber-blue/10 text-cyber-blue'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-            }`}
-          >
-            <item.icon className="w-5 h-5" />
-          </button>
-        ))}
-      </nav>
-
-      <div className="flex-1" />
-
-      {/* User avatar */}
-      <div className="relative mb-1">
-        <button onClick={() => setMenuOpen(!menuOpen)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
-          title={currentUser}
-        >
-          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600">
-            {currentUser[0].toUpperCase()}
-          </div>
+    <>
+      {/* Icon bar */}
+      <aside className="w-14 h-screen bg-white border-r border-gray-200 flex flex-col items-center py-3 shrink-0 z-30">
+        <button onClick={closeDrawerAndReset}
+          className="w-8 h-8 bg-cyber-blue rounded-lg flex items-center justify-center text-white font-black text-sm font-mono hover:bg-cyber-blue-dark transition mb-4">
+          W
         </button>
 
-        {/* Settings / Logout */}
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <div className="absolute left-14 bottom-0 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 text-sm">
-              {isAdmin && (
-                <button onClick={() => { navigate('/admin'); setMenuOpen(false) }}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
-                  <Shield className="w-4 h-4 text-amber-500" /> 知识沉淀
-                </button>
-              )}
-              <button onClick={() => { navigate('/settings'); setMenuOpen(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
-                <Settings className="w-4 h-4" /> 个人设置
-              </button>
-              <div className="border-t border-gray-100 my-1" />
-              <button onClick={() => setMenuOpen(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-500">
-                <LogOut className="w-4 h-4" /> 退出登录
+        <button onClick={handleNewQuestion} title="新问题"
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-cyber-blue transition mb-2">
+          <Plus className="w-5 h-5" />
+        </button>
+
+        <nav className="flex flex-col items-center gap-1">
+          {TABS.map(tab => (
+            <button key={tab.key} onClick={() => handleTabClick(tab.key)}
+              title={tab.label}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition ${
+                activeTab === tab.key ? 'bg-cyber-blue/10 text-cyber-blue' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+              }`}
+            >
+              <tab.icon className="w-5 h-5" />
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex-1" />
+
+        <button title="设置" onClick={() => navigate('/settings')}
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition mb-1">
+          <Settings className="w-5 h-5" />
+        </button>
+
+        <button title="用户"
+          className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 hover:bg-gray-300 transition">
+          L
+        </button>
+      </aside>
+
+      {/* Drawer */}
+      {drawerOpen && (
+        <div className="w-60 h-screen bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto no-scrollbar z-20 animate-in slide-in-from-left">
+          <div className="p-3">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{drawerContent.title || ' '}</h2>
+              <button onClick={closeDrawerAndReset} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-          </>
-        )}
-      </div>
-    </aside>
+
+            {/* Items */}
+            {drawerContent.items.length > 0 ? (
+              <div className="space-y-0.5">
+                {drawerContent.items.map(item => (
+                  <button key={item.id}
+                    onClick={item.onClick}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
+                      item.active ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="truncate block">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 py-8 text-center">
+                {activeTab === 'read' ? '暂无页面' : activeTab === 'qa' ? '暂无对话' : '暂无知识库'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }

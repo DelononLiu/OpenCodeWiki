@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
+import { useLayout } from '@/contexts/LayoutContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Loader2, Sidebar, PanelRight, Plus,
   ThumbsUp, ThumbsDown, Copy, Share2,
-  Hash, HelpCircle, Clock, Check, ChevronDown,
+  Hash, HelpCircle, Check, Clock, ChevronDown,
 } from 'lucide-react'
 
 interface Message {
@@ -48,6 +49,23 @@ export function QAPage() {
   const [relatedQuestions, setRelatedQuestions] = useState<{qid: number; question: string; status: string}[]>([])
   const [sourceRefs, setSourceRefs] = useState<{file: string; line: string; snippet: string}[]>([])
   const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
+  const { setDrawerContent } = useLayout()
+
+  // Set drawer content (session history)
+  useEffect(() => {
+    setDrawerContent({
+      title: '对话历史',
+      items: sessionList.map(sl => ({
+        id: sl.session_id,
+        label: sl.root_question || '新对话',
+        active: sl.session_id === activeSessionId,
+        onClick: () => {
+          if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
+          setActiveSessionId(sl.session_id)
+        },
+      })),
+    })
+  }, [sessionList, activeSessionId])
 
   // Fetch session history
   const fetchSessionList = useCallback(() => {

@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
-import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
+import { useLayout } from '@/contexts/LayoutContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -14,6 +14,7 @@ import { ChevronDown, Loader2, BookOpen } from 'lucide-react'
 export function WikiGlobalPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
+  const { setDrawerContent } = useLayout()
   const [kbList, setKbList] = useState<{name: string}[]>([])
   const [selectedKb, setSelectedKb] = useState(name || '')
   const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
@@ -34,6 +35,19 @@ export function WikiGlobalPage() {
       }
     }).catch(() => {})
   }, [name])
+
+  // 设置抽屉内容（页面列表）
+  useEffect(() => {
+    setDrawerContent({
+      title: '页面',
+      items: wikiPages.map(p => ({
+        id: p.slug,
+        label: p.name,
+        active: p.slug === currentSlug,
+        onClick: () => loadContent(p.slug),
+      })),
+    })
+  }, [wikiPages, currentSlug])
 
   // 切换知识库时重置并加载内容
   useEffect(() => {
@@ -98,11 +112,7 @@ export function WikiGlobalPage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* 左侧导航 */}
-        <LeftSidebar
-          currentSlug={currentSlug}
-          currentKb={selectedKb}
-          onNavigate={handleNavigate}
-        />
+        {/* 页面导航已移到左侧抽屉 */}
 
         {/* 主内容区 */}
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
