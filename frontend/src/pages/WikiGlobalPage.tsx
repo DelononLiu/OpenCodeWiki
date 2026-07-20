@@ -95,6 +95,7 @@ export function WikiGlobalPage() {
         {/* 左侧导航 */}
         <LeftSidebar
           currentSlug={currentSlug}
+          currentKb={selectedKb}
           onNavigate={handleNavigate}
         />
 

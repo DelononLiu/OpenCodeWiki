@@ -10,10 +10,11 @@ interface WikiModule {
 interface LeftSidebarProps {
   currentSlug?: string
   currentTopic?: string
+  currentKb?: string
   onNavigate?: (slug: string) => void
 }
 
-export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSidebarProps) {
+export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }: LeftSidebarProps) {
   const navigate = useNavigate()
   const { repo } = useParams<{ repo: string }>()
   const [topics, setTopics] = useState<Topic[]>([])
@@ -31,11 +32,13 @@ export function LeftSidebar({ currentSlug, currentTopic, onNavigate }: LeftSideb
       if (m.type !== 'source') continue
       const [sourceName, ...rest] = m.name.split('/')
       const group = sourceName || '其他'
+      // 如果指定了当前知识库，只显示该知识库的页面
+      if (currentKb && group !== currentKb) continue
       if (!groups[group]) groups[group] = []
       groups[group].push(m)
     }
     return groups
-  }, [modules])
+  }, [modules, currentKb])
 
   const handleDocClick = (slug: string) => {
     if (onNavigate) onNavigate(slug)
