@@ -13,6 +13,7 @@ export default function App() {
     <div className="h-screen flex flex-col overflow-hidden">
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/wiki/:name" element={<WikiGlobalPage />} />
         <Route path="/wiki" element={<WikiGlobalPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/qa/q/:qid" element={<QASharePage />} />

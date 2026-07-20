@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
@@ -11,8 +12,10 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ChevronDown, Loader2, BookOpen } from 'lucide-react'
 
 export function WikiGlobalPage() {
+  const { name } = useParams<{ name: string }>()
+  const navigate = useNavigate()
   const [kbList, setKbList] = useState<{name: string}[]>([])
-  const [selectedKb, setSelectedKb] = useState('')
+  const [selectedKb, setSelectedKb] = useState(name || '')
   const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
   const [currentSlug, setCurrentSlug] = useState('')
   const [rawContent, setRawContent] = useState('')
@@ -25,11 +28,12 @@ export function WikiGlobalPage() {
     fetch('/api/knowledge').then(r => r.json()).then(d => {
       const list = d.data || []
       setKbList(list)
-      if (list.length > 0 && !selectedKb) {
-        setSelectedKb(list[0].name)
+      const target = name || list[0]?.name || ''
+      if (target && target !== selectedKb) {
+        setSelectedKb(target)
       }
     }).catch(() => {})
-  }, [])
+  }, [name])
 
   // 加载知识库的页面列表
   useEffect(() => {
@@ -110,9 +114,7 @@ export function WikiGlobalPage() {
                         {kbList.map(s => (
                           <button key={s.name}
                             onClick={() => {
-                              setSelectedKb(s.name)
-                              setCurrentSlug('')
-                              setRawContent('')
+                              navigate(`/wiki/${s.name}`)
                               setDropdownOpen(false)
                             }}
                             className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition ${
