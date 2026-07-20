@@ -238,7 +238,9 @@ export function SourcesPage() {
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mb-3">
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-10">名称</span>
-                      <span className="text-xs font-mono font-bold text-gray-700">{addName || '—'}</span>
+                      <input value={addName} onChange={e => setAddName(e.target.value)}
+                        className="flex-1 text-xs bg-transparent border-0 border-b border-dashed border-gray-300 px-0 py-0.5 focus:outline-none focus:border-cyber-blue font-mono font-bold text-gray-700"
+                        placeholder="自动识别..." />
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-10">协议</span>
@@ -287,6 +289,16 @@ export function SourcesPage() {
                     }}
                     className="hidden" />
                 </label>
+                {/* 类型选择 */}
+                <div className="flex items-center gap-3 mt-3">
+                  <span className="text-xs text-gray-400">类型</span>
+                  <div className="flex gap-1">
+                    <button onClick={() => setAddType('code')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'code' ? 'bg-cyber-blue/10 border-cyber-blue text-cyber-blue' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>代码</button>
+                    <button onClick={() => setAddType('docs')}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition ${addType === 'docs' ? 'bg-cyber-green/10 border-cyber-green text-cyber-green' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}>文档</button>
+                  </div>
+                </div>
               </div>
             )}
 
