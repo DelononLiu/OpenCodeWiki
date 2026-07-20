@@ -64,13 +64,43 @@ def _load_registry() -> list[dict]:
 
 
 def _project_for_repo(repo_name: str) -> str | None:
-    """根据仓库名获取项目名（codebase-memory-mcp 内部用）"""
+    """根据仓库名获取 codebase-memory-mcp 的项目名。
+    优先匹配 registry，未匹配则从 CLI list_projects 查找。"""
     registry = _load_registry()
+    # 1. 先在 registry 中按 name 匹配
     for entry in registry:
         if entry.get("name") == repo_name:
-            path = str(REPOS_DIR / entry["name"])
-            return _repo_path_to_project_name(path)
+            # 尝试 CLI 已索引的项目名
+            candidates = _list_cbm_projects()
+            for proj in candidates:
+                if entry["name"].lower() in proj.lower():
+                    return proj
+    # 2. repo 名直接匹配 CLI 项目
+    candidates = _list_cbm_projects()
+    if repo_name:
+        for proj in candidates:
+            if repo_name.lower().replace(" ", "-") in proj.lower():
+                return proj
+    # 3. 没有匹配也没指定：返回第一个 (最重要的那个)
+    if candidates:
+        return candidates[-1]  # 最后注册的通常是当前项目
     return None
+
+
+_cbm_projects_cache: list[str] | None = None
+
+def _list_cbm_projects() -> list[str]:
+    """调用 CLI list_projects 获取已索引的项目名列表（缓存）。"""
+    global _cbm_projects_cache
+    if _cbm_projects_cache is not None:
+        return _cbm_projects_cache
+    try:
+        result = _call_cli("list_projects", {})
+        data = json.loads(result)
+        _cbm_projects_cache = [p["name"] for p in data.get("projects", [])]
+    except Exception:
+        _cbm_projects_cache = []
+    return _cbm_projects_cache
 
 
 # ── CLI 调用 ────────────────────────────────────────────────

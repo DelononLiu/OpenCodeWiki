@@ -54,8 +54,8 @@ INTENT_GUIDE = {
 }
 
 INTENT_LIMITS = {
-    "where-is": 10, "what-is": 20, "how-to": 25,
-    "why-error": 30, "what-impact": 30, "build": 30, "general": 20,
+    "where-is": 20, "what-is": 25, "how-to": 30,
+    "why-error": 35, "what-impact": 35, "build": 35, "general": 25,
 }
 
 
