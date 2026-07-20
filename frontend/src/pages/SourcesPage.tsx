@@ -139,7 +139,7 @@ export function SourcesPage() {
           {/* 标题 + 右上角操作按钮 */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Database className="w-5 h-5 text-cyber-blue" /> 知识管理
+              <Database className="w-5 h-5 text-cyber-blue" /> 知识库
             </h2>
             <div className="flex items-center gap-2">
               <button
@@ -164,7 +164,7 @@ export function SourcesPage() {
             ) : sources.length === 0 && uploadedDocs.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
                 <Database className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-400">暂无知识源</p>
+                <p className="text-sm text-gray-400">暂无知识库</p>
                 <p className="text-xs text-gray-300 mt-1">点击上方按钮添加代码仓库或文档</p>
               </div>
             ) : (
@@ -210,7 +210,7 @@ export function SourcesPage() {
                         </td>
                       </tr>
                     ))}
-                    {/* 知识源 */}
+                    {/* 知识库 */}
                     {sources.map(s => {
                       const status = (s as any)._status
                       return (

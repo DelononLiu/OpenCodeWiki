@@ -60,7 +60,7 @@ export function Header({ variant, repoName }: HeaderProps) {
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 text-sm">
                 <button onClick={() => { navigate('/sources'); setMenuOpen(false) }}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-gray-700">
-                  <Database className="w-4 h-4 text-cyber-blue" /> 知识管理
+                  <Database className="w-4 h-4 text-cyber-blue" /> 知识库
                 </button>
                 {isAdmin && (
                   <button onClick={() => { navigate('/admin'); setMenuOpen(false) }}
