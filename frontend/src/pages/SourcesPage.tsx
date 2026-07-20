@@ -180,7 +180,7 @@ export function SourcesPage() {
 
               {/* 新建知识库卡片 */}
               <button
-                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setAddType('code'); setAddProtocol('git'); setShowAddModal(true) }}
+                onClick={() => { setAddSubmitting(false); setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setAddType('code'); setAddProtocol('git'); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[180px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
