@@ -17,11 +17,9 @@ describe('Header', () => {
     expect(screen.getByText('OpenCodeWiki')).toBeInTheDocument()
   })
 
-  it('should render navigation buttons', () => {
+  it('should display user avatar', () => {
     renderHeader()
-    expect(screen.getByText('首页')).toBeInTheDocument()
-    expect(screen.getByText('Wiki')).toBeInTheDocument()
-    expect(screen.getByText('问答')).toBeInTheDocument()
+    expect(screen.getByText('L')).toBeInTheDocument()
   })
 
   it('should display repo name when in global variant', () => {
@@ -34,9 +32,9 @@ describe('Header', () => {
     expect(screen.queryByText('test-repo')).not.toBeInTheDocument()
   })
 
-  it('should show admin button for admin user', () => {
+  it('should have user menu button', () => {
     renderHeader()
-    // 用户 "long2015" 是 ADMIN_USERS 中的 admin
-    expect(screen.getByText('L')).toBeInTheDocument() // 头像
+    const avatar = screen.getByText('L')
+    expect(avatar.closest('button')).toBeInTheDocument()
   })
 })

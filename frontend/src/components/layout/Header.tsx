@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Home, BookOpen, MessagesSquare, ChevronDown, Settings, LogOut, Shield, Database } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, Shield, Database } from 'lucide-react'
 
 const ADMIN_USERS = ['long2015']
 
@@ -18,7 +18,6 @@ export function Header({ variant, repoName }: HeaderProps) {
 
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-3 flex items-center justify-between z-30 shrink-0">
-      {/* 左侧 */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
           <div className="w-6 h-6 bg-cyber-blue rounded flex items-center justify-center text-white font-black text-xs font-mono">W</div>
@@ -32,20 +31,8 @@ export function Header({ variant, repoName }: HeaderProps) {
         )}
       </div>
 
-      {/* 右侧 */}
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-          <Home className="w-4 h-4 mr-1.5" /> 首页
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/wiki')}>
-          <BookOpen className="w-4 h-4 mr-1.5" /> Wiki
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/qa')}>
-          <MessagesSquare className="w-4 h-4 mr-1.5" /> 问答
-        </Button>
-
-        {/* 用户下拉 */}
-        <div className="relative ml-2">
+        <div className="relative">
           <Button variant="ghost" size="sm" onClick={() => setMenuOpen(!menuOpen)} className="gap-1.5">
             <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600">
               {currentUser[0].toUpperCase()}

@@ -37,10 +37,9 @@ describe('HomePage', () => {
     expect(screen.getByText('最热问答')).toBeInTheDocument()
   })
 
-  it('should render navigation buttons in Header', () => {
+  it('should render the wiki name in Header', () => {
     renderHomePage()
-    expect(screen.getByText('首页')).toBeInTheDocument()
-    expect(screen.getByText('Wiki')).toBeInTheDocument()
+    expect(screen.getAllByText('OpenCodeWiki').length).toBeGreaterThanOrEqual(1)
   })
 
   it('should show "提交代码库" button', async () => {
