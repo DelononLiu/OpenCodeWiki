@@ -107,33 +107,35 @@ export function WikiGlobalPage() {
 
                 {/* 知识库切换下拉 */}
                 {kbList.length > 0 && (
-                  <div className="relative inline-block mb-6">
-                    <button
-                      onClick={() => setDropdownOpen(!dropdownOpen)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-800 hover:border-cyber-blue transition"
-                    >
-                      <BookOpen className="w-4 h-4 text-cyber-blue" />
-                      {selectedKb || '选择知识库'}
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                    </button>
-                    {dropdownOpen && (
-                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20 min-w-[180px]"
-                        onMouseLeave={() => setDropdownOpen(false)}>
-                        {kbList.map(s => (
-                          <button key={s.name}
-                            onClick={() => {
-                              navigate(`/wiki/${s.name}`)
-                              setDropdownOpen(false)
-                            }}
-                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition ${
-                              selectedKb === s.name ? 'text-cyber-blue font-bold bg-cyber-blue/5' : 'text-gray-700'
-                            }`}
-                          >
-                            {s.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <div className="flex items-center mb-6">
+                    <div className="relative">
+                      <button
+                        onClick={() => setDropdownOpen(!dropdownOpen)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-800 hover:border-cyber-blue transition"
+                      >
+                        <BookOpen className="w-4 h-4 text-cyber-blue" />
+                        {selectedKb || '选择知识库'}
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
+                      {dropdownOpen && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20 min-w-[180px]"
+                          onMouseLeave={() => setDropdownOpen(false)}>
+                          {kbList.map(s => (
+                            <button key={s.name}
+                              onClick={() => {
+                                navigate(`/wiki/${s.name}`)
+                                setDropdownOpen(false)
+                              }}
+                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition ${
+                                selectedKb === s.name ? 'text-cyber-blue font-bold bg-cyber-blue/5' : 'text-gray-700'
+                              }`}
+                            >
+                              {s.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
