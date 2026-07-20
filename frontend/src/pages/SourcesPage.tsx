@@ -71,31 +71,30 @@ export function SourcesPage() {
     setAddSubmitting(true)
     setShowAddModal(false)
 
-    if (addMode === 'upload') {
-      // 上传本地文档
-      if (!addFiles || addFiles.length === 0) { setAddSubmitting(false); return }
-      let ok = 0
-      for (const file of Array.from(addFiles)) {
-        const form = new FormData()
-        form.append('file', file)
-        form.append('tags', 'uploaded')
-        try {
-          const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
-          if (resp.ok) ok++
-        } catch { /* skip */ }
-      }
-      showSuccess(`成功上传 ${ok}/${addFiles.length} 个文档`)
-    } else {
-      // 添加在线文档
-      const tempName = addName.trim()
-      if (!tempName || !addUrl.trim()) { setAddSubmitting(false); return }
-      // 立即插入"同步中"条目
-      setSources(prev => [...prev, {
-        name: tempName, type: addType, url: addUrl.trim(),
-        _status: 'syncing',
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      } as SourceItem])
-      try {
+    try {
+      if (addMode === 'upload') {
+        // 上传本地文档
+        if (!addFiles || addFiles.length === 0) return
+        let ok = 0
+        for (const file of Array.from(addFiles)) {
+          const form = new FormData()
+          form.append('file', file)
+          form.append('tags', 'uploaded')
+          try {
+            const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
+            if (resp.ok) ok++
+          } catch { /* skip */ }
+        }
+        showSuccess(`成功上传 ${ok}/${addFiles.length} 个文档`)
+      } else {
+        // 添加在线文档
+        const tempName = addName.trim()
+        if (!tempName || !addUrl.trim()) return
+        setSources(prev => [...prev, {
+          name: tempName, type: addType, url: addUrl.trim(),
+          _status: 'syncing',
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        } as SourceItem])
         const body: Record<string, string> = { name: tempName, type: addType }
         if (addProtocol === 'svn') {
           body.url = addUrl.trim(); body.svn_url = addUrl.trim()
@@ -106,17 +105,14 @@ export function SourcesPage() {
         const data = await res.json()
         if (!data.ok) throw new Error(data.error || '添加失败')
         showSuccess(`「${tempName}」添加成功`)
-      } catch (e: any) {
-        setSources(prev => prev.map(s => s.name === tempName ? { ...s, _status: 'error' as const } : s))
-        showError(`「${tempName}」添加失败: ${e.message || '请查看后台日志'}`)
-        setAddSubmitting(false)
-        loadAll()
-        return
       }
+    } catch (e: any) {
+      showError(`添加失败: ${e.message || '请查看后台日志'}`)
+    } finally {
+      setAddName(''); setAddUrl(''); setAddFiles(null)
+      loadAll()
+      setAddSubmitting(false)
     }
-    setAddName(''); setAddUrl(''); setAddFiles(null)
-    loadAll()
-    setAddSubmitting(false)
   }
 
   return (
