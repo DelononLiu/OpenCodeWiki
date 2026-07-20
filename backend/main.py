@@ -27,6 +27,8 @@ logger = logging.getLogger("opencodewiki")
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import asyncio
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -148,6 +150,30 @@ async def api_create_source(body: dict):
             result = await import_code_git(name, url)
         elif source_type == "docs":
             result = await import_docs_git(name, url)
+        elif source_type == "svn":
+            svn_url = (body.get("svn_url") or url or "").strip()
+            if not svn_url:
+                return _err("Missing svn_url for SVN source")
+            username = (body.get("username") or "").strip()
+            password = (body.get("password") or "").strip()
+            encrypted = ""
+            if password:
+                from utils.crypto import encrypt_credential
+                encrypted = encrypt_credential(password)
+            from stores.sources import create_source as do_create
+            result = do_create({
+                "name": name,
+                "type": "svn",
+                "url": svn_url,
+                "svn_url": svn_url,
+                "username": username,
+                "encrypted_password": encrypted,
+            })
+            # 首次检出
+            from stores.sources import svn_checkout, REPOS_DIR
+            dest = REPOS_DIR / name
+            svn_checkout(svn_url, dest, username, password)
+            return _ok(result)
         else:
             return _err(f"Invalid type: {source_type}")
         return _ok(result)
@@ -185,13 +211,38 @@ async def api_upload_source(
 
 @app.post("/api/sources/{name}/sync")
 async def api_sync_source(name: str):
-    try:
-        result = await sync_source(name)
-        return _ok(result)
-    except ValueError as e:
-        raise HTTPException(404, str(e))
-    except RuntimeError as e:
-        return _err(str(e), 500)
+    from stores.sources import get_source, svn_checkout, REPOS_DIR
+    src = get_source(name)
+    if not src:
+        raise HTTPException(404, f"Source '{name}' not found")
+
+    if src.get("type") == "svn":
+        svn_url = src.get("svn_url") or src.get("url", "")
+        if not svn_url:
+            return _err("SVN source has no URL")
+        username = src.get("username", "")
+        password = ""
+        encrypted = src.get("encrypted_password", "")
+        if encrypted:
+            from utils.crypto import decrypt_credential
+            password = decrypt_credential(encrypted)
+        dest = REPOS_DIR / name
+        # 清理旧目录重新检出
+        import shutil
+        if dest.exists():
+            shutil.rmtree(dest)
+        svn_checkout(svn_url, dest, username, password)
+        from stores.sources import update_source
+        update_source(name, {"updated_at": datetime.now(timezone.utc).isoformat()})
+        return _ok(get_source(name))
+    else:
+        try:
+            result = await sync_source(name)
+            return _ok(result)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+        except RuntimeError as e:
+            return _err(str(e), 500)
 
 
 @app.delete("/api/sources/{name}")
@@ -262,6 +313,22 @@ def _extract_text(filename: str, content: bytes) -> str:
     elif ext in (".md", ".txt"):
         return content.decode("utf-8", errors="replace")
     return ""
+
+
+@app.get("/api/documents")
+async def api_documents():
+    """列出所有已上传的文档。"""
+    from datetime import datetime, timezone
+    docs = []
+    if UPLOAD_DIR.exists():
+        for md_path in sorted(UPLOAD_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
+            docs.append({
+                "slug": md_path.stem,
+                "filename": md_path.name,
+                "size": md_path.stat().st_size,
+                "updated_at": datetime.fromtimestamp(md_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+            })
+    return _ok(docs)
 
 
 @app.post("/api/documents/upload")
@@ -396,6 +463,33 @@ async def api_qa_feedback(qid: int, body: dict):
     return _ok({"qid": qid, "feedback": fb})
 
 
+@app.get("/api/qa/share/{qid}")
+async def api_qa_share(qid: int):
+    """分享 QA 条目：返回纯净的 question + answer + sources。"""
+    from stores.qa import get_entry
+    entry = get_entry(qid)
+    if not entry:
+        raise HTTPException(404, f"#Q{qid} not found")
+    return JSONResponse({
+        "qid": entry["qid"],
+        "question": entry["question"],
+        "answer": entry.get("answer", ""),
+        "sources": entry.get("sources", []),
+        "created_at": entry.get("created_at", ""),
+        "tags": entry.get("tags", []),
+    })
+
+
+@app.post("/api/qa/entry/{qid}/refine")
+async def api_qa_refine(qid: int):
+    """用 LLM 精炼 QA 条目的标题和标签。"""
+    from stores.qa import refine_title_and_tags
+    result = refine_title_and_tags(qid)
+    if not result:
+        raise HTTPException(404, f"#Q{qid} not found or refinement failed")
+    return _ok(result)
+
+
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
 from langchain_core.messages import HumanMessage, AIMessage
@@ -429,9 +523,12 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
 
     final_answer = ""
     try:
-        result = await graph.ainvoke(
-            {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
-            config={"configurable": {"thread_id": session_id}},
+        result = await asyncio.wait_for(
+            graph.ainvoke(
+                {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
+                config={"configurable": {"thread_id": session_id}},
+            ),
+            timeout=120,
         )
         for m in result.get("messages", []):
             role = getattr(m, "type", "") or getattr(m, "role", "")
@@ -446,6 +543,8 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
             yield _sse("token", {"content": final_answer})
         else:
             yield _sse("error", {"message": "Agent did not produce an answer"})
+    except asyncio.TimeoutError:
+        yield _sse("error", {"message": "搜索超时，请简化问题重试"})
     except Exception as e:
         yield _sse("error", {"message": f"Agent error: {e}"})
     finally:

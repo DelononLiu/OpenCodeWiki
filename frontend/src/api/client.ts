@@ -92,8 +92,9 @@ export function saveSettings(section: string, data: Record<string, unknown>): Pr
 
 export interface SourceItem {
   name: string
-  type: 'code' | 'docs'
+  type: 'code' | 'docs' | 'svn'
   url?: string
+  svn_url?: string
   created_at: string
   updated_at: string
   git_commit?: string

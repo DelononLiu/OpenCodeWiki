@@ -232,13 +232,15 @@ def get_sources(qid: int) -> list[dict]:
 
 
 def get_related(qid: int, limit: int = 5) -> list[dict]:
-    """返回同 topic 的其他 QA 问题（排除 #general）。"""
+    """返回同 topic 的其他 QA 问题（排除 #general），不足时按关键词回退搜索。"""
     db = get_qa_db()
-    entry = db.execute("SELECT session_id FROM qa_entries WHERE qid = ?", (qid,)).fetchone()
+    entry = db.execute("SELECT session_id, question FROM qa_entries WHERE qid = ?", (qid,)).fetchone()
     if not entry:
         return []
     sid = entry["session_id"]
+    question = entry["question"]
 
+    # 1. 先用 topic 匹配
     rows = db.execute(
         "SELECT DISTINCT e.qid, e.question, e.status, e.created_at "
         "FROM qa_entries e "
@@ -252,7 +254,54 @@ def get_related(qid: int, limit: int = 5) -> list[dict]:
         "LIMIT ?",
         (sid, sid, limit),
     ).fetchall()
-    return [dict(r) for r in rows]
+    results = [dict(r) for r in rows]
+
+    # 2. 不足 3 条时降级为关键词 LIKE 搜索
+    if len(results) < 3:
+        # 简单去停用词提取关键词
+        stop_words = {"的", "了", "在", "是", "我", "有", "和", "就", "不",
+                      "人", "都", "一", "个", "上", "也", "很", "到", "说",
+                      "要", "去", "你", "会", "着", "没有", "看", "好",
+                      "自己", "这", "他", "她", "它", "们", "什么", "怎么",
+                      "如何", "为什么", "哪个", "怎样", "请问", "这个", "那个",
+                      "the", "a", "an", "is", "are", "was", "were", "be",
+                      "been", "being", "have", "has", "had", "do", "does",
+                      "did", "will", "would", "can", "could", "may", "might",
+                      "shall", "should", "to", "of", "in", "for", "on",
+                      "with", "at", "by", "from", "as", "into", "through",
+                      "during", "before", "after", "about", "between",
+                      "this", "that", "these", "those", "it", "its"}
+        # 分词取关键词（按空格/标点分割，过滤停用词和短词）
+        import re
+        words = set()
+        for token in re.split(r'[\s,，。.？?！!；;：:""''、/\\()（）\[\]{}]+', question):
+            token = token.strip().lower()
+            if len(token) > 1 and token not in stop_words:
+                words.add(token)
+
+        # 尝试用关键词搜索，排除当前 session 和当前 qid
+        seen_qids = {r["qid"] for r in results}
+        seen_qids.add(qid)
+        for kw in words:
+            if len(results) >= 3:
+                break
+            kw_rows = db.execute(
+                "SELECT e.qid, e.question, e.status, e.created_at "
+                "FROM qa_entries e "
+                "WHERE e.question LIKE ? AND e.session_id != ? AND e.qid != ? "
+                "AND e.qid = (SELECT MIN(e2.qid) FROM qa_entries e2 WHERE e2.session_id = e.session_id) "
+                "AND e.session_id != '' "
+                "LIMIT 3",
+                (f"%{kw}%", sid, qid),
+            ).fetchall()
+            for r in kw_rows:
+                if r["qid"] not in seen_qids:
+                    seen_qids.add(r["qid"])
+                    results.append(dict(r))
+                    if len(results) >= limit:
+                        break
+
+    return results[:limit]
 
 
 def save_feedback(qid: int, fb: str) -> bool:
@@ -294,3 +343,55 @@ def match_topic(session_id: str, question: str, answer: str):
         (session_id, slug),
     )
     db.commit()
+
+
+def refine_title_and_tags(qid: int) -> dict | None:
+    """用 LLM 精炼 QA 条目的标题（15 字内）和 3-5 个标签。"""
+    from config import get_llm_config
+    from agent.agent import _build_llm as build_llm
+
+    db = get_qa_db()
+    row = db.execute(
+        "SELECT qid, question, answer FROM qa_entries WHERE qid = ?",
+        (qid,),
+    ).fetchone()
+    if not row:
+        return None
+
+    question = row["question"]
+    answer = (row["answer"] or "")[:800]
+
+    llm = build_llm(get_llm_config())
+    prompt = (
+        f"原始问题：{question}\n"
+        f"回答摘要：{answer}\n\n"
+        f"任务：\n"
+        f"1. 生成一个标准化的标题（15 字以内），概括该问答的核心内容\n"
+        f"2. 提取 3-5 个标签（关键词，中文或英文，每个 2-6 字）\n\n"
+        f"输出格式 JSON：{{\"title\": \"...\", \"tags\": [\"...\", \"...\"]}}\n"
+        f"只输出 JSON，不要其他内容。"
+    )
+    try:
+        resp = llm.invoke(prompt)
+        content = resp.content.strip()
+        # 去掉可能的 markdown 代码块标记
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1]
+            content = content.rsplit("\n", 1)[0]
+            if content.endswith("```"):
+                content = content[:-3]
+        data = json.loads(content)
+        title = data.get("title", "").strip()
+        tags = data.get("tags", [])
+        if not title:
+            return None
+
+        # 更新数据库
+        db.execute(
+            "UPDATE qa_entries SET question = ?, tags = ?, updated_at = ? WHERE qid = ?",
+            (title, json.dumps(tags), datetime.now(timezone.utc).isoformat(), qid),
+        )
+        db.commit()
+        return {"qid": qid, "title": title, "tags": tags}
+    except Exception:
+        return None

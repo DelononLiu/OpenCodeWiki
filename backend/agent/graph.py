@@ -116,7 +116,8 @@ async def run_sub(state: GraphState) -> dict:
     intent = state.get("intent", "general")
     agent = _get_agent(intent)
     repo_hint = f"\n\n(当前项目: {state.get('project', '')})" if state.get("project") else ""
-    msgs = [HumanMessage(content=state["question"] + repo_hint)]
+    prior = list(state.get("messages", []))
+    msgs = prior + [HumanMessage(content=state["question"] + repo_hint)]
 
     limit = INTENT_LIMITS.get(intent, 20)
 
@@ -134,7 +135,7 @@ async def run_sub(state: GraphState) -> dict:
             if role == "tool":
                 content = getattr(m, "content", "") or ""
                 name = getattr(m, "name", "")
-                if name in ("code_search", "code_context", "code_grep", "code_files", "code_read_wiki"):
+                if name in ("code_search", "code_context", "code_grep", "code_files", "docs_read"):
                     try:
                         data = json.loads(content) if isinstance(content, str) else content
                         if isinstance(data, list):

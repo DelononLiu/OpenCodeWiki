@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Loader2, Sidebar, PanelRight, Plus,
-  ThumbsUp, ThumbsDown, Copy,
+  ThumbsUp, ThumbsDown, Copy, Share2,
   Hash, HelpCircle, Clock, Check, ChevronDown,
 } from 'lucide-react'
 
@@ -132,6 +132,13 @@ export function QAPage() {
     let collectedSources: any[] = []
     let errorMsg = ''
     streamAbortedRef.current = false
+    const isNewSession = !sessionId && !activeSessionId
+
+    // Auto-abort after 120s timeout
+    const timeoutId = setTimeout(() => {
+      streamAbortedRef.current = true
+      cancelStream()
+    }, 120_000)
 
     // Pass message history for multi-turn context
     const history = isNewSession ? [] : session.messages
@@ -152,6 +159,8 @@ export function QAPage() {
         errorMsg = msg.message as string
       }
     })
+
+    clearTimeout(timeoutId)
 
     if (streamAbortedRef.current) {
       setSessions(prev => {
@@ -180,7 +189,6 @@ export function QAPage() {
     }))
 
     // Persist to backend
-    const isNewSession = !sessionId && !activeSessionId
     try {
       await fetch('/api/qa/save', {
         method: 'POST',
@@ -470,6 +478,18 @@ export function QAPage() {
                         <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition" onClick={() => handleFeedback(activeSession!.sessionId, i, 'accepted')} title="回答已采纳"><ThumbsUp className="w-3.5 h-3.5" /></button>
                         <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition" onClick={() => handleFeedback(activeSession!.sessionId, i, 'rejected')} title="待验证"><ThumbsDown className="w-3.5 h-3.5" /></button>
                         <button className="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition" onClick={() => navigator.clipboard.writeText(m.content)}><Copy className="w-3.5 h-3.5" /></button>
+                        {activeRootQid && (
+                          <button
+                            className="p-1 hover:bg-slate-100 rounded hover:text-cyber-blue transition"
+                            onClick={() => {
+                              const url = `${window.location.origin}/qa/q/${activeRootQid}`
+                              navigator.clipboard.writeText(url)
+                            }}
+                            title="复制分享链接"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       )}
                       {activeSession.feedback === 'accepted' && (

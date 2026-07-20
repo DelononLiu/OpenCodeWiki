@@ -6,6 +6,8 @@ stores/sources.py — 知识源注册表 CRUD 操作层。
 """
 
 import json
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +15,24 @@ REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
 REPOS_DIR = Path.home() / ".opencodewiki" / "repos"
 SOURCES_DIR = Path.home() / ".opencodewiki" / "pages" / "sources"
 VECTORS_DIR = Path.home() / ".opencodewiki" / "vectors"
+
+
+def svn_checkout(url: str, dest: Path, username: str = "", password: str = "") -> str:
+    """执行 svn checkout，返回 stdout/stderr。"""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["svn", "checkout", url, str(dest)]
+    if username:
+        cmd.extend(["--username", username])
+    if password:
+        cmd.extend(["--password", password])
+    cmd.extend(["--non-interactive", "--trust-server-cert-fail-unknown-ca"])
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            raise RuntimeError(f"svn checkout failed (exit {result.returncode}): {result.stderr[:500]}")
+        return result.stdout
+    except FileNotFoundError:
+        raise RuntimeError("svn binary not found — install subversion (apt install subversion)")
 
 
 def _read() -> list[dict]:
@@ -56,6 +76,14 @@ def create_source(data: dict) -> dict:
         entry["path"] = data["path"]
     elif data.get("type") == "code":
         entry["path"] = str(REPOS_DIR / data["name"])
+    elif data.get("type") == "svn":
+        entry["path"] = str(REPOS_DIR / data["name"])
+        if data.get("svn_url"):
+            entry["svn_url"] = data["svn_url"]
+        if data.get("encrypted_password"):
+            entry["encrypted_password"] = data["encrypted_password"]
+        if data.get("username"):
+            entry["username"] = data["username"]
     entry["created_at"] = now
     entry["updated_at"] = now
     sources.append(entry)

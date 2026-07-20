@@ -373,39 +373,43 @@ async def code_grep(pattern: str, project: str = "") -> str:
 
 
 @tool
-async def code_read_wiki(project: str = "") -> str:
+async def docs_read(project: str = "") -> str:
     """
-    读取项目的 wiki 文档（由 opencodewiki 生成）。
-    从 ~/.opencodewiki/repos/{project_name}/openwiki/ 目录读取。
+    读取项目的文档（由 opencodewiki 生成的 wiki + 用户上传的文档）。
+    从 ~/.opencodewiki/repos/{project_name}/openwiki/ 和 uploaded/ 目录读取。
     用于：回答前了解项目背景、架构、工作流，使回答更准确。
     """
     registry = _load_registry()
     if not project:
-        return "wiki not found"
-    # 验证项目在注册表中
+        return "docs not found"
     found = any(entry.get("name") == project for entry in registry)
     if not found:
-        return "wiki not found"
-    # openwiki CLI 输出到 openwiki/ 目录
-    wiki_base = REPOS_DIR / project / "openwiki"
-    if not wiki_base.exists():
-        return "wiki not found"
-    qs = wiki_base / "quickstart.md"
-    if qs.exists():
-        text = qs.read_text()
-        if len(text) > 4000:
-            text = text[:4000] + "\n...(truncated)"
-        return text
-    # Try reading all .md files and concatenate them
+        return "docs not found"
+
     parts = []
-    for md_path in sorted(wiki_base.glob("*.md")):
-        text = md_path.read_text()
-        if len(text) > 4000:
-            text = text[:4000] + "\n...(truncated)"
-        parts.append(text)
+
+    # 1. openwiki/ — 代码生成的 wiki 文档
+    wiki_base = REPOS_DIR / project / "openwiki"
+    if wiki_base.exists():
+        for md_path in sorted(wiki_base.rglob("*.md")):
+            text = md_path.read_text()
+            if len(text) > 4000:
+                text = text[:4000] + "\n...(truncated)"
+            parts.append(text)
+
+    # 2. uploaded/ — 用户上传的文档（按项目名子目录）
+    from stores.sources import SOURCES_DIR
+    upload_dir = SOURCES_DIR / project
+    if upload_dir.exists():
+        for md_path in sorted(upload_dir.rglob("*.md")):
+            text = md_path.read_text()
+            if len(text) > 4000:
+                text = text[:4000] + "\n...(truncated)"
+            parts.append(text)
+
     if parts:
         return "\n\n---\n\n".join(parts)
-    return "wiki not found"
+    return "docs not found"
 
 
 @tool
@@ -422,7 +426,7 @@ async def code_list_repos() -> str:
 
 CODEGRAPH_TOOLS = [
     code_list_repos,
-    code_read_wiki,
+    docs_read,
     code_grep,
     code_search,
     code_context,
