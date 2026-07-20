@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout/Header'
-import { fetchSources, addSource, addSourceZip, syncSource, deleteSourceApi } from '@/api/client'
+import { fetchSources, syncSource, deleteSourceApi } from '@/api/client'
 import type { SourceItem } from '@/api/client'
+import { KnowledgeCard } from '@/components/knowledge/KnowledgeCard'
+import { UploadDocCard } from '@/components/knowledge/UploadDocCard'
 import {
-  Upload, Globe, Database, RefreshCw, Trash2, Loader2,
-  FileText, FileCode, Plus, Check,
+  Upload, Globe, Database, Loader2,
+  FileText, Plus, Check,
 } from 'lucide-react'
 
 export function SourcesPage() {
@@ -149,103 +151,35 @@ export function SourcesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 
               {/* 知识库卡片 */}
-              {sources.map(s => {
-                const status = (s as any)._status
-                return (
-                  <div key={s.name} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-cyber-blue/5 flex items-center justify-center shrink-0">
-                          {s.type === 'code' ? <FileCode className="w-4 h-4 text-cyber-blue" /> : s.type === 'svn' ? <Globe className="w-4 h-4 text-purple-500" /> : <FileText className="w-4 h-4 text-cyber-green" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold text-gray-900 truncate flex items-center gap-1.5">
-                            {s.name}
-                            {status === 'syncing' && <Loader2 className="w-3 h-3 animate-spin text-cyber-blue" />}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' :
-                              s.type === 'svn' ? 'bg-purple-100 text-purple-700' :
-                              'bg-cyber-green/10 text-cyber-green'
-                            }`}>{s.type}</span>
-                            {s.git_commit && <span className="text-[10px] font-mono text-gray-400">{s.git_commit.slice(0, 7)}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* URL */}
-                    {(s.url || s.svn_url) && (
-                      <div className="text-[10px] text-gray-400 truncate font-mono">{s.url || s.svn_url}</div>
-                    )}
-
-                    {/* 更新时间 + 状态 */}
-                    <div className="flex items-center justify-between text-[10px] text-gray-400 mt-auto">
-                      <span>{s.updated_at?.slice(0, 10) || '-'}</span>
-                      {status === 'syncing' && <span className="text-cyber-blue font-medium">同步中...</span>}
-                      {status === 'error' && <span className="text-red-500 font-medium">失败</span>}
-                    </div>
-
-                    {/* 操作按钮 */}
-                    <div className="flex items-center gap-1 pt-1 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition">
-                      {s.url && (
-                        <button onClick={async () => {
-                          setSyncing(s.name)
-                          try {
-                            await syncSource(s.name)
-                            setSources(await fetchSources())
-                            showSuccess(`「${s.name}」同步成功`)
-                          } catch { showError(`「${s.name}」同步失败`) }
-                          setSyncing(null)
-                        }} disabled={syncing === s.name}
-                          className="flex-1 text-[10px] px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
-                          {syncing === s.name ? '同步中...' : '🔄 同步'}
-                        </button>
-                      )}
-                      <button onClick={async () => {
-                        if (!confirm(`确认删除「${s.name}」？`)) return
-                        await deleteSourceApi(s.name)
-                        setSources(await fetchSources())
-                      }}
-                        className="flex-1 text-[10px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
-                        🗑 删除
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+              {sources.map(s => (
+                <KnowledgeCard
+                  key={s.name}
+                  source={s}
+                  onRefresh={() => fetchSources().then(setSources)}
+                  onError={msg => { setError(msg); setTimeout(() => setError(null), 5000) }}
+                  onSuccess={msg => { setSuccess(msg); setTimeout(() => setSuccess(null), 3000) }}
+                />
+              ))}
 
               {/* 上传的文档卡片 */}
               {uploadedDocs.map(d => (
-                <div key={`doc-${d.slug}`} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-yellow-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-gray-900 truncate">{d.slug}</div>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">upload</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-gray-400 truncate font-mono">{d.filename} ({(d.size / 1024).toFixed(1)} KB)</div>
-                  <div className="text-[10px] text-gray-400">{d.updated_at?.slice(0, 10)}</div>
-                  <div className="flex items-center gap-1 pt-1 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition">
-                    <button onClick={async () => {
-                      if (!confirm(`确认删除文档「${d.slug}」？`)) return
-                      try {
-                        const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
-                        const data = await res.json()
-                        if (!data.ok) throw new Error(data.error)
-                        showSuccess(`「${d.slug}」已删除`)
-                        loadAll()
-                      } catch { showError('删除失败') }
-                    }}
-                      className="flex-1 text-[10px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
-                      🗑 删除
-                    </button>
-                  </div>
-                </div>
+                <UploadDocCard
+                  key={`doc-${d.slug}`}
+                  slug={d.slug}
+                  filename={d.filename}
+                  size={d.size}
+                  updatedAt={d.updated_at}
+                  onDelete={async () => {
+                    if (!confirm(`确认删除文档「${d.slug}」？`)) return
+                    try {
+                      const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
+                      const data = await res.json()
+                      if (!data.ok) throw new Error(data.error)
+                      showSuccess(`「${d.slug}」已删除`)
+                      loadAll()
+                    } catch { showError('删除失败') }
+                  }}
+                />
               ))}
 
               {/* 新建知识库卡片 */}
