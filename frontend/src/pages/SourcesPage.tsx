@@ -272,37 +272,33 @@ export function SourcesPage() {
                     ) : (
                       <div>
                         <p className="text-sm font-bold text-gray-600 mb-1">点击选择文件</p>
-                        <p className="text-[10px] text-gray-400">支持 .md .txt .zip，可多选</p>
+                        <p className="text-[10px] text-gray-400">选择文件夹，自动导入全部 .md .txt 文件</p>
                       </div>
                     )}
                   </div>
-                  <input type="file" multiple accept=".md,.txt,.zip"
+                  <input type="file" /* @ts-ignore */
+                    webkitdirectory
                     onChange={e => {
                       const files = e.target.files
                       setAddFiles(files)
-                      if (!files || files.length === 0 || addName) return
-                      // 单个 zip → 用 zip 名
-                      if (files.length === 1 && files[0].name.endsWith('.zip')) {
-                        setAddName(files[0].name.replace(/\.zip$/i, ''))
-                        return
-                      }
-                      // 多文件 → 取公共目录名
-                      const dirs = new Set<string>()
-                      for (const f of Array.from(files)) {
-                        const parts = (f as any).webkitRelativePath ? (f as any).webkitRelativePath.split('/') : f.name.split(/[/\\]/)
-                        if (parts.length > 1) dirs.add(parts[0])
-                      }
-                      if (dirs.size === 1) {
-                        setAddName([...dirs][0])
-                      } else if (dirs.size === 0 && files.length === 1) {
-                        setAddName(files[0].name.replace(/\.(md|txt)$/i, ''))
+                      if (!files || files.length === 0) return
+                      // 取文件夹名作为知识库名称
+                      const first = files[0] as File & { webkitRelativePath?: string }
+                      if (first.webkitRelativePath) {
+                        const folderName = first.webkitRelativePath.split('/')[0]
+                        setAddName(folderName || first.name.replace(/\.(md|txt)$/i, ''))
+                      } else if (!addName) {
+                        setAddName(files.length === 1 ? files[0].name.replace(/\.(md|txt)$/i, '') : '')
                       }
                     }}
                     className="hidden" />
                 </label>
-                {addFiles && addFiles.length > 1 && (
+                {addFiles && addFiles.length > 0 && (
                   <div className="text-[10px] text-gray-400 mt-1.5">
-                    来自 {addFiles[0].webkitRelativePath?.split('/')[0] || '本地文件夹'}
+                    已选 {addFiles.length} 个文件
+                    {addFiles[0] && (addFiles[0] as any).webkitRelativePath && (
+                      <>，来自 <span className="font-mono font-bold">{(addFiles[0] as any).webkitRelativePath.split('/')[0]}/</span></>
+                    )}
                   </div>
                 )}
                 <div className="bg-gray-50 rounded-lg p-3 space-y-2.5 mt-3">
