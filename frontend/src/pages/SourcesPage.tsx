@@ -4,7 +4,7 @@ import { fetchSources, addSource, addSourceZip, syncSource, deleteSourceApi } fr
 import type { SourceItem } from '@/api/client'
 import {
   Upload, Globe, Database, RefreshCw, Trash2, Loader2,
-  FileText, FileCode, Link, X, Check, ChevronDown,
+  FileText, FileCode, Plus, Check,
 } from 'lucide-react'
 
 export function SourcesPage() {
@@ -136,145 +136,132 @@ export function SourcesPage() {
       <main className="flex-1 overflow-y-auto p-8">
         <div className="max-w-4xl mx-auto space-y-6">
 
-          {/* 标题 + 右上角操作按钮 */}
-          <div className="flex items-center justify-between">
+          {/* 标题 */}
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Database className="w-5 h-5 text-cyber-blue" /> 知识库
             </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setShowAddModal(true) }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-cyber-blue/5 hover:border-cyber-blue hover:text-cyber-blue transition"
-              >
-                <Upload className="w-3.5 h-3.5" /> 上传本地文档
-              </button>
-              <button
-                onClick={() => { setAddMode('online'); setAddName(''); setAddUrl(''); setAddFiles(null); setShowAddModal(true) }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition"
-              >
-                <Globe className="w-3.5 h-3.5" /> 添加在线文档
-              </button>
-            </div>
           </div>
 
-          {/* 列表 */}
+          {loading ? (
+            <div className="text-center text-gray-400 py-16 text-sm">加载中...</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 
-            {loading ? (
-              <div className="text-center text-gray-400 py-8 text-sm">加载中...</div>
-            ) : sources.length === 0 && uploadedDocs.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
-                <Database className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-400">暂无知识库</p>
-                <p className="text-xs text-gray-300 mt-1">点击上方按钮添加代码仓库或文档</p>
-              </div>
-            ) : (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">名称</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">类型</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">版本</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">地址</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">更新</th>
-                      <th className="text-right px-4 py-2.5 font-bold text-gray-500 uppercase tracking-wider">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* 上传的文档 */}
-                    {uploadedDocs.map(d => (
-                      <tr key={`doc-${d.slug}`} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                        <td className="px-4 py-3 font-mono font-bold text-gray-800">{d.slug}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">upload</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-gray-500 text-[10px]">{d.filename}</td>
-                        <td className="px-4 py-3 text-gray-400 truncate max-w-[200px] hidden md:table-cell text-[10px]">{(d.size / 1024).toFixed(1)} KB</td>
-                        <td className="px-4 py-3 text-gray-400 hidden sm:table-cell">{d.updated_at?.slice(0, 10)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={async () => {
-                            if (!confirm(`确认删除文档「${d.slug}」？`)) return
-                            try {
-                              const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
-                              const data = await res.json()
-                              if (!data.ok) throw new Error(data.error)
-                              showSuccess(`「${d.slug}」已删除`)
-                              loadAll()
-                            } catch {
-                              showError('删除失败')
-                            }
-                          }}
-                            className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {/* 知识库 */}
-                    {sources.map(s => {
-                      const status = (s as any)._status
-                      return (
-                      <tr key={s.name} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                        <td className="px-4 py-3 font-mono font-bold text-gray-800 flex items-center gap-2">
-                          {s.name}
-                          {status === 'syncing' && (
-                            <Loader2 className="w-3 h-3 animate-spin text-cyber-blue" />
-                          )}
-                        </td>
-                        <td className="px-4 py-3 flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' :
-                            s.type === 'docs' ? 'bg-cyber-green/10 text-cyber-green' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>{s.type}</span>
-                          {status === 'syncing' && (
-                            <span className="text-[10px] text-cyber-blue font-medium">同步中...</span>
-                          )}
-                          {status === 'error' && (
-                            <span className="text-[10px] text-red-500 font-medium">失败</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-gray-500">
-                          {s.git_commit ? s.git_commit.slice(0, 7) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 truncate max-w-[200px] hidden md:table-cell">{s.url || s.svn_url || '-'}</td>
-                        <td className="px-4 py-3 text-gray-400 hidden sm:table-cell">{s.updated_at?.slice(0, 10)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center gap-1 justify-end">
-                            {s.url && (
-                              <button onClick={async () => {
-                                setSyncing(s.name)
-                                try {
-                                  await syncSource(s.name)
-                                  setSources(await fetchSources())
-                                  showSuccess(`「${s.name}」同步成功`)
-                                } catch {
-                                  showError(`「${s.name}」同步失败`)
-                                }
-                                setSyncing(null)
-                              }} disabled={syncing === s.name}
-                                className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
-                                {syncing === s.name ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                同步
-                              </button>
-                            )}
-                            <button onClick={async () => {
-                              if (!confirm(`确认删除「${s.name}」？`)) return
-                              await deleteSourceApi(s.name)
-                              setSources(await fetchSources())
-                            }}
-                              className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
-                              <Trash2 className="w-3 h-3" /> 删除
-                            </button>
+              {/* 知识库卡片 */}
+              {sources.map(s => {
+                const status = (s as any)._status
+                return (
+                  <div key={s.name} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-cyber-blue/5 flex items-center justify-center shrink-0">
+                          {s.type === 'code' ? <FileCode className="w-4 h-4 text-cyber-blue" /> : s.type === 'svn' ? <Globe className="w-4 h-4 text-purple-500" /> : <FileText className="w-4 h-4 text-cyber-green" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-gray-900 truncate flex items-center gap-1.5">
+                            {s.name}
+                            {status === 'syncing' && <Loader2 className="w-3 h-3 animate-spin text-cyber-blue" />}
                           </div>
-                        </td>
-                      </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              s.type === 'code' ? 'bg-cyber-blue/10 text-cyber-blue' :
+                              s.type === 'svn' ? 'bg-purple-100 text-purple-700' :
+                              'bg-cyber-green/10 text-cyber-green'
+                            }`}>{s.type}</span>
+                            {s.git_commit && <span className="text-[10px] font-mono text-gray-400">{s.git_commit.slice(0, 7)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* URL */}
+                    {(s.url || s.svn_url) && (
+                      <div className="text-[10px] text-gray-400 truncate font-mono">{s.url || s.svn_url}</div>
+                    )}
+
+                    {/* 更新时间 + 状态 */}
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 mt-auto">
+                      <span>{s.updated_at?.slice(0, 10) || '-'}</span>
+                      {status === 'syncing' && <span className="text-cyber-blue font-medium">同步中...</span>}
+                      {status === 'error' && <span className="text-red-500 font-medium">失败</span>}
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div className="flex items-center gap-1 pt-1 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition">
+                      {s.url && (
+                        <button onClick={async () => {
+                          setSyncing(s.name)
+                          try {
+                            await syncSource(s.name)
+                            setSources(await fetchSources())
+                            showSuccess(`「${s.name}」同步成功`)
+                          } catch { showError(`「${s.name}」同步失败`) }
+                          setSyncing(null)
+                        }} disabled={syncing === s.name}
+                          className="flex-1 text-[10px] px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
+                          {syncing === s.name ? '同步中...' : '🔄 同步'}
+                        </button>
+                      )}
+                      <button onClick={async () => {
+                        if (!confirm(`确认删除「${s.name}」？`)) return
+                        await deleteSourceApi(s.name)
+                        setSources(await fetchSources())
+                      }}
+                        className="flex-1 text-[10px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
+                        🗑 删除
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* 上传的文档卡片 */}
+              {uploadedDocs.map(d => (
+                <div key={`doc-${d.slug}`} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5 hover:shadow-sm transition group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-yellow-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-gray-900 truncate">{d.slug}</div>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">upload</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-gray-400 truncate font-mono">{d.filename} ({(d.size / 1024).toFixed(1)} KB)</div>
+                  <div className="text-[10px] text-gray-400">{d.updated_at?.slice(0, 10)}</div>
+                  <div className="flex items-center gap-1 pt-1 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition">
+                    <button onClick={async () => {
+                      if (!confirm(`确认删除文档「${d.slug}」？`)) return
+                      try {
+                        const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
+                        const data = await res.json()
+                        if (!data.ok) throw new Error(data.error)
+                        showSuccess(`「${d.slug}」已删除`)
+                        loadAll()
+                      } catch { showError('删除失败') }
+                    }}
+                      className="flex-1 text-[10px] px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
+                      🗑 删除
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* 新建知识库卡片 */}
+              <button
+                onClick={() => { setAddMode('upload'); setAddName(''); setAddFiles(null); setAddUrl(''); setShowAddModal(true) }}
+                className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[180px]"
+              >
+                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
+                  <Plus className="w-5 h-5 text-gray-400 group-hover:text-cyber-blue" />
+                </div>
+                <span className="text-sm font-bold text-gray-500 group-hover:text-cyber-blue">新建知识库</span>
+                <span className="text-[10px] text-gray-400">上传文档或导入在线仓库</span>
+              </button>
+
+            </div>
+          )}
         </div>
       </main>
 
