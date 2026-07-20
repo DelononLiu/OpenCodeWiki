@@ -1,92 +1,181 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Header } from '@/components/layout/Header'
-import { fetchRepos, fetchTopics } from '@/api/client'
-import type { Repo, Topic } from '@/types'
-import { GitFork, Hash, Clock, Plus, ArrowRight } from 'lucide-react'
+import { LeftSidebar } from '@/components/layout/LeftSidebar'
+import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
+import { fetchSources, fetchWikiPage, fetchWikiModules } from '@/api/client'
+import type { SourceItem, WikiPageResponse } from '@/types'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { ChevronDown, Loader2, BookOpen } from 'lucide-react'
 
 export function WikiGlobalPage() {
-  const navigate = useNavigate()
-  const [repos, setRepos] = useState<Repo[]>([])
-  const [topics, setTopics] = useState<Topic[]>([])
+  const [sources, setSources] = useState<SourceItem[]>([])
+  const [selectedKb, setSelectedKb] = useState('')
+  const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
+  const [currentSlug, setCurrentSlug] = useState('')
+  const [rawContent, setRawContent] = useState('')
+  const [pageType, setPageType] = useState<'wiki' | 'topic'>('wiki')
+  const [loading, setLoading] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
+  // 加载知识库列表
   useEffect(() => {
-    fetchRepos().then(setRepos).catch(() => {})
-    fetchTopics().then(setTopics).catch(() => {})
+    fetchSources().then(s => {
+      setSources(s)
+      if (s.length > 0 && !selectedKb) {
+        setSelectedKb(s[0].name)
+      }
+    }).catch(() => {})
   }, [])
+
+  // 加载知识库的页面列表
+  useEffect(() => {
+    if (!selectedKb) return
+    fetchWikiModules().then(modules => {
+      const pages = modules
+        .filter(m => m.slug && !m.slug.startsWith('_'))
+        .map(m => ({ slug: m.slug, name: m.name || m.slug }))
+      setWikiPages(pages)
+      if (pages.length > 0 && !currentSlug) {
+        loadContent(pages[0].slug, true)
+      }
+    }).catch(() => {})
+  }, [selectedKb])
+
+  // 从 React children 提取文本（用于 heading id）
+  const extractText = (children: any): string => {
+    if (typeof children === 'string') return children
+    if (Array.isArray(children)) return children.map(c => extractText(c)).join('')
+    if (children?.props?.children) return extractText(children.props.children)
+    return ''
+  }
+
+  const loadContent = async (slug: string, initial = false) => {
+    if (!slug) return
+    if (!initial) setLoading(true)
+    try {
+      const data = await fetchWikiPage(slug)
+      setRawContent(data.content || '')
+      setPageType(data.type as 'wiki' | 'topic')
+      setCurrentSlug(slug)
+    } catch {
+      setRawContent('')
+      setPageType('wiki')
+      if (initial) setCurrentSlug('')
+    } finally {
+      if (!initial) setLoading(false)
+    }
+  }
+
+  const handleNavigate = (slug: string) => {
+    loadContent(slug)
+  }
+
+  const currentKb = sources.find(s => s.name === selectedKb)
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <Header variant="global" />
-      <main className="flex-1 overflow-y-auto no-scrollbar">
-        <div className="max-w-5xl mx-auto py-10 px-6 space-y-10">
+      <div className="flex-1 flex overflow-hidden">
 
-          {/* 代码库 */}
-          <section>
-            <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <GitFork className="w-4 h-4 text-gray-400" /> 代码库
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {repos.map(r => (
-                <button key={r.name} onClick={() => navigate(`/${r.name}`)}
-                  className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-cyber-blue/30 hover:shadow-sm transition group">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-sm font-bold text-gray-800 group-hover:text-cyber-blue transition">{r.name}</span>
-                    <span className="text-[10px] text-cyber-green bg-cyber-green/10 px-2 py-0.5 rounded-full font-bold shrink-0">已接入</span>
+        {/* 左侧导航 */}
+        <LeftSidebar
+          currentSlug={currentSlug}
+          onNavigate={handleNavigate}
+        />
+
+        {/* 主内容区 */}
+        <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
+          <main className="flex-1 overflow-y-auto no-scrollbar">
+            <div className="flex justify-center py-6 px-6">
+              <div className="w-full max-w-4xl">
+
+                {/* 知识库切换下拉 */}
+                {sources.length > 0 && (
+                  <div className="relative inline-block mb-6">
+                    <button
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-800 hover:border-cyber-blue transition"
+                    >
+                      <BookOpen className="w-4 h-4 text-cyber-blue" />
+                      {selectedKb || '选择知识库'}
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
+                    {dropdownOpen && (
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20 min-w-[180px]"
+                        onMouseLeave={() => setDropdownOpen(false)}>
+                        {sources.map(s => (
+                          <button key={s.name}
+                            onClick={() => {
+                              setSelectedKb(s.name)
+                              setCurrentSlug('')
+                              setRawContent('')
+                              setDropdownOpen(false)
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition ${
+                              selectedKb === s.name ? 'text-cyber-blue font-bold bg-cyber-blue/5' : 'text-gray-700'
+                            }`}
+                          >
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-[10px] text-gray-400 font-mono block mt-1 truncate">{r.path}</span>
-                </button>
-              ))}
-              <button onClick={() => navigate('/admin')}
-                className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-cyber-blue hover:border-cyber-blue/30 transition">
-                <Plus className="w-3.5 h-3.5" /> 提交代码库
-              </button>
-            </div>
-          </section>
+                )}
 
-          {/* Topic 全景 */}
-          <section>
-            <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Hash className="w-4 h-4 text-cyber-blue" /> Topic 聚合
-            </h2>
-            {topics.length > 0 ? (
-              <div className="grid gap-2">
-                {topics.map(t => (
-                  <button key={t.slug} onClick={() => navigate(`/${repos[0]?.name ?? 'self'}#${t.slug}`)}
-                    className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-cyber-blue/30 transition flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-sm font-bold text-gray-800">#{t.slug}</span>
-                      <span className="text-sm text-gray-600">{t.name}</span>
-                      {t.qa_count != null && (
-                        <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{t.qa_count} 条 QA</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        t.status === 'published' ? 'bg-cyber-green/10 text-cyber-green' : 'bg-amber-50 text-amber-600'
-                      }`}>
-                        {t.status === 'published' ? '已沉淀' : '聚合中'}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-cyber-blue transition" />
-                    </div>
-                  </button>
-                ))}
+                {/* 内容 */}
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  </div>
+                ) : rawContent ? (
+                  <article>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h1 id={id} className="text-3xl font-bold border-b border-gray-200 pb-3 mb-6">{children}</h1> },
+                        h2: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h2 id={id} className="text-2xl font-semibold mt-12 mb-4">{children}</h2> },
+                        h3: ({ children }) => { const id = extractText(children).toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); return <h3 id={id} className="text-lg font-semibold mt-8 mb-3">{children}</h3> },
+                        h4: ({ children }) => <h4 className="font-semibold mt-6 mb-2">{children}</h4>,
+                        a: ({ href, children }) => <a href={href} className="text-cyber-blue no-underline hover:underline">{children}</a>,
+                        img: ({ src, alt }) => <img src={src} alt={alt} className="rounded-xl my-4" />,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-5 py-1 text-gray-600 my-6">{children}</blockquote>,
+                        table: ({ children }) => <table className="w-full my-6">{children}</table>,
+                        th: ({ children }) => <th className="border bg-gray-50 px-3 py-2 text-sm font-semibold">{children}</th>,
+                        td: ({ children }) => <td className="border px-3 py-2 text-sm">{children}</td>,
+                        code: ({ className, children, ...props }) => {
+                          const match = /language-(\w+)/.exec(className || '')
+                          const text = String(children).replace(/\n$/, '')
+                          if (match) return <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" customStyle={{ borderRadius: 12, fontSize: 13 }}>{text}</SyntaxHighlighter>
+                          return <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm text-red-500" {...props}>{children}</code>
+                        },
+                      }}
+                    >
+                      {rawContent}
+                    </ReactMarkdown>
+                  </article>
+                ) : selectedKb ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    该知识库暂无内容
+                  </div>
+                ) : (
+                  <div className="text-center py-16 space-y-4">
+                    <BookOpen className="w-12 h-12 mx-auto text-gray-300" />
+                    <p className="text-gray-400 text-sm">请先在知识库页面添加内容</p>
+                  </div>
+                )}
+
               </div>
-            ) : (
-              <div className="text-center text-gray-400 py-12 text-sm">暂无 Topic，从问答积累开始</div>
-            )}
-          </section>
-
-          {/* 最近变动 */}
-          <section>
-            <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400" /> 最近变动
-            </h2>
-            <div className="text-center text-gray-400 py-8 text-sm">暂无最近变动记录</div>
-          </section>
-
+            </div>
+          </main>
         </div>
-      </main>
+
+        {/* 右侧目录 */}
+        {rawContent && <WikiRightSidebar renderedHtml={rawContent} />}
+      </div>
     </div>
   )
 }
