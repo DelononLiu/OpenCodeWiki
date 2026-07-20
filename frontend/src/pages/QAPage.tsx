@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Loader2, Sidebar, PanelRight, Plus,
-  ThumbsUp, ThumbsDown, Copy, MoreHorizontal,
+  ThumbsUp, ThumbsDown, Copy,
   Hash, HelpCircle, Clock, Check, ChevronDown,
 } from 'lucide-react'
 
