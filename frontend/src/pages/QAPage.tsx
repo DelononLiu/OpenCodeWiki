@@ -301,12 +301,12 @@ export function QAPage() {
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <Header variant="global" />
 
-      <div className="flex-1 flex overflow-hidden w-full px-4 py-3 gap-3">
+      <div className="flex-1 flex overflow-hidden">
 
         {/* Left Panel */}
         <aside
-          className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
-          style={{ width: leftPanelOpen ? '16rem' : '0px', opacity: leftPanelOpen ? 1 : 0, padding: leftPanelOpen ? '1rem' : '0', borderWidth: leftPanelOpen ? '1px' : '0' }}
+          className="bg-white border-r border-gray-200/50 flex flex-col shrink-0 overflow-y-auto no-scrollbar transition-all duration-300"
+          style={{ width: leftPanelOpen ? '16rem' : '0px', opacity: leftPanelOpen ? 1 : 0 }}
         >
           {leftPanelOpen && (
             <div className="space-y-5 text-xs flex flex-col">
@@ -404,50 +404,33 @@ export function QAPage() {
         </aside>
 
         {/* Center Panel */}
-        <main className="flex-1 bg-white border border-gray-200/50 shadow-sm rounded-xl flex flex-col overflow-hidden relative min-w-0">
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
 
           {/* Top bar */}
-          <div className="p-3 border-b border-gray-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative">
-            <div className="flex items-center gap-2">
+          <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-1">
               {!leftPanelOpen && (
-                <button
-                  onClick={() => setLeftPanelOpen(true)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
-                >
+                <button onClick={() => setLeftPanelOpen(true)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition">
                   <Sidebar className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setActiveSessionId(null)
-                  setTimeout(() => {
-                    const inp = document.querySelector<HTMLInputElement>('[data-qa-input]')
-                    inp?.focus()
-                  }, 50)
-                }}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition"
-                title="新问题"
-              >
+              <button onClick={() => { setActiveSessionId(null); setTimeout(() => document.querySelector<HTMLInputElement>('[data-qa-input]')?.focus(), 50) }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition" title="新问题">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               {activeSession ? (
-                <>
-                  <span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
-                  <h2 className="text-xs font-bold text-gray-900 truncate max-w-md">{activeSession.question}</h2>
-                </>
+                <><span className="w-5 h-5 bg-cyber-blue/10 rounded-full flex items-center justify-center text-cyber-blue font-bold text-xs font-mono">Q</span>
+                  <h2 className="text-xs font-bold text-gray-900 truncate max-w-md">{activeSession.question}</h2></>
               ) : (
                 <span className="text-xs text-gray-400">对代码库提问</span>
               )}
             </div>
-
             {!rightPanelOpen && (
-              <button
-                onClick={() => setRightPanelOpen(true)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
-              >
+              <button onClick={() => setRightPanelOpen(true)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition">
                 <PanelRight className="w-4 h-4" />
               </button>
             )}
@@ -552,8 +535,8 @@ export function QAPage() {
 
         {/* Right Panel */}
         <aside
-          className="bg-white border border-gray-200/60 rounded-xl flex flex-col shrink-0 shadow-sm overflow-y-auto no-scrollbar transition-all duration-300"
-          style={{ width: rightPanelOpen ? '360px' : '0px', opacity: rightPanelOpen ? 1 : 0, padding: rightPanelOpen ? '1rem' : '0', borderWidth: rightPanelOpen ? '1px' : '0' }}
+          className="bg-white border-l border-gray-200/50 flex flex-col shrink-0 overflow-y-auto no-scrollbar transition-all duration-300"
+          style={{ width: rightPanelOpen ? '360px' : '0px', opacity: rightPanelOpen ? 1 : 0 }}
         >
           {rightPanelOpen && (
             <div className="space-y-4">
