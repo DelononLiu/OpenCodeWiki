@@ -35,19 +35,26 @@ export function WikiGlobalPage() {
     }).catch(() => {})
   }, [name])
 
-  // 加载知识库的页面列表
+  // 切换知识库时重置并加载内容
   useEffect(() => {
-    if (!selectedKb) return
+    const kb = name || kbList[0]?.name || ''
+    if (!kb) return
+    setSelectedKb(kb)
+    setCurrentSlug('')
+    setRawContent('')
+    setWikiPages([])
+    // 加载当前知识库的页面列表和内容
     fetchWikiModules().then(modules => {
+      // 过滤出属于当前知识库的页面
       const pages = modules
-        .filter(m => m.slug && !m.slug.startsWith('_'))
-        .map(m => ({ slug: m.slug, name: m.name || m.slug }))
+        .filter(m => m.slug && !m.slug.startsWith('_') && (m.name.includes(`/${kb}`) || !m.name.includes('/')))
+        .map(m => ({ slug: m.slug, name: m.slug }))
       setWikiPages(pages)
-      if (pages.length > 0 && !currentSlug) {
+      if (pages.length > 0) {
         loadContent(pages[0].slug, true)
       }
     }).catch(() => {})
-  }, [selectedKb])
+  }, [name, kbList])
 
   // 从 React children 提取文本（用于 heading id）
   const extractText = (children: any): string => {
