@@ -30,9 +30,8 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
     const groups: Record<string, WikiModule[]> = {}
     for (const m of modules) {
       if (m.type !== 'source') continue
-      const [sourceName, ...rest] = m.name.split('/')
+      const sourceName = m.name.split(' / ')[0]
       const group = sourceName || '其他'
-      // 如果指定了当前知识库，只显示该知识库的页面
       if (currentKb && group !== currentKb) continue
       if (!groups[group]) groups[group] = []
       groups[group].push(m)

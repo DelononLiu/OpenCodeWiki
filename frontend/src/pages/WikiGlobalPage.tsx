@@ -47,7 +47,12 @@ export function WikiGlobalPage() {
     fetchWikiModules().then(modules => {
       // 过滤出属于当前知识库的页面
       const pages = modules
-        .filter(m => m.slug && !m.slug.startsWith('_') && (m.name.includes(`/${kb}`) || !m.name.includes('/')))
+        .filter(m => {
+          if (!m.slug || m.slug.startsWith('_')) return false
+          // name 格式 "source / title"，取第一部分匹配知识库
+          const sourceName = m.name.split(' / ')[0]
+          return sourceName === kb
+        })
         .map(m => ({ slug: m.slug, name: m.slug }))
       setWikiPages(pages)
       if (pages.length > 0) {
