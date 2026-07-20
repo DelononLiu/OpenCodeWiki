@@ -129,6 +129,7 @@ export function QAPage() {
     setActiveSessionId(sid!)
 
     let collectedAnswer = ''
+    let collectedSources: any[] = []
     let errorMsg = ''
     streamAbortedRef.current = false
 
@@ -142,6 +143,9 @@ export function QAPage() {
             streamingAnswer: collectedAnswer,
           },
         }))
+      } else if (msg.type === 'sources' && msg.sources) {
+        collectedSources = msg.sources as any[]
+        setSourceRefs(collectedSources)
       } else if (msg.type === 'error' && msg.message) {
         errorMsg = msg.message as string
       }
@@ -181,10 +185,11 @@ export function QAPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question,
-          answer: collectedAnswer || '(未生成回答)',
+          answer: collectedAnswer || '',
           repo: '',
           session_id: sid,
           session_create: isNewSession,
+          sources: collectedSources,
         }),
       })
       // Refresh session list so left panel shows updated history
