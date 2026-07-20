@@ -331,6 +331,16 @@ async def api_documents():
     return _ok(docs)
 
 
+@app.delete("/api/documents/{slug}")
+async def api_delete_document(slug: str):
+    """删除已上传的文档文件。"""
+    md_path = UPLOAD_DIR / f"{slug}.md"
+    if not md_path.exists():
+        raise HTTPException(404, f"Document '{slug}' not found")
+    md_path.unlink()
+    return _ok({"deleted": True})
+
+
 @app.post("/api/documents/upload")
 async def api_document_upload(
     file: UploadFile = File(...),

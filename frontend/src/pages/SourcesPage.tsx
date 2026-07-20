@@ -224,8 +224,15 @@ export function SourcesPage() {
                         <td className="px-4 py-3 text-right">
                           <button onClick={async () => {
                             if (!confirm(`确认删除文档「${d.slug}」？`)) return
-                            // 暂不支持直接删除，提示
-                            showError('文档删除暂不支持，可手动删除文件')
+                            try {
+                              const res = await fetch(`/api/documents/${d.slug}`, { method: 'DELETE' })
+                              const data = await res.json()
+                              if (!data.ok) throw new Error(data.error)
+                              showSuccess(`「${d.slug}」已删除`)
+                              loadAll()
+                            } catch {
+                              showError('删除失败')
+                            }
                           }}
                             className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition">
                             <Trash2 className="w-3 h-3" />
