@@ -32,10 +32,11 @@ OPENWIKI_CLI = "openwiki"
 # ── 底层工具 ─────────────────────────────────────────────────────
 
 
-async def _run_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> tuple[int, str]:
+async def _run_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = None, timeout: int = 120) -> tuple[int, str]:
     """执行外部命令，返回 (exit_code, combined_output)。"""
     import os
     cmd_env = os.environ.copy() | (env or {})
+    cmd_env.setdefault("GIT_TERMINAL_PROMPT", "0")
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=cwd,
@@ -43,8 +44,13 @@ async def _run_cmd(cmd: list[str], cwd: Path | None = None, env: dict | None = N
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate()
-    return proc.returncode or 0, (stdout or b"").decode() + (stderr or b"").decode()
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return proc.returncode or 0, (stdout or b"").decode() + (stderr or b"").decode()
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return -1, f"命令超时 ({timeout}s)"
 
 
 async def _git_clone(url: str, dest: Path):
@@ -100,10 +106,12 @@ async def import_code_git(name: str, url: str) -> dict:
         if not wiki_dir.exists():
             wiki_dir.mkdir(parents=True, exist_ok=True)
             await _run_cmd([OPENWIKI_CLI, str(dest)], cwd=dest)
-    except Exception:
+    except Exception as e:
         if dest.exists():
             shutil.rmtree(dest)
-        # 注册成功了但后续失败，保留 registry 记录，删除 clone 的目录
+        from stores.sources import delete_source
+        delete_source(name)
+        raise RuntimeError(str(e))
     return result
 
 
