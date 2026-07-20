@@ -586,9 +586,22 @@ async def api_qa(request: Request):
     )
 
 
+# ── Knowledge bases ────────────────────────────────────────────
+
+@app.get("/api/knowledge")
+async def api_knowledge():
+    """列出所有知识库（knowledge/ 目录下的文件夹）。"""
+    bases = []
+    if KNOWLEDGE_DIR.exists():
+        for d in sorted(KNOWLEDGE_DIR.iterdir()):
+            if d.is_dir() and not d.name.startswith('_'):
+                bases.append({"name": d.name})
+    return _ok(bases)
+
+
 # ── Wiki ────────────────────────────────────────────────────────
 
-from stores.sources import list_sources, KNOWLEDGE_DIR
+from stores.sources import KNOWLEDGE_DIR
 
 
 @app.get("/api/wiki/modules")
@@ -605,32 +618,34 @@ async def api_wiki_modules():
     except ImportError:
         pass
 
-    # List source wiki files
-    for src in list_sources():
-        name = src["name"]
-        if src.get("type") == "code":
-            wiki_dir = KNOWLEDGE_DIR / name / "openwiki"
-        else:
-            wiki_dir = KNOWLEDGE_DIR / name
-        if wiki_dir.exists():
-            for md_file in sorted(wiki_dir.glob("*.md")):
-                slug = md_file.stem
-                if any(m["slug"] == slug for m in modules):
+    # List all knowledge/ directories as wiki sources
+    if KNOWLEDGE_DIR.exists():
+        for kb_dir in sorted(KNOWLEDGE_DIR.iterdir()):
+            if not kb_dir.is_dir():
+                continue
+            name = kb_dir.name
+            # code 知识库的 wiki 在 openwiki/ 子目录
+            md_dirs = [kb_dir] if not (kb_dir / "openwiki").exists() else [kb_dir / "openwiki"]
+            for md_dir in md_dirs:
+                if not md_dir.exists():
                     continue
-                # 从 markdown 中提取一级标题作为显示名
-                title = slug
-                try:
-                    first_line = md_file.read_text(encoding="utf-8").strip().split("\n")[0]
-                    if first_line.startswith("# "):
-                        title = first_line[2:].strip()
-                except Exception:
-                    pass
-                modules.append({
-                    "slug": slug,
-                    "name": f"{name} / {title}",
-                    "type": "source",
-                    "title": title,
-                })
+                for md_file in sorted(md_dir.glob("*.md")):
+                    slug = md_file.stem
+                    if any(m["slug"] == slug for m in modules):
+                        continue
+                    title = slug
+                    try:
+                        first_line = md_file.read_text(encoding="utf-8").strip().split("\n")[0]
+                        if first_line.startswith("# "):
+                            title = first_line[2:].strip()
+                    except Exception:
+                        pass
+                    modules.append({
+                        "slug": slug,
+                        "name": f"{name} / {title}",
+                        "type": "source",
+                        "title": title,
+                    })
     return _ok(modules)
 
 
@@ -682,22 +697,24 @@ async def api_wiki_page(slug: str):
     except ImportError:
         pass
 
-    # Try source wiki files
-    for src in list_sources():
-        name = src["name"]
-        if src.get("type") == "code":
-            md_path = KNOWLEDGE_DIR / name / "openwiki" / f"{slug}.md"
-        else:
-            md_path = KNOWLEDGE_DIR / name / f"{slug}.md"
-        if md_path.exists():
-            content = md_path.read_text(encoding="utf-8")
-            return _ok({
-                "type": "source",
-                "slug": slug,
-                "content": content,
-                "source": name,
-                "source_type": src["type"],
-            })
+    # Try all knowledge/ directories
+    if KNOWLEDGE_DIR.exists():
+        for kb_dir in sorted(KNOWLEDGE_DIR.iterdir()):
+            if not kb_dir.is_dir():
+                continue
+            name = kb_dir.name
+            # code 知识库的 wiki 在 openwiki/ 子目录，其他直接在根目录
+            candidates = [kb_dir / "openwiki" / f"{slug}.md", kb_dir / f"{slug}.md"]
+            for md_path in candidates:
+                if md_path.exists():
+                    content = md_path.read_text(encoding="utf-8")
+                    return _ok({
+                        "type": "source",
+                        "slug": slug,
+                        "content": content,
+                        "source": name,
+                        "source_type": "knowledge",
+                    })
     raise HTTPException(404, f"Page '{slug}' not found")
 
 

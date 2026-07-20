@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Header } from '@/components/layout/Header'
 import { LeftSidebar } from '@/components/layout/LeftSidebar'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
-import { fetchSources, fetchWikiPage, fetchWikiModules } from '@/api/client'
-import type { SourceItem, WikiPageResponse } from '@/types'
+import { fetchWikiPage, fetchWikiModules } from '@/api/client'
+import type { WikiPageResponse } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -11,7 +11,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ChevronDown, Loader2, BookOpen } from 'lucide-react'
 
 export function WikiGlobalPage() {
-  const [sources, setSources] = useState<SourceItem[]>([])
+  const [kbList, setKbList] = useState<{name: string}[]>([])
   const [selectedKb, setSelectedKb] = useState('')
   const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
   const [currentSlug, setCurrentSlug] = useState('')
@@ -22,10 +22,11 @@ export function WikiGlobalPage() {
 
   // 加载知识库列表
   useEffect(() => {
-    fetchSources().then(s => {
-      setSources(s)
-      if (s.length > 0 && !selectedKb) {
-        setSelectedKb(s[0].name)
+    fetch('/api/knowledge').then(r => r.json()).then(d => {
+      const list = d.data || []
+      setKbList(list)
+      if (list.length > 0 && !selectedKb) {
+        setSelectedKb(list[0].name)
       }
     }).catch(() => {})
   }, [])
@@ -73,7 +74,7 @@ export function WikiGlobalPage() {
     loadContent(slug)
   }
 
-  const currentKb = sources.find(s => s.name === selectedKb)
+  const currentKb = kbList.find(k => k.name === selectedKb)
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
@@ -93,7 +94,7 @@ export function WikiGlobalPage() {
               <div className="w-full max-w-4xl">
 
                 {/* 知识库切换下拉 */}
-                {sources.length > 0 && (
+                {kbList.length > 0 && (
                   <div className="relative inline-block mb-6">
                     <button
                       onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -106,7 +107,7 @@ export function WikiGlobalPage() {
                     {dropdownOpen && (
                       <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20 min-w-[180px]"
                         onMouseLeave={() => setDropdownOpen(false)}>
-                        {sources.map(s => (
+                        {kbList.map(s => (
                           <button key={s.name}
                             onClick={() => {
                               setSelectedKb(s.name)
