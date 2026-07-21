@@ -42,9 +42,9 @@ def write_page(slug: str, page_type: str, content: str) -> Path:
 
 def index_wiki_page(slug: str, content: str):
     """Index a wiki page into FTS5 for full-text search."""
-    from database import get_knowledge_db
+    from database import get_qa_db
 
-    db = get_knowledge_db()
+    db = get_qa_db()
     now = datetime.now(timezone.utc).isoformat()
     db.execute("DELETE FROM wiki_index WHERE slug = ?", (slug,))
     db.execute(
