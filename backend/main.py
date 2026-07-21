@@ -516,6 +516,22 @@ async def api_qa_session_messages(session_id: str):
     return _ok({"session_id": session_id, "messages": msgs})
 
 
+@app.post("/api/qa/session/{session_id}/convert-to-wiki")
+async def api_convert_session_to_wiki(session_id: str, body: dict):
+    """将 session 的全部多轮对话转换为结构化 wiki 专题文档。"""
+    module_slug = body.get("wiki_module", "").strip()
+    from stores.qa import convert_session_to_wiki
+    try:
+        result = convert_session_to_wiki(session_id, module_slug)
+        return _ok(result)
+    except ValueError as e:
+        return _err(str(e), 400)
+    except RuntimeError as e:
+        return _err(str(e), 500)
+    except Exception as e:
+        return _err(f"未知错误: {str(e)}", 500)
+
+
 @app.post("/api/qa/entry/{qid}/calibrate")
 async def api_qa_calibrate(qid: int, body: dict):
     answer = (body.get("answer") or "").strip()
@@ -871,12 +887,13 @@ def _sync_modules_from_fs():
 @app.get("/api/wiki/{slug:path}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
-    # Try stored page
+    # Try stored page — check all types
     try:
         from stores.wiki import read_page as read_wiki_file
-        stored = read_wiki_file(slug, "entity")
-        if stored:
-            return _ok({"type": "wiki", "slug": slug, "content": _strip_frontmatter(stored)})
+        for pt in ("entity", "qa-archive", "overview"):
+            stored = read_wiki_file(slug, pt)
+            if stored:
+                return _ok({"type": "wiki", "slug": slug, "content": _strip_frontmatter(stored)})
     except ImportError:
         pass
     # Try topic
@@ -1078,6 +1095,12 @@ try:
         """获取待审核 draft 队列。"""
         from stores.topics import get_review_queue
         return _ok({"queue": get_review_queue()})
+
+    @app.get("/api/wiki/conversions")
+    async def api_wiki_conversions():
+        """获取所有 session→wiki 转换记录。"""
+        from stores.wiki import list_conversions
+        return _ok({"conversions": list_conversions()})
 
     @app.get("/api/wiki/search-index")
     async def api_search_wiki_index(q: str = "", limit: int = 5):

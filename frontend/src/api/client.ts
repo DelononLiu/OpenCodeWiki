@@ -1,4 +1,4 @@
-import type { AnalyzeResult, ApiResponse, Repo, QaEntry, ReviewItem, Topic, TopicDraft, WikiPageResponse } from '@/types'
+import type { AnalyzeResult, ApiResponse, Repo, QaEntry, ReviewItem, Topic, TopicDraft, WikiConversion, WikiPageResponse } from '@/types'
 
 const BASE = '/api'
 
@@ -165,4 +165,17 @@ export function rejectDraft(slug: string, reason: string): Promise<{ rejected: b
 
 export function fetchReviewQueue(): Promise<{ queue: ReviewItem[] }> {
   return request<{ queue: ReviewItem[] }>('/wiki/review-queue')
+}
+
+// ── Wiki Conversions ──
+
+export function convertSessionToWiki(sessionId: string, wikiModule: string): Promise<WikiConversion> {
+  return request<WikiConversion>(`/qa/session/${encodeURIComponent(sessionId)}/convert-to-wiki`, {
+    method: 'POST',
+    body: JSON.stringify({ wiki_module: wikiModule }),
+  })
+}
+
+export function fetchWikiConversions(): Promise<{ conversions: WikiConversion[] }> {
+  return request<{ conversions: WikiConversion[] }>('/wiki/conversions')
 }

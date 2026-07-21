@@ -148,6 +148,20 @@ def search_wiki_index(query: str, limit: int = 3) -> list[dict]:
         return []
 
 
+def list_conversions() -> list[dict]:
+    """查询 wiki_conversions 表，返回按时间倒序的转换记录。"""
+    from database import get_qa_db
+
+    db = get_qa_db()
+    try:
+        rows = db.execute(
+            "SELECT * FROM wiki_conversions ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
 def list_pages(page_type: str | None = None) -> list[dict]:
     _ensure_dirs()
     pages = []

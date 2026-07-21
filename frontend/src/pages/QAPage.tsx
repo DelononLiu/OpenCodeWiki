@@ -3,9 +3,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, BookOpen, Check, X, ExternalLink } from 'lucide-react'
 import { AnswerActions } from '@/components/qa/AnswerActions'
 import { CodeTraceCard } from '@/components/qa/CodeTraceCard'
+import { DraftEditor } from '@/components/knowledge/DraftEditor'
+import { fetchWikiModules, convertSessionToWiki } from '@/api/client'
 
 interface Message {
   role: 'user' | 'assistant' | 'error'
@@ -47,6 +49,15 @@ export function QAPage() {
   const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
   // 历史加载的错误状态
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  // ── Wiki 转换 ──────────────────────────────────────────
+  const [showConvertModal, setShowConvertModal] = useState(false)
+  const [wikiContent, setWikiContent] = useState('')
+  const [wikiModule, setWikiModule] = useState('')
+  const [wikiModules, setWikiModules] = useState<{slug: string; name: string; type: string; title?: string}[]>([])
+  const [converting, setConverting] = useState(false)
+  const [convertError, setConvertError] = useState<string | null>(null)
+  const [convertSuccess, setConvertSuccess] = useState<{slug: string; title: string} | null>(null)
 
   const fetchSessionList = useCallback(() => {
     fetch('/api/sessions').then(r => r.json()).then(d => {
@@ -207,6 +218,34 @@ export function QAPage() {
   }, [parseSSELine, handleSSEEvent])
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null
+
+  // ── Wiki 转换 ──────────────────────────────────────────
+  const openConvertModal = useCallback(async () => {
+    if (!activeSession) return
+    try {
+      const modules = await fetchWikiModules()
+      setWikiModules(modules)
+      if (modules.length > 0) setWikiModule(modules[0].slug)
+    } catch { setWikiModules([]) }
+    setWikiContent('')
+    setConvertError(null)
+    setConvertSuccess(null)
+    setShowConvertModal(true)
+  }, [activeSession])
+
+  const handleConvert = async () => {
+    if (!activeSession?.backendSessionId) return
+    setConverting(true)
+    setConvertError(null)
+    try {
+      const result = await convertSessionToWiki(activeSession.backendSessionId, wikiModule)
+      setConvertSuccess({ slug: result.slug || result.wiki_slug, title: result.title || result.wiki_title || '' })
+      fetchSessionList()
+    } catch (e: any) {
+      setConvertError(e.message || '转换失败')
+    }
+    setConverting(false)
+  }
 
   // ── 提交问题（新问题 or 追问）：POST /api/qa → 直接消费 SSE ──
   const submitQuestion = useCallback(async (question: string) => {
@@ -488,8 +527,25 @@ export function QAPage() {
               const lastAssistantIdx = activeSession.messages.reduce(
                 (acc, msg, idx) => (msg.role === 'assistant' ? idx : acc), -1,
               )
+              // 是否有 QA 内容可以沉淀
+              const hasAssistantMsgs = activeSession.messages.some(m => m.role === 'assistant')
+              const canConvert = hasAssistantMsgs && activeSession.backendSessionId
+
               return (
               <div className="max-w-3xl mx-auto space-y-8">
+                {/* Session header with convert button */}
+                {canConvert && (
+                  <div className="flex items-center justify-end">
+                    <button
+                      onClick={openConvertModal}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-cyber-blue/30 text-cyber-blue rounded-lg hover:bg-cyber-blue/5 transition"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      转为 Wiki
+                    </button>
+                  </div>
+                )}
+
                 {activeSession.messages.map((m, i) => (
                   <Fragment key={i}>
                     {i > 0 && <hr className="border-gray-100 my-2" />}
@@ -610,6 +666,86 @@ export function QAPage() {
               </Button>
             </div>
           </div>
+
+          {/* ── Wiki 转换 Modal ── */}
+          {showConvertModal && (
+            <div className="absolute inset-0 z-20 bg-black/30 flex items-center justify-center p-8">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+                {/* Modal header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-cyber-blue" />
+                    <span className="text-sm font-bold text-gray-900">Session → Wiki 转换</span>
+                  </div>
+                  <button onClick={() => setShowConvertModal(false)}
+                    className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Modal body */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                  {!convertSuccess ? (
+                    <>
+                      <DraftEditor
+                        qaEntries={activeSession!.messages
+                          .filter(m => m.role === 'user' || m.role === 'assistant')
+                          .reduce((acc: {qid: number; question: string; answer?: string | null}[], m, i) => {
+                            if (m.role === 'user') {
+                              acc.push({ qid: activeRootQid || 0, question: m.content, answer: null })
+                            } else if (acc.length > 0) {
+                              acc[acc.length - 1].answer = m.content
+                            }
+                            return acc
+                          }, [])}
+                        draftContent={wikiContent}
+                        onChange={setWikiContent}
+                      />
+
+                      {convertError && (
+                        <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{convertError}</div>
+                      )}
+
+                      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-4">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">目标模块:</span>
+                          <select value={wikiModule} onChange={e => setWikiModule(e.target.value)}
+                            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+                            {wikiModules.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}
+                          </select>
+                        </div>
+                        <button onClick={handleConvert}
+                          disabled={converting}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-cyber-blue text-white text-sm font-bold rounded-lg hover:bg-cyber-blue-dark disabled:opacity-50 transition">
+                          {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          {converting ? '生成中...' : '生成 Wiki'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 space-y-4">
+                      <Check className="w-12 h-12 text-cyber-green mx-auto" />
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">Wiki 已生成</p>
+                        <p className="text-sm text-gray-500 mt-1">{convertSuccess.title}</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-3">
+                        <a href={`/wiki/${convertSuccess.slug}`} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-cyber-blue text-white text-sm rounded-lg hover:bg-cyber-blue-dark">
+                          <ExternalLink className="w-4 h-4" /> 查看 Wiki
+                        </a>
+                        <button onClick={() => setShowConvertModal(false)}
+                          className="px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50">
+                          关闭
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

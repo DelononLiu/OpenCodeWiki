@@ -6,6 +6,7 @@ import { QaCalibrateCard } from '@/pages/admin/QaCalibrateCard'
 import { TopicDiscoverCard } from '@/pages/admin/TopicDiscoverCard'
 import { DraftRefineCard } from '@/pages/admin/DraftRefineCard'
 import { WikiReviewCard } from '@/pages/admin/WikiReviewCard'
+import { WikiConversionsCard } from '@/pages/admin/WikiConversionsCard'
 import type { PipelineCounts } from '@/types'
 
 export function AdminPage() {
@@ -81,6 +82,12 @@ export function AdminPage() {
             <WikiReviewCard
               expanded={expandedStage === 4}
               onToggle={() => handleStageToggle(4)}
+              onUpdate={refreshCounts}
+            />
+
+            <WikiConversionsCard
+              expanded={expandedStage === 5}
+              onToggle={() => handleStageToggle(5)}
               onUpdate={refreshCounts}
             />
           </div>

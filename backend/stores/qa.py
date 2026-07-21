@@ -423,3 +423,99 @@ def refine_title_and_tags(qid: int) -> dict | None:
         return {"qid": qid, "title": title, "tags": tags}
     except Exception:
         return None
+
+
+def convert_session_to_wiki(session_id: str, module_slug: str = "") -> dict:
+    """将整个 session 的多轮对话转换为结构化 wiki 专题文档。
+
+    1. 拉取 session 所有 QA
+    2. LLM 生成专题格式 markdown（概述→架构→核心逻辑→代码引用→流程图）
+    3. write_page + index_wiki_page
+    4. 记录到 wiki_conversions 表
+
+    返回 {slug, title, content, qa_count}
+    """
+    from config import get_llm_config
+    from agent.agent import _build_llm as build_llm
+    from stores.wiki import write_page, index_wiki_page
+
+    # 1. 拉取 session 所有对话
+    messages = list_session_messages(session_id)
+    if not messages:
+        raise ValueError("Session has no messages")
+
+    # 2. 构建 LLM 输入
+    qa_text = ""
+    for i, m in enumerate(messages):
+        qa_text += f"\n### Q{i+1}: {m.get('question', '')}\n\n"
+        answer = m.get("answer") or ""
+        # 截断过长的回答
+        if len(answer) > 2000:
+            answer = answer[:2000] + "...(truncated)"
+        qa_text += f"{answer}\n"
+        sources = m.get("sources")
+        if isinstance(sources, list) and sources:
+            qa_text += "\n引用来源:\n"
+            for s in sources[:8]:
+                qa_text += f"- {s.get('file', '')}:{s.get('line', '')}\n"
+
+    llm = build_llm(get_llm_config())
+    prompt = (
+        "你是一个技术文档撰写专家。请根据以下多轮代码问答对话，撰写一篇结构化 Wiki 技术专题文档。\n\n"
+        "## 原始问答对话\n"
+        f"{qa_text}\n\n"
+        "## 要求\n"
+        "1. **不要保留问答格式**，综合成结构化的专题文档\n"
+        "2. 按以下结构组织：\n"
+        "   - 概述（一句话说明这个专题讲什么）\n"
+        "   - 核心架构/概念\n"
+        "   - 关键实现细节（可含代码片段和文件引用）\n"
+        "   - 流程说明（如适用，用 mermaid 流程图）\n"
+        "3. 从内容中提取一个英文短横线 slug（如 kcode-plugin-system），作为文档标识\n"
+        "4. 生成一个中文标题（15 字以内）\n\n"
+        "输出格式（严格 JSON，不要额外内容）：\n"
+        '{"slug": "...", "title": "...", "content": "markdown..."}'
+    )
+
+    try:
+        resp = llm.invoke(prompt)
+        raw = resp.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"LLM 输出非 JSON 格式: {str(e)[:200]}")
+    except Exception as e:
+        raise RuntimeError(f"LLM 生成 wiki 失败: {str(e)[:200]}")
+
+    slug = data.get("slug", f"session-{session_id[:8]}")
+    title = data.get("title", "未命名专题")
+    content = data.get("content", "")
+
+    if not content:
+        raise RuntimeError("LLM 生成内容为空")
+
+    # 3. 写入 wiki
+    write_page(slug, "qa-archive", content)
+    index_wiki_page(slug, content)
+
+    # 4. 记录转换
+    import uuid
+    db = get_qa_db()
+    conv_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        """INSERT INTO wiki_conversions (id, session_id, wiki_slug, wiki_title, module_slug, qa_count, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (conv_id, session_id, slug, title, module_slug, len(messages), now),
+    )
+    db.commit()
+
+    return {
+        "slug": slug,
+        "title": title,
+        "content": content,
+        "qa_count": len(messages),
+    }

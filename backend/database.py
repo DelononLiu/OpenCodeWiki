@@ -100,6 +100,16 @@ def _init_qa_db(db: sqlite3.Connection):
             kb_name    TEXT DEFAULT '',
             updated_at TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS wiki_conversions (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            wiki_slug   TEXT NOT NULL,
+            wiki_title  TEXT,
+            module_slug TEXT,
+            qa_count    INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now'))
+        );
     """)
 
     # 新增列（migration-safe）

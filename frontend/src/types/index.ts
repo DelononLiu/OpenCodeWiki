@@ -79,6 +79,19 @@ export interface ReviewItem {
   generated_at: string | null
 }
 
+export interface WikiConversion {
+  id: string
+  session_id: string
+  wiki_slug: string
+  wiki_title: string | null
+  module_slug: string | null
+  qa_count: number
+  created_at: string
+  content?: string
+  slug?: string
+  title?: string
+}
+
 export interface PipelineCounts {
   qaPending: number
   unclassified: number
