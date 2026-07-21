@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
+import { useLayout } from '@/contexts/LayoutContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -44,6 +45,7 @@ export function QAPage() {
   const [relatedQuestions, setRelatedQuestions] = useState<{qid: number; question: string; status: string}[]>([])
   const [sourceRefs, setSourceRefs] = useState<{file: string; line: string; snippet: string}[]>([])
   const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
+  const { setDrawerContent } = useLayout()
   // Fetch session history
   const fetchSessionList = useCallback(() => {
     fetch('/api/sessions').then(r => r.json()).then(d => {
@@ -52,6 +54,22 @@ export function QAPage() {
   }, [])
 
   useEffect(() => { fetchSessionList() }, [fetchSessionList])
+
+  // Feed session history to sidebar drawer
+  useEffect(() => {
+    setDrawerContent({
+      title: '历史问答',
+      items: sessionList.map(sl => ({
+        id: sl.session_id,
+        label: sl.root_question || '新对话',
+        active: sl.session_id === activeSessionId,
+        onClick: () => {
+          if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
+          setActiveSessionId(sl.session_id)
+        },
+      })),
+    })
+  }, [sessionList, activeSessionId])
 
   // When active session changes, look up root_qid and fetch related + sources
   useEffect(() => {
