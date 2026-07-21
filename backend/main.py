@@ -679,6 +679,38 @@ async def api_knowledge():
 from stores.sources import KNOWLEDGE_DIR
 
 
+def _strip_frontmatter(content: str) -> str:
+    """移除开头的 YAML frontmatter (---...---) 块（支持连续多个）。"""
+    lines = content.strip().split("\n")
+    i = 0
+    n = len(lines)
+    while i < n:
+        # 跳过空行
+        while i < n and not lines[i].strip():
+            i += 1
+        if i >= n or lines[i].strip() != "---":
+            break
+        # 进入 frontmatter 块
+        i += 1  # skip opening ---
+        while i < n and lines[i].strip() != "---":
+            i += 1  # skip frontmatter content
+        if i < n:
+            i += 1  # skip closing ---
+    return "\n".join(lines[i:])
+
+
+def _extract_h1_from_md(content: str) -> str | None:
+    """跳过 YAML frontmatter (---...---)，提取第一个 # 标题。"""
+    body = _strip_frontmatter(content)
+    for line in body.strip().split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+        if stripped:
+            return None
+    return None
+
+
 @app.get("/api/wiki/modules")
 async def api_wiki_modules():
     """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
@@ -689,13 +721,13 @@ async def api_wiki_modules():
         stored = list_pages()
         for p in stored:
             if not any(m["slug"] == p["slug"] for m in modules):
-                title = p["slug"]
+                title = p["slug"].split("/")[-1]
                 try:
                     content = read_page(p["slug"], p["page_type"])
                     if content:
-                        first_line = content.strip().split("\n")[0]
-                        if first_line.startswith("# "):
-                            title = first_line[2:].strip()
+                        h1 = _extract_h1_from_md(content)
+                        if h1:
+                            title = h1
                 except Exception:
                     pass
                 modules.append({"slug": p["slug"], "name": title, "type": p["page_type"], "title": title})
@@ -722,11 +754,11 @@ async def api_wiki_modules():
                     slug = str(rel.with_suffix('')).replace("\\", "/")
                     if any(m["slug"] == slug for m in modules):
                         continue
-                    title = slug.split("/")[-1]  # 默认用最后一段文件名
+                    title = slug.split("/")[-1]
                     try:
-                        first_line = md_file.read_text(encoding="utf-8").strip().split("\n")[0]
-                        if first_line.startswith("# "):
-                            title = first_line[2:].strip()
+                        h1 = _extract_h1_from_md(md_file.read_text(encoding="utf-8"))
+                        if h1:
+                            title = h1
                     except Exception:
                         pass
                     # 目录层级展示名
@@ -748,7 +780,7 @@ async def api_wiki_page(slug: str):
         from stores.wiki import read_page as read_wiki_file
         stored = read_wiki_file(slug, "entity")
         if stored:
-            return _ok({"type": "wiki", "slug": slug, "content": stored})
+            return _ok({"type": "wiki", "slug": slug, "content": _strip_frontmatter(stored)})
     except ImportError:
         pass
     # Try topic
@@ -798,7 +830,7 @@ async def api_wiki_page(slug: str):
             candidates = [kb_dir / "openwiki" / f"{slug}.md", kb_dir / f"{slug}.md"]
             for md_path in candidates:
                 if md_path.exists():
-                    content = md_path.read_text(encoding="utf-8")
+                    content = _strip_frontmatter(md_path.read_text(encoding="utf-8"))
                     return _ok({
                         "type": "source",
                         "slug": slug,
