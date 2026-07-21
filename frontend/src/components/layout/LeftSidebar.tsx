@@ -2,8 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { fetchTopics, fetchWikiModules } from '@/api/client'
 import type { Topic } from '@/types'
-import { ChevronRight } from 'lucide-react'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 
 interface WikiModule {
   slug: string; name: string; type: string; title?: string
@@ -57,7 +55,7 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
     })
   }, [])
 
-  // 将多级 slug 渲染为可折叠树形结构
+  // 将多级 slug 渲染为可折叠树形（纯 CSS，不依赖 shadcn Collapsible）
   const renderDocTree = (items: WikiModule[]) => {
     interface TreeNode { dirs: Record<string, TreeNode>; files: WikiModule[] }
     const root: TreeNode = { dirs: {}, files: [] }
@@ -74,28 +72,27 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
 
     const renderNode = (node: TreeNode, depth: number, path: string): React.ReactNode[] => {
       const els: React.ReactNode[] = []
-      const indent = depth * 10
+      const indent = depth * 12
       // 文件夹
       for (const dirName of Object.keys(node.dirs).sort()) {
         const dirPath = path ? `${path}/${dirName}` : dirName
         const isExpanded = expandedDirs.has(dirPath)
         els.push(
-          <Collapsible key={`dir-${dirPath}`} open={isExpanded} onOpenChange={() => toggleDir(dirPath)}>
-            <CollapsibleTrigger asChild>
-              <button style={{ paddingLeft: `${indent + 6}px` }}
-                className="w-full flex items-center gap-0.5 text-left py-1 pr-2 rounded text-[11px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
-                <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                <span className="truncate">📁 {dirName}</span>
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              {renderNode(node.dirs[dirName], depth + 1, dirPath)}
-            </CollapsibleContent>
-          </Collapsible>
+          <div key={`dir-${dirPath}`}>
+            <button onClick={() => toggleDir(dirPath)}
+              style={{ paddingLeft: `${indent + 6}px` }}
+              className="w-full flex items-center gap-0.5 text-left py-1 pr-2 rounded text-[11px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+              <span className={`inline-block w-3 h-3 text-center text-[10px] leading-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▸</span>
+              <span className="truncate">📁 {dirName}</span>
+            </button>
+            {isExpanded && (
+              <div>{renderNode(node.dirs[dirName], depth + 1, dirPath)}</div>
+            )}
+          </div>
         )
       }
       // 文件
-      for (const m of node.files) {
+      for (const m of node.files.sort((a, b) => (a.title || a.slug).localeCompare(b.title || b.slug))) {
         els.push(
           <button key={m.slug} onClick={() => handleDocClick(m.slug)}
             style={{ paddingLeft: `${indent + 22}px` }}
