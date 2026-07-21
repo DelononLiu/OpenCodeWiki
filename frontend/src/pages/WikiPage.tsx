@@ -23,6 +23,13 @@ export function WikiPage() {
   const [loading, setLoading] = useState(false)
   const articleRef = useRef<HTMLDivElement>(null)
 
+  // 从 markdown 提取第一级标题
+  const extractH1 = (content: string): string => {
+    const match = content.match(/^#\s+(.+)$/m)
+    return match ? match[1].trim() : ''
+  }
+  const pageTitle = extractH1(rawContent) || currentSlug
+
   const currentHash = location.hash.replace('#', '')
 
   const loadContent = useCallback(async (slug: string, initial = false) => {
@@ -93,7 +100,7 @@ export function WikiPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" repoName={repo} />
+      <Header variant="global" repoName={pageTitle || repo} />
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar currentSlug={currentSlug} currentTopic={pageType === 'topic' ? currentSlug : undefined} onNavigate={handleNavigate} />
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
@@ -118,6 +125,9 @@ export function WikiPage() {
                         </span>
                         <span className="text-[10px] text-gray-400">主题聚合视图</span>
                       </div>
+                    )}
+                    {pageType === 'wiki' && pageTitle && (
+                      <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-3 border-b border-gray-200">{pageTitle}</h1>
                     )}
                     <article ref={articleRef}>
                       <ReactMarkdown
