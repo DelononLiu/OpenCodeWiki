@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useLayout } from '@/contexts/LayoutContext'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
@@ -20,6 +21,7 @@ export function WikiGlobalPage() {
   const [pageType, setPageType] = useState<'wiki' | 'topic'>('wiki')
   const [loading, setLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const { setDrawerContent } = useLayout()
 
   // 加载知识库列表
   useEffect(() => {
@@ -38,17 +40,14 @@ export function WikiGlobalPage() {
   const toggleDir = (path: string) => {
     setExpandedDirs(prev => {
       const next = new Set(prev)
-      if (next.has(path)) {
-        next.delete(path)
-      } else {
-        next.add(path)
-      }
+      if (next.has(path)) { next.delete(path) } else { next.add(path) }
       return next
     })
   }
 
-  // 将页面列表渲染为可折叠树
-  const renderWikiTree = () => {
+  // 构建树形 JSX（放入 AppSidebar 抽屉）
+  const wikiTree = useMemo(() => {
+    if (wikiPages.length === 0) return null
     interface TreeNode { dirs: Record<string, TreeNode>; files: {slug:string; title:string}[] }
     const root: TreeNode = { dirs: {}, files: [] }
     for (const p of wikiPages) {
@@ -60,7 +59,6 @@ export function WikiGlobalPage() {
       }
       node.files.push({ slug: p.slug, title: p.name })
     }
-
     const renderNode = (node: TreeNode, depth: number, path: string): React.ReactNode[] => {
       const els: React.ReactNode[] = []
       const indent = depth * 12
@@ -90,8 +88,15 @@ export function WikiGlobalPage() {
       }
       return els
     }
-    return renderNode(root, 0, '')
-  }
+    return <>{renderNode(root, 0, '')}</>
+  }, [wikiPages, expandedDirs, currentSlug])
+
+  // 将树放入 AppSidebar 抽屉
+  useEffect(() => {
+    if (wikiPages.length > 0) {
+      setDrawerContent({ title: '文档', items: [], customContent: wikiTree })
+    }
+  }, [wikiTree, wikiPages.length])
 
   // 切换知识库时重置并加载内容
   useEffect(() => {
@@ -154,15 +159,7 @@ export function WikiGlobalPage() {
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <div className="flex-1 flex overflow-hidden">
 
-        {/* 左侧文档树 */}
-        <aside className="w-56 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
-          <div className="py-3 px-2">
-            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2.5">文档</div>
-            {wikiPages.length > 0 ? renderWikiTree() : (
-              <div className="px-2.5 py-4 text-gray-400 text-sm">暂无文档</div>
-            )}
-          </div>
-        </aside>
+        {/* 文档树已放入 AppSidebar 抽屉 */}
 
         {/* 主内容区 */}
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">

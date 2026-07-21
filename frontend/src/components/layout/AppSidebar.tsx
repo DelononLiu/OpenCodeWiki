@@ -77,23 +77,27 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      {/* History list (below 知识库, only when expanded) */}
-      {sidebarOpen && drawerContent.items.length > 0 && (
+      {/* Custom content or default item list (only when expanded) */}
+      {sidebarOpen && (drawerContent.customContent || drawerContent.items.length > 0) && (
         <div className="flex-1 overflow-y-auto no-scrollbar mt-3 px-2 border-t border-gray-100 pt-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-1">
             {drawerContent.title || '历史问答'}
           </div>
-          <div className="space-y-0.5">
-            {drawerContent.items.map(item => (
-              <button key={item.id} onClick={item.onClick}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition ${
-                  item.active ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                <span className="truncate block">{item.label}</span>
-              </button>
-            ))}
-          </div>
+          {drawerContent.customContent ? (
+            drawerContent.customContent
+          ) : (
+            <div className="space-y-0.5">
+              {drawerContent.items.map(item => (
+                <button key={item.id} onClick={item.onClick}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition ${
+                    item.active ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="truncate block">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

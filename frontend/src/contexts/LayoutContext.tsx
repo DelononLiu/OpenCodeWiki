@@ -5,6 +5,7 @@ export type TabType = 'read' | 'qa' | 'wiki' | 'manage' | null
 interface DrawerContent {
   title: string
   items: { id: string; label: string; icon?: string; onClick?: () => void; active?: boolean }[]
+  customContent?: React.ReactNode
 }
 
 interface LayoutContextValue {
