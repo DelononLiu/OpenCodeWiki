@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BookOpen, MessageSquare, Database, Settings,
-  Plus, ChevronLeft,
+  FileText, Plus, ChevronLeft,
 } from 'lucide-react'
 import { useLayout, type TabType } from '@/contexts/LayoutContext'
 
 const TABS: { key: TabType; icon: typeof BookOpen; label: string; path: string }[] = [
   { key: 'read', icon: BookOpen, label: '阅读', path: '/wiki' },
   { key: 'qa', icon: MessageSquare, label: '问答', path: '/qa' },
+  { key: 'wiki', icon: FileText, label: '知识沉淀', path: '/wiki' },
   { key: 'manage', icon: Database, label: '知识库', path: '/sources' },
 ]
 
