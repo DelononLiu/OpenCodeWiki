@@ -50,7 +50,8 @@ def patch_stores(qa_db, knowledge_db):
     """Mock 所有 store 层的 get_db 调用，重定向到内存 SQLite"""
     with patch("stores.qa.get_qa_db", return_value=qa_db):
         with patch("stores.topics.get_knowledge_db", return_value=knowledge_db):
-            yield
+            with patch("database.get_knowledge_db", return_value=knowledge_db):
+                yield
 
 
 @pytest.fixture
@@ -58,7 +59,8 @@ def patch_main_stores(qa_db, knowledge_db):
     """Mock main.py 内部 store 调用（路由直接导入的函数内部使用 get_db）"""
     with patch("stores.qa.get_qa_db", return_value=qa_db):
         with patch("stores.topics.get_knowledge_db", return_value=knowledge_db):
-            yield
+            with patch("database.get_knowledge_db", return_value=knowledge_db):
+                yield
 
 
 # ── HTTP 客户端 fixture ─────────────────────────────────────────

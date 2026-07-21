@@ -132,16 +132,20 @@ class TestDraft:
         assert draft["edited_content"] == "编辑后内容"
 
     def test_approve(self, patch_stores):
-        """审批草稿"""
-        from stores.topics import create_topic, save_draft, approve_draft, get_draft
+        """审批草稿：submit → approve（写 Wiki 文件 + 索引 FTS5 + 发布 topic）"""
+        from stores.topics import create_topic, save_draft, submit_draft, approve_draft, get_draft, get_topic
 
         create_topic("approve-test", "审批测试")
         save_draft("approve-test", "待审批")
-        approve_draft("approve-test", "reviewer-1")
+        submit_draft("approve-test")
+        approve_draft("approve-test", "core-module")
 
         draft = get_draft("approve-test")
         assert draft["status"] == "approved"
-        assert draft["reviewer"] == "reviewer-1"
+
+        topic = get_topic("approve-test")
+        assert topic["status"] == "published"
+        assert topic["wiki_module"] == "core-module"
 
     def test_get_nonexistent_draft(self, patch_stores):
         """获取不存在的草稿返回 None"""

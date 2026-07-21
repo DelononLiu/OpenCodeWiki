@@ -40,6 +40,20 @@ def write_page(slug: str, page_type: str, content: str) -> Path:
     return path
 
 
+def index_wiki_page(slug: str, content: str):
+    """Index a wiki page into FTS5 for full-text search."""
+    from database import get_knowledge_db
+
+    db = get_knowledge_db()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("DELETE FROM wiki_index WHERE slug = ?", (slug,))
+    db.execute(
+        "INSERT INTO wiki_index (slug, chunk_text, keywords, published_at) VALUES (?, ?, '', ?)",
+        (slug, content, now),
+    )
+    db.commit()
+
+
 def list_pages(page_type: str | None = None) -> list[dict]:
     _ensure_dirs()
     pages = []

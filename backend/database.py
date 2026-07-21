@@ -184,6 +184,21 @@ def _init_knowledge_db(db: sqlite3.Connection):
         );
     """)
 
+    # FTS5 index for wiki page full-text search (moved from qa.db to knowledge.db)
+    try:
+        db.execute(
+            """CREATE VIRTUAL TABLE IF NOT EXISTS wiki_index USING fts5(
+                slug,
+                chunk_text,
+                keywords,
+                published_at,
+                content='',
+                content_rowid='rowid'
+            )"""
+        )
+    except Exception:
+        pass
+
     # Migration: add columns to topic_drafts if missing
     for col, defn in [
         ("updated_at", "TEXT DEFAULT (datetime('now'))"),
