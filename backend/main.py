@@ -56,7 +56,7 @@ from source_importer import (
 # ── Config ──────────────────────────────────────────────────────
 
 HERE = Path(__file__).parent
-ROOT = HERE.parent.parent
+ROOT = HERE.parent
 FRONTEND_DIST = ROOT / "frontend" / "dist"
 REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
 
