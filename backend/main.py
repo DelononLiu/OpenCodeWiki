@@ -366,36 +366,51 @@ async def api_document_upload(
             return _err("无效的 zip 文件")
 
         kb_name = kb_name or Path(filename).stem
+
+        # 收集所有 .md/.txt 文件条目
+        file_entries = [
+            e for e in zf.namelist()
+            if Path(e).suffix.lower() in (".md", ".txt") and not e.endswith("/")
+        ]
+        if not file_entries:
+            return _err("zip 中未找到 .md 或 .txt 文件")
+
+        # 计算公共前缀（处理顶层目录如 testttt/）
+        prefix = Path(file_entries[0]).parent
+        for e in file_entries[1:]:
+            p = Path(e).parent
+            # 逐级缩减到公共部分
+            while prefix and not str(p).startswith(str(prefix)):
+                prefix = prefix.parent
+        prefix_str = str(prefix) + "/" if str(prefix) not in ("", ".") else ""
+
         uploaded = []
-        for entry in zf.namelist():
-            entry_ext = Path(entry).suffix.lower()
-            if entry_ext not in (".md", ".txt"):
-                continue
-            # 跳过目录项
-            if entry.endswith("/"):
-                continue
+        from datetime import datetime, timezone
+        for entry in file_entries:
             try:
                 text = zf.read(entry).decode("utf-8", errors="replace")
             except Exception:
                 continue
-            slug = Path(entry).stem
-            from datetime import datetime, timezone
+            # strip common prefix + extension → relative slug like "test1/kcode/data-models"
+            rel = entry
+            if prefix_str:
+                rel = entry[len(prefix_str):]
+            slug = str(Path(rel).with_suffix(''))
             now = datetime.now(timezone.utc).isoformat()
             header = f"---\nsource: zip_upload\noriginal_filename: {Path(entry).name}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
             kb_dir = KNOWLEDGE_DIR / kb_name
             kb_dir.mkdir(parents=True, exist_ok=True)
             md_path = kb_dir / f"{slug}.md"
+            md_path.parent.mkdir(parents=True, exist_ok=True)
             md_path.write_text(header + text, encoding="utf-8")
             uploaded.append({
                 "slug": slug,
-                "title": slug,
+                "title": Path(slug).name,
                 "kb_name": kb_name,
                 "filename": Path(entry).name,
                 "size": len(text.encode("utf-8")),
             })
 
-        if not uploaded:
-            return _err("zip 中未找到 .md 或 .txt 文件")
         return _ok({"uploaded": uploaded, "total": len(uploaded)})
 
     # ── 单文件上传（原有逻辑）──
@@ -698,27 +713,34 @@ async def api_wiki_modules():
             for md_dir in md_dirs:
                 if not md_dir.exists():
                     continue
-                for md_file in sorted(md_dir.glob("*.md")):
-                    slug = md_file.stem
+                for md_file in sorted(md_dir.rglob("*.md")):
+                    # 计算相对 slug（如 "test1/kcode/data-models"）
+                    try:
+                        rel = md_file.relative_to(md_dir)
+                    except ValueError:
+                        rel = md_file
+                    slug = str(rel.with_suffix('')).replace("\\", "/")
                     if any(m["slug"] == slug for m in modules):
                         continue
-                    title = slug
+                    title = slug.split("/")[-1]  # 默认用最后一段文件名
                     try:
                         first_line = md_file.read_text(encoding="utf-8").strip().split("\n")[0]
                         if first_line.startswith("# "):
                             title = first_line[2:].strip()
                     except Exception:
                         pass
+                    # 目录层级展示名
+                    display_name = f"{name} / {slug}" if "/" in slug else f"{name} / {title}"
                     modules.append({
                         "slug": slug,
-                        "name": f"{name} / {title}",
+                        "name": display_name,
                         "type": "source",
                         "title": title,
                     })
     return _ok(modules)
 
 
-@app.get("/api/wiki/{slug}")
+@app.get("/api/wiki/{slug:path}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
     # Try stored page

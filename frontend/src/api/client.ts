@@ -41,7 +41,9 @@ export function calibrateQaEntry(qid: number, answer: string, calibrator = 'admi
 // ── Wiki ──
 
 export function fetchWikiPage(slug: string): Promise<WikiPageResponse> {
-  return request(`/wiki/${encodeURIComponent(slug)}`)
+  // 保留路径中的 / 分隔符，只编码各段
+  const encoded = slug.split('/').map(encodeURIComponent).join('/')
+  return request(`/wiki/${encoded}`)
 }
 
 // ── Wiki Modules ──

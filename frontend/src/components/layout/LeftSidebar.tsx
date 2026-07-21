@@ -44,20 +44,60 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
     else navigate(`/${repo}#${slug}`)
   }
 
+  // 将多级 slug 渲染为树形结构
+  const renderDocTree = (items: WikiModule[]) => {
+    // 构建树：{ [dir]: { dirs: {...}, files: [...] } }
+    interface TreeNode { dirs: Record<string, TreeNode>; files: WikiModule[] }
+    const root: TreeNode = { dirs: {}, files: [] }
+
+    for (const m of items) {
+      const parts = m.slug.split('/')
+      let node = root
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!node.dirs[parts[i]]) node.dirs[parts[i]] = { dirs: {}, files: [] }
+        node = node.dirs[parts[i]]
+      }
+      node.files.push(m)
+    }
+
+    const renderNode = (node: TreeNode, depth: number): React.ReactNode[] => {
+      const els: React.ReactNode[] = []
+      const indent = depth * 12
+      // 文件夹
+      for (const dirName of Object.keys(node.dirs).sort()) {
+        els.push(
+          <div key={`dir-${depth}-${dirName}`} className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1.5 mb-0.5"
+            style={{ paddingLeft: `${indent + 10}px` }}>
+            📁 {dirName}
+          </div>
+        )
+        els.push(...renderNode(node.dirs[dirName], depth + 1))
+      }
+      // 文件
+      for (const m of node.files) {
+        els.push(
+          <button key={m.slug} onClick={() => handleDocClick(m.slug)}
+            style={{ paddingLeft: `${indent + 10}px` }}
+            className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentSlug === m.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
+            {m.title || m.slug.split('/').pop()}
+          </button>
+        )
+      }
+      return els
+    }
+
+    return renderNode(root, 0)
+  }
+
   return (
     <aside className="w-56 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
       <div className="py-3 px-2 space-y-4">
         <div>
           <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2.5">文档</div>
-          <div className="space-y-0.5">
+          <div>
             {Object.entries(sourceGroups).map(([sourceName, items]) => (
               <div key={sourceName}>
-                {items.map(m => (
-                  <button key={m.slug} onClick={() => handleDocClick(m.slug)}
-                    className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentSlug === m.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
-                    {m.title || m.slug}
-                  </button>
-                ))}
+                {renderDocTree(items)}
               </div>
             ))}
             {Object.keys(sourceGroups).length === 0 && (
