@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchReviewQueue, fetchWikiModules, approveDraft, rejectDraft } from '@/api/client'
+import { fetchReviewQueue, fetchWikiModules, approveDraft, rejectDraft, fetchTopic } from '@/api/client'
 import { DraftEditor } from '@/components/knowledge/DraftEditor'
 import type { ReviewItem } from '@/types'
 import { Loader2, ChevronDown, ChevronRight, CheckCircle, XCircle, BookOpen, Eye } from 'lucide-react'
@@ -17,6 +17,7 @@ export function WikiReviewCard({ expanded, onToggle, onUpdate }: WikiReviewCardP
   const [selectedModule, setSelectedModule] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
+  const [qaEntries, setQaEntries] = useState<{qid: number; question: string; answer?: string | null}[]>([])
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
@@ -25,11 +26,18 @@ export function WikiReviewCard({ expanded, onToggle, onUpdate }: WikiReviewCardP
     fetchWikiModules().then(setModules).catch(() => {})
   }, [])
 
-  const handleSelect = (item: ReviewItem) => {
+  const handleSelect = async (item: ReviewItem) => {
     setSelectedItem(item)
     setFeedback(null)
     setShowRejectInput(false)
     if (modules.length > 0 && !selectedModule) setSelectedModule(modules[0].slug)
+    // Fetch QA entries for reviewer context
+    try {
+      const topic = await fetchTopic(item.topic_slug) as any
+      setQaEntries(topic.qa_entries || [])
+    } catch {
+      setQaEntries([])
+    }
   }
 
   const handleApprove = async () => {
@@ -92,7 +100,7 @@ export function WikiReviewCard({ expanded, onToggle, onUpdate }: WikiReviewCardP
               </div>
 
               <DraftEditor
-                qaEntries={[]}
+                qaEntries={qaEntries}
                 draftContent={selectedItem.edited_content || selectedItem.raw_content}
                 onChange={() => {}}
                 readOnly
