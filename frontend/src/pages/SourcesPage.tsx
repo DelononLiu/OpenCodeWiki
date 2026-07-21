@@ -100,7 +100,15 @@ export function SourcesPage() {
           form.append('tags', 'uploaded')
           try {
             const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
-            if (resp.ok) ok++
+            if (resp.ok) {
+              const result = await resp.json()
+              // zip 上传返回 { uploaded: [...], total: N }，单文件返回 { slug, ... }
+              if (result.data?.uploaded) {
+                ok += result.data.uploaded.length
+              } else {
+                ok++
+              }
+            }
           } catch { /* skip */ }
         }
         showSuccess(`成功上传 ${ok}/${addFiles.length} 个文档`)
@@ -318,11 +326,11 @@ export function SourcesPage() {
                     ) : (
                       <div>
                         <p className="text-sm font-bold text-gray-600 mb-1">点击选择文件</p>
-                        <p className="text-[10px] text-gray-400">支持 .md .txt 文件，可多选</p>
+                        <p className="text-[10px] text-gray-400">支持 .md .txt .zip 文件，可多选</p>
                       </div>
                     )}
                   </div>
-                  <input type="file" multiple accept=".md,.txt"
+                  <input type="file" multiple accept=".md,.txt,.zip"
                     onChange={e => {
                       const files = e.target.files
                       setAddFiles(files)

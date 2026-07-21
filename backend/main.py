@@ -294,8 +294,8 @@ async def api_settings_update(body: dict):
 
 from stores.sources import KNOWLEDGE_DIR
 KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
-ALLOWED_EXTENSIONS = {".md", ".txt"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_EXTENSIONS = {".md", ".txt", ".zip"}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 def _extract_text(filename: str, content: bytes) -> str:
@@ -352,15 +352,57 @@ async def api_document_upload(
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
-        return _err(f"文件过大，最大 10MB")
-
-    text = _extract_text(filename, content)
-    slug = Path(filename).stem
-    kb_name = name.strip() or slug
+        return _err(f"文件过大，最大 50MB")
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    kb_name = name.strip()
 
-    # 写入 markdown 到 knowledge/{name}/{slug}.md
+    # ── zip 解压处理 ──
+    if ext == ".zip":
+        import io, zipfile
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(content))
+        except zipfile.BadZipFile:
+            return _err("无效的 zip 文件")
+
+        kb_name = kb_name or Path(filename).stem
+        uploaded = []
+        for entry in zf.namelist():
+            entry_ext = Path(entry).suffix.lower()
+            if entry_ext not in (".md", ".txt"):
+                continue
+            # 跳过目录项
+            if entry.endswith("/"):
+                continue
+            try:
+                text = zf.read(entry).decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            slug = Path(entry).stem
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            header = f"---\nsource: zip_upload\noriginal_filename: {Path(entry).name}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
+            kb_dir = KNOWLEDGE_DIR / kb_name
+            kb_dir.mkdir(parents=True, exist_ok=True)
+            md_path = kb_dir / f"{slug}.md"
+            md_path.write_text(header + text, encoding="utf-8")
+            uploaded.append({
+                "slug": slug,
+                "title": slug,
+                "kb_name": kb_name,
+                "filename": Path(entry).name,
+                "size": len(text.encode("utf-8")),
+            })
+
+        if not uploaded:
+            return _err("zip 中未找到 .md 或 .txt 文件")
+        return _ok({"uploaded": uploaded, "total": len(uploaded)})
+
+    # ── 单文件上传（原有逻辑）──
+    text = _extract_text(filename, content)
+    slug = Path(filename).stem
+    kb_name = kb_name or slug
+
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     header = f"---\nsource: upload\noriginal_filename: {filename}\ntags: {', '.join(tag_list)}\nuploaded_at: {now}\n---\n\n"
