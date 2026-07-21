@@ -337,7 +337,7 @@ export function QAPage() {
                         />
                       </div>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 ))}
 
                 {/* Code trace card at the end of all messages */}

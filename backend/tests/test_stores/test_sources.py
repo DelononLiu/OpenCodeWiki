@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from config import KNOWLEDGE_DIR, VECTORS_DIR
 
 
 @pytest.fixture
@@ -169,12 +170,8 @@ class TestUpdateSource:
 class TestConstants:
     def test_knowledge_dir(self):
         """KNOWLEDGE_DIR 指向 ~/.opencodewiki/knowledge"""
-        from stores.sources import KNOWLEDGE_DIR
-
         assert str(KNOWLEDGE_DIR).endswith(".opencodewiki/knowledge")
 
     def test_vectors_dir(self):
         """VECTORS_DIR 指向 ~/.opencodewiki/vectors"""
-        from stores.sources import VECTORS_DIR
-
         assert str(VECTORS_DIR).endswith(".opencodewiki/vectors")

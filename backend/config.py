@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Optional
 
 CONFIG_PATH = Path.home() / ".opencodewiki" / "config.json"
+REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
+KNOWLEDGE_DIR = Path.home() / ".opencodewiki" / "knowledge"
+VECTORS_DIR = Path.home() / ".opencodewiki" / "vectors"
 
 
 def load_config() -> dict:

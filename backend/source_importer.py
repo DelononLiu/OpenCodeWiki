@@ -16,10 +16,8 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import KNOWLEDGE_DIR, VECTORS_DIR
 from stores.sources import (
-    KNOWLEDGE_DIR,
-    KNOWLEDGE_DIR,
-    VECTORS_DIR,
     create_source,
     delete_source as delete_registry_entry,
     get_source,

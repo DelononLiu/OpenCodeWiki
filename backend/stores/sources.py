@@ -11,9 +11,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
-KNOWLEDGE_DIR = Path.home() / ".opencodewiki" / "knowledge"
-VECTORS_DIR = Path.home() / ".opencodewiki" / "vectors"
+from config import REGISTRY_PATH, KNOWLEDGE_DIR, VECTORS_DIR
 
 
 def svn_checkout(url: str, dest: Path, username: str = "", password: str = "") -> str:

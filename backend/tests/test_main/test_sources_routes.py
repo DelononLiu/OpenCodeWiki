@@ -29,7 +29,7 @@ def _setup_registry(tmp_path, content=None):
     reg = tmp_path / ".opencodewiki" / "registry.json"
     reg.parent.mkdir(parents=True)
     reg.write_text(json.dumps(content if content is not None else REGISTRY_CONTENT))
-    return patch("stores.sources.REGISTRY_PATH", reg)
+    return patch("config.REGISTRY_PATH", reg)
 
 
 class TestSourcesRoutes:

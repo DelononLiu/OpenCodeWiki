@@ -52,13 +52,13 @@ from source_importer import (
     import_docs_git, import_docs_zip,
     sync_source, remove_source,
 )
+from config import KNOWLEDGE_DIR, REGISTRY_PATH
 
 # ── Config ──────────────────────────────────────────────────────
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent
 FRONTEND_DIST = ROOT / "frontend" / "dist"
-REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
 
 sys.path.insert(0, str(HERE))
 
@@ -175,7 +175,7 @@ async def api_create_source(request: Request):
                     "svn_url": svn_url, "username": username,
                     "encrypted_password": encrypted,
                 })
-                from stores.sources import svn_checkout, KNOWLEDGE_DIR
+                from stores.sources import svn_checkout
                 dest = KNOWLEDGE_DIR / name
                 svn_checkout(svn_url, dest, username, password)
                 return _ok(result)
@@ -224,7 +224,7 @@ async def api_create_source(request: Request):
 
 @app.post("/api/sources/{name}/sync")
 async def api_sync_source(name: str):
-    from stores.sources import get_source, svn_checkout, KNOWLEDGE_DIR
+    from stores.sources import get_source, svn_checkout
     src = get_source(name)
     if not src:
         raise HTTPException(404, f"Source '{name}' not found")
@@ -305,7 +305,6 @@ async def api_settings_update(body: dict):
 
 # ── Documents ──────────────────────────────────────────────────
 
-from stores.sources import KNOWLEDGE_DIR
 KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".md", ".txt", ".zip"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB

@@ -13,10 +13,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from stores.sources import KNOWLEDGE_DIR
-
-# ── 配置 ─────────────────────────────────────────────────────
-REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
+from config import KNOWLEDGE_DIR, REGISTRY_PATH
 BINARY_NAMES = ["codebase-memory-mcp"]
 
 
