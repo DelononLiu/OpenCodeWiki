@@ -37,6 +37,7 @@ def read_page(slug: str, page_type: str = "entity") -> str | None:
 def write_page(slug: str, page_type: str, content: str) -> Path:
     _ensure_dirs()
     path = page_path(slug, page_type)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -90,9 +91,14 @@ def list_pages(page_type: str | None = None) -> list[dict]:
     for d in dirs:
         if not d.exists():
             continue
-        for f in sorted(d.glob("*.md")):
+        for f in sorted(d.rglob("*.md")):
+            try:
+                rel = f.relative_to(d)
+            except ValueError:
+                rel = f
+            slug = str(rel.with_suffix('')).replace("\\", "/")
             pages.append({
-                "slug": f.stem,
+                "slug": slug,
                 "page_type": next((k for k, v in _TYPE_DIRS.items() if v == d.name), "entity"),
                 "updated_at": datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat(),
             })
