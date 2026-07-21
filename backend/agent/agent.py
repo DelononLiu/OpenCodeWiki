@@ -87,6 +87,7 @@ def _build_llm(cfg: dict):
             api_key=api_key,
             base_url=base_url,
             temperature=0,
+            streaming=True,
         )
     # 默认 OpenAI 兼容（也支持 Azure / Ollama / vLLM 等）
     return ChatOpenAI(
@@ -94,6 +95,7 @@ def _build_llm(cfg: dict):
         api_key=api_key,
         base_url=base_url,
         temperature=0,
+        streaming=True,
     )
 
 

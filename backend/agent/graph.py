@@ -202,3 +202,8 @@ def get_graph():
     if _graph is None:
         _graph = build_graph()
     return _graph
+
+
+def get_agent(intent: str):
+    """获取指定意图的子 agent（create_react_agent 实例），支持 astream_events。"""
+    return _get_agent(intent)

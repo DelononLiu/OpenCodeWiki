@@ -88,6 +88,13 @@ def _err(msg: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": msg}, status_code=status)
 
 
+# ── Health ─────────────────────────────────────────────────────
+
+@app.get("/api/health")
+async def api_health():
+    return _ok({"status": "ok", "version": "1.0.0"})
+
+
 # ── Repos ───────────────────────────────────────────────────────
 
 @app.get("/api/repos")
@@ -581,12 +588,9 @@ async def api_qa_refine(qid: int):
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
 from langchain_core.messages import HumanMessage, AIMessage
-from agent.graph import get_graph
-
-
 async def _qa_event_stream(question: str, session_id: str, repo: str = "", context: dict | None = None, history: list | None = None) -> AsyncGenerator[str, None]:
     """LangGraph SSE 流式输出"""
-    graph = get_graph()
+    from agent.graph import get_graph, get_agent
 
     # 构建历史消息上下文
     prior_messages = []
@@ -623,31 +627,73 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
     except Exception:
         pass
 
-    # Inject wiki context as a system message (instead of appending to question)
+    # Inject wiki context as a system message
     if wiki_context:
         prior_messages.insert(0, HumanMessage(content=f"[系统上下文 - 知识库已有沉淀，请参考]\n{wiki_context}"))
 
-    final_answer = ""
     try:
-        result = await asyncio.wait_for(
+        # 第一步：意图分类（不需要流式）
+        graph = get_graph()
+        state = await asyncio.wait_for(
             graph.ainvoke(
                 {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
                 config={"configurable": {"thread_id": session_id}},
             ),
-            timeout=120,
+            timeout=30,
         )
-        for m in result.get("messages", []):
-            role = getattr(m, "type", "") or getattr(m, "role", "")
-            if role in ("ai", "assistant") and hasattr(m, "content") and m.content:
-                final_answer += m.content
+        intent = state.get("intent", "general")
 
-        sources = result.get("sources", [])
+        # 第二步：从子 agent 流式输出 token
+        agent = get_agent(intent)
+        repo_hint = f"\n\n(当前项目: {repo})" if repo else ""
+        msgs = list(prior_messages) + [HumanMessage(content=augmented_question + repo_hint)]
+
+        final_answer = ""
+        sources = []
+        seen_keys = set()
+
+        stream = agent.astream_events(
+            {"messages": msgs},
+            config={"configurable": {"thread_id": session_id}},
+            version="v2",
+        )
+        while True:
+            try:
+                event = await asyncio.wait_for(stream.__anext__(), timeout=120)
+            except StopAsyncIteration:
+                break
+
+            # 流式 LLM token
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if hasattr(chunk, "content") and chunk.content:
+                    final_answer += chunk.content
+                    yield _sse("token", {"content": chunk.content})
+
+            # 收集引用文件
+            if event["event"] == "on_tool_end":
+                tool_name = event.get("name", "")
+                if tool_name in ("code_search", "code_context", "code_grep", "code_files", "doc_read"):
+                    raw = event["data"].get("output", "")
+                    try:
+                        data = json.loads(raw) if isinstance(raw, str) else raw
+                        items = data if isinstance(data, list) else [data]
+                        for item in items:
+                            if isinstance(item, dict) and "file" in item:
+                                key = (item["file"], str(item.get("line", "")))
+                                if key not in seen_keys:
+                                    seen_keys.add(key)
+                                    sources.append({
+                                        "file": item["file"],
+                                        "line": item.get("line", ""),
+                                        "snippet": str(item.get("snippet", item.get("content", "")))[:300],
+                                    })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
         if sources:
             yield _sse("sources", {"sources": sources})
-
-        if final_answer:
-            yield _sse("token", {"content": final_answer})
-        else:
+        if not final_answer:
             yield _sse("error", {"message": "Agent did not produce an answer"})
     except asyncio.TimeoutError:
         yield _sse("error", {"message": "搜索超时，请简化问题重试"})
