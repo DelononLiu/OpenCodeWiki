@@ -51,7 +51,7 @@ def update_entry_answer(qid: int, answer: str, sources: list | None = None):
     db = get_qa_db()
     now = datetime.now(timezone.utc).isoformat()
     db.execute(
-        "UPDATE qa_entries SET answer = ?, sources = ?, status = 'done', updated_at = ? WHERE qid = ?",
+        "UPDATE qa_entries SET answer = ?, sources = ?, status = 'active', updated_at = ? WHERE qid = ?",
         (answer, json.dumps(sources or []), now, qid),
     )
     db.commit()

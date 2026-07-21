@@ -702,7 +702,7 @@ async def _run_qa_stream(qid: int, question: str, session_id: str, repo: str = "
 
 @app.post("/api/qa")
 async def api_qa_create(request: Request):
-    """创建 QA 条目，返回 qid。前端拿到 qid 后跳转，再连接流式。"""
+    """创建 QA 条目并流式返回回答（一步完成，避免前端三步跳转的 race condition）。"""
     body = await request.json()
     question = (body.get("question") or "").strip()
     if not question:
@@ -712,7 +712,19 @@ async def api_qa_create(request: Request):
 
     from stores.qa import create_entry
     entry = create_entry({"question": question, "answer": "", "repo": repo, "session_id": session_id, "mode": "deep", "sources": []})
-    return _ok({"qid": entry["qid"], "session_id": entry["session_id"]})
+    qid = entry["qid"]
+
+    async def stream_with_meta():
+        # 先发 meta 事件让前端拿到 qid（用于后续 URL 跳转）
+        yield _sse("meta", {"qid": qid, "session_id": entry["session_id"]})
+        async for event in _run_qa_stream(qid, question, entry["session_id"], repo, None):
+            yield event
+
+    return StreamingResponse(
+        stream_with_meta(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/qa/stream/{qid}")

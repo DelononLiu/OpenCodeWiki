@@ -22,7 +22,7 @@ def svn_checkout(url: str, dest: Path, username: str = "", password: str = "") -
         cmd.extend(["--username", username])
     if password:
         cmd.extend(["--password", password])
-    cmd.extend(["--non-interactive", "--trust-server-cert-fail-unknown-ca"])
+    cmd.extend(["--non-interactive", "--trust-server-cert-failures", "unknown-ca"])
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:

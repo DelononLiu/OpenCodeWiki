@@ -3,12 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { AnswerActions } from '@/components/qa/AnswerActions'
 import { CodeTraceCard } from '@/components/qa/CodeTraceCard'
 
 interface Message {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'error'
   content: string
 }
 
@@ -19,6 +19,7 @@ interface Session {
   streamingAnswer: string
   isStreaming: boolean
   feedback?: 'accepted' | 'rejected' | null
+  rootQid?: number
 }
 
 function genSessionId(): string {
@@ -34,13 +35,17 @@ export function QAPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const autoSubmitDoneRef = useRef(false)
   const messageAreaRef = useRef<HTMLDivElement>(null)
+  // 标记刚通过流式完成的 qid，URL effect 看到后跳过重复加载
+  const streamCompleteQidRef = useRef<number | null>(null)
 
   // ── Backend data ────────────────────────────────────────
   const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string; message_count: number; topic_slug?: string}[]>([])
   const [relatedQuestions, setRelatedQuestions] = useState<{qid: number; question: string; status: string}[]>([])
   const [sourceRefs, setSourceRefs] = useState<{file: string; line: string; snippet: string}[]>([])
   const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
-  // Fetch session history
+  // 历史加载的错误状态
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const fetchSessionList = useCallback(() => {
     fetch('/api/sessions').then(r => r.json()).then(d => {
       if (d.ok) setSessionList(d.data.sessions || [])
@@ -49,7 +54,6 @@ export function QAPage() {
 
   useEffect(() => { fetchSessionList() }, [fetchSessionList])
 
-  // When active session changes, look up root_qid and fetch related + sources
   useEffect(() => {
     if (!activeSessionId) {
       setActiveRootQid(null)
@@ -74,31 +78,184 @@ export function QAPage() {
     }
   }, [activeSessionId, sessionList])
 
-  const createSession = useCallback((question: string): Session => {
+  const createSession = useCallback((question: string, rootQid?: number): Session => {
     return {
       sessionId: genSessionId(),
       question,
       messages: [],
       streamingAnswer: '',
       isStreaming: false,
+      rootQid,
     }
   }, [])
 
+  // ── SSE 解析工具函数 ────────────────────────────────────
+  const parseSSELine = useCallback((line: string, sid: string) => {
+    const t = line.trim()
+    if (!t || !t.startsWith('data: ')) return null
+    try {
+      return JSON.parse(t.slice(6)) as { type: string; content?: string; message?: string; qid?: number; sources?: {file: string; line: string; snippet: string}[] }
+    } catch {
+      return null
+    }
+  }, [])
+
+  // 处理 SSE 事件，返回 streamDone / streamError
+  const handleSSEEvent = useCallback((msg: { type: string; content?: string; message?: string; qid?: number; sources?: {file: string; line: string; snippet: string}[] }, sid: string): 'streamDone' | 'streamError' | 'continue' => {
+    if (msg.type === 'meta' && msg.qid) {
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return { ...prev, [sid]: { ...s, rootQid: msg.qid } }
+      })
+      return 'continue'
+    }
+    if (msg.type === 'token' && msg.content) {
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return { ...prev, [sid]: { ...s, streamingAnswer: (s.streamingAnswer || '') + msg.content } }
+      })
+      return 'continue'
+    }
+    if (msg.type === 'sources' && msg.sources) {
+      setSourceRefs(msg.sources)
+      return 'continue'
+    }
+    if (msg.type === 'error') {
+      const errMsg = msg.message || '未知错误'
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return {
+          ...prev,
+          [sid]: {
+            ...s,
+            isStreaming: false,
+            streamingAnswer: '',
+            messages: [...s.messages, { role: 'error' as const, content: `❌ ${errMsg}` }],
+          },
+        }
+      })
+      return 'streamError'
+    }
+    if (msg.type === 'done') {
+      // 流式结束 - 将 streamingAnswer 转为正式消息
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        const final = s.streamingAnswer || ''
+        return {
+          ...prev,
+          [sid]: {
+            ...s,
+            messages: final ? [...s.messages, { role: 'assistant' as const, content: final }] : s.messages,
+            streamingAnswer: '',
+            isStreaming: false,
+          },
+        }
+      })
+      return 'streamDone'
+    }
+    return 'continue'
+  }, [])
+
+  // 从 ReadableStream 读取 SSE 并处理
+  const consumeSSEStream = useCallback(async (reader: ReadableStreamDefaultReader<Uint8Array>, sid: string): Promise<{ qid: number | null }> => {
+    const decoder = new TextDecoder()
+    let buf = ''
+    let qid: number | null = null
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+        for (const line of lines) {
+          const msg = parseSSELine(line, sid)
+          if (!msg) continue
+          if (msg.type === 'meta' && msg.qid) {
+            qid = msg.qid
+          }
+          const result = handleSSEEvent(msg, sid)
+          if (result === 'streamDone') {
+            return { qid }
+          }
+        }
+      }
+      // reader done 但没有收到 done 事件 — 可能是连接中断
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        if (s.isStreaming && !s.streamingAnswer) {
+          return { ...prev, [sid]: { ...s, isStreaming: false, messages: [...s.messages, { role: 'error' as const, content: '❌ 连接中断，请重试' }] } }
+        }
+        return prev
+      })
+    } catch {
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return { ...prev, [sid]: { ...s, isStreaming: false, streamingAnswer: '' } }
+      })
+    }
+    return { qid }
+  }, [parseSSELine, handleSSEEvent])
+
+  // ── 提交新问题：POST /api/qa → 直接消费 SSE ─────────────
   const submitQuestion = useCallback(async (question: string) => {
-    if (!question.trim()) return
+    if (!question.trim() || loading) return
     setLoading(true)
+    setLoadError(null)
+
+    const session = createSession(question)
+    const sid = session.sessionId
+    const userMsg: Message = { role: 'user', content: question }
+    setSessions(prev => ({
+      ...prev,
+      [sid]: { ...session, messages: [userMsg], streamingAnswer: '', isStreaming: true },
+    }))
+    setActiveSessionId(sid)
+
+    let resolvedQid: number | null = null
+
     try {
       const res = await fetch('/api/qa', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, sessionId: sid }),
       })
-      const d = await res.json()
-      if (d.ok && d.data?.qid) {
-        navigate(`/qa/q${d.data.qid}`, { replace: true })
+
+      if (!res.ok) {
+        setSessions(prev => {
+          const s = prev[sid]
+          if (!s) return prev
+          return { ...prev, [sid]: { ...s, isStreaming: false, messages: [...s.messages, { role: 'error' as const, content: `❌ 请求失败 (HTTP ${res.status})` }] } }
+        })
+        setLoading(false)
+        return
       }
-    } catch { /* ignore */ }
+
+      const reader = res.body!.getReader()
+      const result = await consumeSSEStream(reader, sid)
+      resolvedQid = result.qid
+    } catch {
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return { ...prev, [sid]: { ...s, isStreaming: false, messages: [...s.messages, { role: 'error' as const, content: '❌ 网络错误，请重试' }] } }
+      })
+    }
+
     setLoading(false)
-  }, [navigate])
+    // 用 replace 更新 URL，不触发 URL effect 重复加载（通过 streamCompleteQidRef 保护）
+    if (resolvedQid) {
+      streamCompleteQidRef.current = resolvedQid
+      navigate(`/qa/q${resolvedQid}`, { replace: true })
+    }
+  }, [loading, createSession, navigate, consumeSSEStream])
 
   const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
     setSessions(prev => {
@@ -110,7 +267,7 @@ export function QAPage() {
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null
 
-  // Auto-scroll to bottom when messages or streaming answer update
+  // Auto-scroll to bottom
   useEffect(() => {
     if (messageAreaRef.current) {
       messageAreaRef.current.scrollTop = messageAreaRef.current.scrollHeight
@@ -131,67 +288,111 @@ export function QAPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // URL 变化时：/qa/qN → 加载会话 + 连接流式，/qa → 清空
+  // ── URL 变化：加载历史会话 ──────────────────────────────
   useEffect(() => {
     const match = location.pathname.match(/^\/qa\/q(\d+)$/)
     if (!match) {
       setActiveSessionId(null)
+      setLoadError(null)
       return
     }
     const qid = parseInt(match[1], 10)
-    const sid = `session-${qid}`
 
-    // 创建临时 session 并立即连接流式
-    const session = createSession('')
-    const sid_actual = session.sessionId
-    setSessions(prev => ({ ...prev, [sid_actual]: { ...session, isStreaming: true } }))
-    setActiveSessionId(sid_actual)
+    // 刚通过 submitQuestion 流式完成的 qid，跳过重复加载
+    if (streamCompleteQidRef.current === qid) {
+      streamCompleteQidRef.current = null
+      // 更新 session 的 rootQid（submitQuestion 中 meta 事件已设置，这里保底）
+      if (activeSessionId) {
+        setSessions(prev => {
+          const s = prev[activeSessionId]
+          if (!s || s.rootQid === qid) return prev
+          return { ...prev, [activeSessionId]: { ...s, rootQid: qid } }
+        })
+      }
+      // 刷新 session list（后端已更新）
+      fetchSessionList()
+      return
+    }
 
-    // 连接 SSE 流式
+    // 历史问答 — 有加载状态
+    setLoadError(null)
     const abortCtrl = new AbortController()
+
     ;(async () => {
       try {
-        const resp = await fetch(`/api/qa/stream/${qid}`, {
-          signal: abortCtrl.signal,
-        })
-        const reader = resp.body!.getReader()
-        const decoder = new TextDecoder()
-        let buf = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += decoder.decode(value, { stream: true })
-          const lines = buf.split('\n')
-          buf = lines.pop() || ''
-          for (const line of lines) {
-            const t = line.trim()
-            if (!t || !t.startsWith('data: ')) continue
-            try {
-              const msg = JSON.parse(t.slice(6))
-              if (msg.type === 'token' && msg.content) {
-                setSessions(prev => {
-                  const s = prev[sid_actual]
-                  if (!s) return prev
-                  return { ...prev, [sid_actual]: { ...s, streamingAnswer: (s.streamingAnswer || '') + msg.content } }
-                })
-              } else if (msg.type === 'sources' && msg.sources) {
-                setSourceRefs(msg.sources)
-              }
-            } catch { /* skip */ }
-          }
+        const entryRes = await fetch(`/api/qa/entry/${qid}`, { signal: abortCtrl.signal })
+        if (!entryRes.ok) {
+          setLoadError(`加载失败 (HTTP ${entryRes.status})`)
+          return
         }
-      } catch { /* ignore abort */ }
-      // 流式结束
-      setSessions(prev => {
-        const s = prev[sid_actual]
-        if (!s) return prev
-        return { ...prev, [sid_actual]: { ...s, isStreaming: false } }
-      })
+        const entryData = await entryRes.json()
+        if (!entryData.ok || !entryData.data) {
+          setLoadError('未找到该问答')
+          return
+        }
+        const entry = entryData.data
+        const question = entry.question || ''
+        const hasAnswer = !!entry.answer
+
+        const session = createSession(question, qid)
+        const sid = session.sessionId
+        const userMsg: Message = { role: 'user', content: question }
+        setSessions(prev => ({
+          ...prev,
+          [sid]: {
+            ...session,
+            messages: [
+              userMsg,
+              ...(hasAnswer ? [{ role: 'assistant' as const, content: entry.answer }] : []),
+            ],
+            streamingAnswer: '',
+            isStreaming: false,  // 历史问答不自动流式，避免重复跑 LLM
+          },
+        }))
+        setActiveSessionId(sid)
+        if (hasAnswer && entry.sources) {
+          setSourceRefs(entry.sources)
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setLoadError('网络错误，请检查后端是否运行')
+      }
     })()
 
-    return () => abortCtrl.abort()  // 清理
+    return () => abortCtrl.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
+
+  // ── 重试 pending 条目（手动触发流式） ────────────────────
+  const retryStream = useCallback(async (qid: number, sessionId: string, question: string) => {
+    setSessions(prev => {
+      const s = prev[sessionId]
+      if (!s) return prev
+      return { ...prev, [sessionId]: { ...s, isStreaming: true, streamingAnswer: '' } }
+    })
+
+    try {
+      const resp = await fetch(`/api/qa/stream/${qid}`)
+      if (!resp.ok) {
+        setSessions(prev => {
+          const s = prev[sessionId]
+          if (!s) return prev
+          return { ...prev, [sessionId]: { ...s, isStreaming: false, messages: [...s.messages, { role: 'error' as const, content: `❌ 重试失败 (HTTP ${resp.status})` }] } }
+        })
+        return
+      }
+      const reader = resp.body!.getReader()
+      await consumeSSEStream(reader, sessionId)
+      // 成功的流式完成后刷新 session 列表
+      fetchSessionList()
+    } catch {
+      setSessions(prev => {
+        const s = prev[sessionId]
+        if (!s) return prev
+        return { ...prev, [sessionId]: { ...s, isStreaming: false, messages: [...s.messages, { role: 'error' as const, content: '❌ 网络错误，请重试' }] } }
+      })
+    }
+  }, [consumeSSEStream, fetchSessionList])
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
@@ -200,13 +401,36 @@ export function QAPage() {
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white relative">
 
-
           {/* Message area */}
           <div ref={messageAreaRef} className="flex-1 overflow-y-auto px-8 py-6 no-scrollbar pb-28">
-            {!activeSession && (
+            {!activeSession && !loadError && (
               <div className="text-center text-gray-400 py-20">
                 <h2 className="text-lg font-bold text-gray-700 mb-2">对代码和文档提问</h2>
                 <p className="text-sm">我可以帮你理解代码架构、检索文档或解释工作原理</p>
+              </div>
+            )}
+
+            {/* 加载错误 */}
+            {loadError && (
+              <div className="max-w-3xl mx-auto py-20 text-center">
+                <div className="inline-flex items-center gap-2 text-red-500 bg-red-50 px-4 py-3 rounded-lg">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm">{loadError}</span>
+                  <button
+                    className="ml-2 text-red-600 hover:text-red-700 underline text-sm"
+                    onClick={() => {
+                      const match = location.pathname.match(/^\/qa\/q(\d+)$/)
+                      if (match) {
+                        setLoadError(null)
+                        // 强制重新触发 effect：短暂切到 /qa 再切回来
+                        navigate('/qa', { replace: true })
+                        setTimeout(() => navigate(`/qa/q${match[1]}`, { replace: true }), 0)
+                      }
+                    }}
+                  >
+                    重试
+                  </button>
+                </div>
               </div>
             )}
 
@@ -214,12 +438,26 @@ export function QAPage() {
               <div className="max-w-3xl mx-auto space-y-8">
                 {activeSession.messages.map((m, i) => (
                   <Fragment key={i}>
-                    {/* 轮次分隔线（除了第一个消息） */}
                     {i > 0 && <hr className="border-gray-100 my-2" />}
                     {m.role === 'user' ? (
                       <div className="flex justify-start">
                         <div className="bg-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-bl-md max-w-[80%]">
                           <p className="text-sm">{m.content}</p>
+                        </div>
+                      </div>
+                    ) : m.role === 'error' ? (
+                      <div className="flex justify-center">
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>{m.content}</span>
+                          {activeSession.rootQid && (
+                            <button
+                              className="ml-2 inline-flex items-center gap-1 text-red-600 hover:text-red-700 underline"
+                              onClick={() => retryStream(activeSession.rootQid!, activeSession!.sessionId, activeSession!.question)}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" /> 重试
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -245,7 +483,7 @@ export function QAPage() {
                   </Fragment>
                 ))}
 
-                {/* Code trace card at the end of all messages */}
+                {/* Code trace card */}
                 {sourceRefs.length > 0 && <CodeTraceCard sourceRefs={sourceRefs} />}
 
                 {/* Streaming answer */}
@@ -262,6 +500,25 @@ export function QAPage() {
                     </div>
                   )
                 )}
+
+                {/* Pending 条目：显示重试按钮 */}
+                {!activeSession.isStreaming &&
+                  activeSession.messages.length === 1 &&
+                  activeSession.messages[0].role === 'user' &&
+                  activeSession.rootQid && (
+                    <div className="flex justify-center py-4">
+                      <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>该问题尚未生成回答</span>
+                        <button
+                          className="ml-2 inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 underline font-medium"
+                          onClick={() => retryStream(activeSession.rootQid!, activeSession!.sessionId, activeSession!.question)}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> 生成回答
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             )}
           </div>
