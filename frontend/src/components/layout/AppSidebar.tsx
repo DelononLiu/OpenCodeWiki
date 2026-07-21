@@ -157,13 +157,13 @@ export function AppSidebar() {
           )}
         </div>
 
-        {/* New Question */}
+        {/* New Question — 仅在 /qa 精确匹配时高亮 */}
         <div className={`px-2 mb-2 ${sidebarOpen ? '' : 'flex justify-center'}`}>
           <button onClick={() => { navigate('/qa'); setActiveTab('qa') }}
             title="新问题"
             className={`flex items-center gap-2 rounded-lg transition ${
               sidebarOpen
-                ? 'w-full px-3 py-1.5 bg-cyber-blue/20 text-cyber-blue-light hover:bg-cyber-blue/30 justify-start'
+                ? `w-full px-3 py-1.5 justify-start ${location.pathname === '/qa' ? 'bg-cyber-blue/20 text-cyber-blue-light' : 'text-sidebar-text hover:bg-white/10 hover:text-sidebar-active'}`
                 : 'w-8 h-8 justify-center text-sidebar-text hover:bg-white/10 hover:text-sidebar-active'
             }`}>
             <Plus className="w-4 h-4 shrink-0" />
