@@ -82,6 +82,15 @@ def _init_qa_db(db: sqlite3.Connection):
             topic_slug  TEXT NOT NULL,
             PRIMARY KEY (session_id, topic_slug)
         );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS wiki_index USING fts5(
+            slug,
+            chunk_text,
+            keywords,
+            published_at,
+            content='',
+            content_rowid='rowid'
+        );
     """)
 
     # 新增列（migration-safe）
@@ -165,19 +174,26 @@ def _init_knowledge_db(db: sqlite3.Connection):
             raw_content   TEXT NOT NULL,
             edited_content TEXT DEFAULT NULL,
             status        TEXT DEFAULT 'pending'
-                          CHECK(status IN ('pending','approved','rejected')),
+                          CHECK(status IN ('pending','submitted','approved','rejected')),
             reviewer      TEXT DEFAULT '',
             created_at    TEXT DEFAULT (datetime('now')),
             updated_at    TEXT DEFAULT (datetime('now')),
-            reviewed_at   TEXT DEFAULT NULL
+            reviewed_at   TEXT DEFAULT NULL,
+            reject_reason TEXT DEFAULT NULL,
+            generated_at  TEXT DEFAULT NULL
         );
     """)
 
-    # Migration: add updated_at column to topic_drafts if missing
-    try:
-        db.execute("ALTER TABLE topic_drafts ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))")
-    except Exception:
-        pass
+    # Migration: add columns to topic_drafts if missing
+    for col, defn in [
+        ("updated_at", "TEXT DEFAULT (datetime('now'))"),
+        ("reject_reason", "TEXT DEFAULT NULL"),
+        ("generated_at", "TEXT DEFAULT NULL"),
+    ]:
+        try:
+            db.execute(f"ALTER TABLE topic_drafts ADD COLUMN {col} {defn}")
+        except Exception:
+            pass
 
 
 def close_knowledge_db():
