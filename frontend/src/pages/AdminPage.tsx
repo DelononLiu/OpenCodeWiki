@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/Header'
 import { fetchQaEntries, calibrateQaEntry, fetchTopics, fetchTopic, fetchTopicDraft, fetchWikiModules, publishTopic, updateTopicDraft } from '@/api/client'
 import { useLayout } from '@/contexts/LayoutContext'
 import type { QaEntry, Topic, TopicDraft } from '@/types'
-import { Loader2, CheckCircle, Eye, ArrowUpCircle, BookOpen, Shield } from 'lucide-react'
+import { Loader2, CheckCircle, Eye, ArrowUpCircle, BookOpen } from 'lucide-react'
 
 interface TopicDetail extends Topic {
   qa_entries?: { qid: number; question: string }[]
@@ -83,45 +83,6 @@ export function AdminPage() {
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <Header variant="global" />
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧栏 */}
-        <aside className="w-56 border-r border-gray-200/50 bg-[#FBFBFC] flex flex-col shrink-0">
-          <div className="p-4 space-y-4 text-xs font-medium">
-            <div>
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 px-2">
-                <Shield className="w-3.5 h-3.5 text-amber-500" /> 知识沉淀
-              </h3>
-              <ul className="space-y-1">
-                <li>
-                  <button onClick={() => setCurrentView('qa')}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition ${
-                      currentView === 'qa' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
-                    }`}>
-                    <span>⏳ QA 校准</span>
-                    {pendingCounts.qa > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.qa}</span>}
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => setCurrentView('topic')}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition ${
-                      currentView === 'topic' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
-                    }`}>
-                    <span>📝 Topic 建议</span>
-                    {pendingCounts.topic > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.topic}</span>}
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => setCurrentView('wiki')}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition ${
-                      currentView === 'wiki' ? 'bg-gray-200/60 text-gray-900 font-bold border-l-2 border-cyber-blue rounded-l-none' : 'text-gray-600 hover:bg-gray-100'
-                    }`}>
-                    <span>📖 Wiki 变动</span>
-                    {pendingCounts.wiki > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCounts.wiki}</span>}
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </aside>
 
         {/* 主内容 */}
         <main className="flex-1 overflow-y-auto bg-[#FBFBFC] p-8">
