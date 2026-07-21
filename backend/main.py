@@ -898,6 +898,16 @@ async def api_wiki_conversions():
     return _ok({"conversions": list_conversions()})
 
 
+@app.delete("/api/wiki/conversions/{conv_id}")
+async def api_delete_conversion(conv_id: str):
+    """删除一条转换记录（含 wiki 文件和索引）。"""
+    from stores.wiki import delete_conversion
+    ok = delete_conversion(conv_id)
+    if not ok:
+        return _err("Conversion not found", 404)
+    return _ok({"deleted": True})
+
+
 @app.get("/api/wiki/{slug:path}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""

@@ -175,6 +175,44 @@ def list_conversions() -> list[dict]:
         return []
 
 
+def delete_conversion(conv_id: str) -> bool:
+    """删除转换记录（同时清理 wiki 文件和索引）。"""
+    from database import get_qa_db
+
+    db = get_qa_db()
+    row = db.execute("SELECT wiki_slug FROM wiki_conversions WHERE id = ?", (conv_id,)).fetchone()
+    if not row:
+        return False
+
+    slug = row["wiki_slug"]
+
+    # 删 wiki 文件
+    try:
+        for pt in ("qa-archive", "entity", "overview"):
+            p = page_path(slug, pt)
+            if p.exists():
+                p.unlink()
+    except Exception:
+        pass
+
+    # 删 FTS 索引
+    try:
+        db.execute("DELETE FROM wiki_index WHERE slug = ?", (slug,))
+    except Exception:
+        pass
+
+    # 删 wiki_modules 记录
+    try:
+        db.execute("DELETE FROM wiki_modules WHERE slug = ?", (slug,))
+    except Exception:
+        pass
+
+    # 删转换记录
+    db.execute("DELETE FROM wiki_conversions WHERE id = ?", (conv_id,))
+    db.commit()
+    return True
+
+
 def list_pages(page_type: str | None = None) -> list[dict]:
     _ensure_dirs()
     pages = []

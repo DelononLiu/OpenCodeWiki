@@ -179,3 +179,7 @@ export function convertSessionToWiki(sessionId: string, wikiModule: string): Pro
 export function fetchWikiConversions(): Promise<{ conversions: WikiConversion[] }> {
   return request<{ conversions: WikiConversion[] }>('/wiki/conversions')
 }
+
+export function deleteWikiConversion(convId: string): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(`/wiki/conversions/${encodeURIComponent(convId)}`, { method: 'DELETE' })
+}

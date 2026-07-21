@@ -1,17 +1,27 @@
 import { useState, useEffect } from 'react'
-import { fetchWikiConversions } from '@/api/client'
+import { fetchWikiConversions, deleteWikiConversion } from '@/api/client'
 import type { WikiConversion } from '@/types'
 
 export function AdminPage() {
   const [conversions, setConversions] = useState<WikiConversion[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const load = () => {
     fetchWikiConversions()
       .then(d => setConversions(d.conversions || []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定删除？相关 wiki 文件和索引也会被清理。')) return
+    try {
+      await deleteWikiConversion(id)
+      setConversions(prev => prev.filter(c => c.id !== id))
+    } catch {}
+  }
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
@@ -35,7 +45,7 @@ export function AdminPage() {
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">知识库</th>
                     <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500">QA数</th>
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">日期</th>
-                    <th className="px-4 py-2.5"></th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -46,14 +56,22 @@ export function AdminPage() {
                       <td className="px-4 py-2.5 text-center text-gray-500">{c.qa_count}</td>
                       <td className="px-4 py-2.5 text-gray-400 text-xs">{c.created_at?.slice(0, 10)}</td>
                       <td className="px-4 py-2.5">
-                        <a
-                          href={`/wiki/${c.module_slug || ''}#${c.wiki_slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-cyber-blue hover:underline"
-                        >
-                          查看
-                        </a>
+                        <div className="flex items-center gap-3">
+                          <a
+                            href={`/wiki/${c.module_slug || ''}#${c.wiki_slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-cyber-blue hover:underline"
+                          >
+                            查看
+                          </a>
+                          <button
+                            onClick={() => handleDelete(c.id)}
+                            className="text-xs text-red-400 hover:text-red-600"
+                          >
+                            删除
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
