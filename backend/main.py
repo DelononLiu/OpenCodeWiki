@@ -534,11 +534,25 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
 
     yield _sse("session", {"id": session_id})
 
+    # Search wiki_index for relevant knowledge
+    wiki_context = ""
+    try:
+        from stores.wiki import search_wiki_index
+        wiki_results = search_wiki_index(question, limit=3)
+        if wiki_results:
+            wiki_chunks = "\n---\n".join(
+                f"来源: {r['slug']}\n{r['chunk_text'][:500]}"
+                for r in wiki_results
+            )
+            wiki_context = f"\n\n[知识库相关沉淀]\n{wiki_chunks}\n"
+    except Exception:
+        pass
+
     final_answer = ""
     try:
         result = await asyncio.wait_for(
             graph.ainvoke(
-                {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
+                {"question": augmented_question + wiki_context, "project": repo, "intent": "", "messages": prior_messages},
                 config={"configurable": {"thread_id": session_id}},
             ),
             timeout=120,
@@ -835,6 +849,70 @@ try:
         publish_topic(slug, wiki_module)
 
         return _ok({"slug": slug, "wiki_module": wiki_module, "published": True})
+
+    @app.post("/api/topics/analyze")
+    async def api_analyze_topics_v2():
+        """LLM 批量分析 QA 池，按语义聚类建议 topic。"""
+        from stores.topics import analyze_qa_pool
+        try:
+            result = analyze_qa_pool()
+            return _ok(result)
+        except Exception as e:
+            return _err(str(e), 500)
+
+    @app.post("/api/topics/{slug}/generate")
+    async def api_generate_draft(slug: str):
+        """LLM 按模板生成 topic 的 Draft 文档。"""
+        from stores.topics import generate_draft_for_topic
+        result = generate_draft_for_topic(slug)
+        if not result:
+            return _err("Topic not found or has no QA entries", 404)
+        return _ok(result)
+
+    @app.post("/api/topics/{slug}/submit")
+    async def api_submit_draft(slug: str):
+        """提交 draft 到审核队列 (pending → submitted)。"""
+        from stores.topics import submit_draft
+        ok = submit_draft(slug)
+        if not ok:
+            return _err("Draft not found or status is not pending", 400)
+        return _ok({"submitted": True})
+
+    @app.post("/api/topics/{slug}/approve")
+    async def api_approve_draft(slug: str, body: dict):
+        """审核通过 draft，写入 Wiki + 索引 FTS5。"""
+        wiki_module = body.get("wiki_module", "").strip()
+        if not wiki_module:
+            return _err("Missing wiki_module")
+        from stores.topics import approve_draft
+        ok = approve_draft(slug, wiki_module)
+        if not ok:
+            return _err("Draft not found or status is not submitted", 400)
+        return _ok({"published": True, "slug": slug})
+
+    @app.post("/api/topics/{slug}/reject")
+    async def api_reject_draft(slug: str, body: dict):
+        """驳回 draft 回到 pending 状态。"""
+        reason = body.get("reason", "").strip()
+        from stores.topics import reject_draft
+        ok = reject_draft(slug, reason)
+        if not ok:
+            return _err("Draft not found or status is not submitted", 400)
+        return _ok({"rejected": True})
+
+    @app.get("/api/wiki/review-queue")
+    async def api_review_queue():
+        """获取待审核 draft 队列。"""
+        from stores.topics import get_review_queue
+        return _ok({"queue": get_review_queue()})
+
+    @app.get("/api/wiki/search-index")
+    async def api_search_wiki_index(q: str = "", limit: int = 5):
+        """搜索 wiki_index FTS5。"""
+        from stores.wiki import search_wiki_index
+        if len(q.strip()) < 2:
+            return _ok({"results": []})
+        return _ok({"results": search_wiki_index(q, limit)})
 
 except ImportError:
     pass
