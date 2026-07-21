@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
@@ -293,7 +293,7 @@ export function QAPage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Main */}
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white relative">
 
 
           {/* Message area */}
@@ -308,32 +308,36 @@ export function QAPage() {
             {activeSession && (
               <div className="max-w-3xl mx-auto space-y-8">
                 {activeSession.messages.map((m, i) => (
-                  m.role === 'user' ? (
-                    <div key={i} className="flex justify-end mb-4">
-                      <div className="bg-cyber-blue text-white px-4 py-2 rounded-2xl rounded-br-md max-w-[80%]">
-                        <p className="text-sm font-medium">{m.content}</p>
+                  <Fragment key={i}>
+                    {/* 轮次分隔线（除了第一个消息） */}
+                    {i > 0 && <hr className="border-gray-100 my-2" />}
+                    {m.role === 'user' ? (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-bl-md max-w-[80%]">
+                          <p className="text-sm">{m.content}</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div key={i} className="answer-block prose prose-sm max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                      <AnswerActions
-                        accepted={activeSession.feedback === 'accepted'}
-                        rejected={activeSession.feedback === 'rejected'}
-                        onAccept={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
-                        onReject={() => handleFeedback(activeSession!.sessionId, i, 'rejected')}
-                        onCopy={() => navigator.clipboard.writeText(m.content)}
-                        onShare={() => {
-                          const url = `${window.location.origin}/qa/q${activeRootQid}`
-                          navigator.clipboard.writeText(url)
-                        }}
-                        rootQid={activeRootQid ?? undefined}
-                        onPromoteTopic={(title) => {
-                          console.log('Promote to topic:', title, activeRootQid)
-                        }}
-                      />
-                    </div>
-                  )
+                    ) : (
+                      <div className="answer-block prose prose-sm max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        <AnswerActions
+                          accepted={activeSession.feedback === 'accepted'}
+                          rejected={activeSession.feedback === 'rejected'}
+                          onAccept={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
+                          onReject={() => handleFeedback(activeSession!.sessionId, i, 'rejected')}
+                          onCopy={() => navigator.clipboard.writeText(m.content)}
+                          onShare={() => {
+                            const url = `${window.location.origin}/qa/q${activeRootQid}`
+                            navigator.clipboard.writeText(url)
+                          }}
+                          rootQid={activeRootQid ?? undefined}
+                          onPromoteTopic={(title) => {
+                            console.log('Promote to topic:', title, activeRootQid)
+                          }}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
 
                 {/* Code trace card at the end of all messages */}

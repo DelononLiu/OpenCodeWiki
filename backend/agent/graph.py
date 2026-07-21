@@ -135,7 +135,7 @@ async def run_sub(state: GraphState) -> dict:
             if role == "tool":
                 content = getattr(m, "content", "") or ""
                 name = getattr(m, "name", "")
-                if name in ("code_search", "code_context", "code_grep", "code_files", "docs_read"):
+                if name in ("code_search", "code_context", "code_grep", "code_files", "doc_read"):
                     try:
                         data = json.loads(content) if isinstance(content, str) else content
                         if isinstance(data, list):

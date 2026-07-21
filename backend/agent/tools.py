@@ -377,7 +377,7 @@ async def code_grep(pattern: str, project: str = "") -> str:
 
 
 @tool
-async def docs_read(project: str = "") -> str:
+async def doc_read(project: str = "") -> str:
     """
     读取项目的文档（由 opencodewiki 生成的 wiki + 用户上传的文档）。
     从 ~/.opencodewiki/repos/{project_name}/openwiki/ 和 uploaded/ 目录读取。
@@ -401,8 +401,7 @@ async def docs_read(project: str = "") -> str:
                 text = text[:4000] + "\n...(truncated)"
             parts.append(text)
 
-    # 2. uploaded/ — 用户上传的文档（按项目名子目录）
-    from stores.sources import KNOWLEDGE_DIR
+    # 2. 项目目录下的所有文档
     upload_dir = KNOWLEDGE_DIR / project
     if upload_dir.exists():
         for md_path in sorted(upload_dir.rglob("*.md")):
@@ -430,7 +429,7 @@ async def code_list_repos() -> str:
 
 CODEGRAPH_TOOLS = [
     code_list_repos,
-    docs_read,
+    doc_read,
     code_grep,
     code_search,
     code_context,
