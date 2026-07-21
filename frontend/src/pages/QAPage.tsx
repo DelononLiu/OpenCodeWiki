@@ -379,8 +379,8 @@ export function QAPage() {
           </div>
 
           {/* Bottom input */}
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pointer-events-none p-3 z-10">
-            <div className="w-[80%] bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
+          <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pointer-events-none p-3 z-10">
+            <div className="w-full max-w-xl bg-white border border-gray-200 rounded-xl shadow-md p-2 flex items-center gap-2 pointer-events-auto">
               <input
                 type="text"
                 value={input}
@@ -391,14 +391,14 @@ export function QAPage() {
                     setInput('')
                   }
                 }}
-                className="w-full bg-transparent border-none text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1 px-2"
+                className="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1.5 px-2"
                 placeholder="在此继续追问..."
                 data-qa-input
                 disabled={loading}
               />
               <Button
                 size="sm"
-                className="bg-cyber-blue text-white rounded-lg px-4 py-1.5 text-xs font-semibold shrink-0"
+                className="bg-cyber-blue text-white rounded-lg px-3 py-1.5 text-xs font-semibold shrink-0"
                 onClick={() => {
                   submitQuestion(input)
                   setInput('')
