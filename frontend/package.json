@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.17",
     "@radix-ui/react-slot": "^1.1.0",
     "@tailwindcss/typography": "^0.5.20",
     "class-variance-authority": "^0.7.0",

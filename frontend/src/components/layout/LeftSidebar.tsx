@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { fetchTopics, fetchWikiModules } from '@/api/client'
 import type { Topic } from '@/types'
+import { ChevronRight } from 'lucide-react'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 
 interface WikiModule {
   slug: string; name: string; type: string; title?: string
@@ -44,9 +46,19 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
     else navigate(`/${repo}#${slug}`)
   }
 
-  // 将多级 slug 渲染为树形结构
+  // 折叠状态
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const toggleDir = useCallback((path: string) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }, [])
+
+  // 将多级 slug 渲染为可折叠树形结构
   const renderDocTree = (items: WikiModule[]) => {
-    // 构建树：{ [dir]: { dirs: {...}, files: [...] } }
     interface TreeNode { dirs: Record<string, TreeNode>; files: WikiModule[] }
     const root: TreeNode = { dirs: {}, files: [] }
 
@@ -60,25 +72,34 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
       node.files.push(m)
     }
 
-    const renderNode = (node: TreeNode, depth: number): React.ReactNode[] => {
+    const renderNode = (node: TreeNode, depth: number, path: string): React.ReactNode[] => {
       const els: React.ReactNode[] = []
-      const indent = depth * 12
+      const indent = depth * 10
       // 文件夹
       for (const dirName of Object.keys(node.dirs).sort()) {
+        const dirPath = path ? `${path}/${dirName}` : dirName
+        const isExpanded = expandedDirs.has(dirPath)
         els.push(
-          <div key={`dir-${depth}-${dirName}`} className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1.5 mb-0.5"
-            style={{ paddingLeft: `${indent + 10}px` }}>
-            📁 {dirName}
-          </div>
+          <Collapsible key={`dir-${dirPath}`} open={isExpanded} onOpenChange={() => toggleDir(dirPath)}>
+            <CollapsibleTrigger asChild>
+              <button style={{ paddingLeft: `${indent + 6}px` }}
+                className="w-full flex items-center gap-0.5 text-left py-1 pr-2 rounded text-[11px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+                <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                <span className="truncate">📁 {dirName}</span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {renderNode(node.dirs[dirName], depth + 1, dirPath)}
+            </CollapsibleContent>
+          </Collapsible>
         )
-        els.push(...renderNode(node.dirs[dirName], depth + 1))
       }
       // 文件
       for (const m of node.files) {
         els.push(
           <button key={m.slug} onClick={() => handleDocClick(m.slug)}
-            style={{ paddingLeft: `${indent + 10}px` }}
-            className={`block w-full text-left px-2.5 py-1.5 rounded-md text-sm leading-snug hover:bg-gray-50 transition ${currentSlug === m.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
+            style={{ paddingLeft: `${indent + 22}px` }}
+            className={`block w-full text-left py-1 pr-2 rounded text-xs leading-snug hover:bg-gray-50 transition truncate ${currentSlug === m.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
             {m.title || m.slug.split('/').pop()}
           </button>
         )
@@ -86,7 +107,7 @@ export function LeftSidebar({ currentSlug, currentTopic, currentKb, onNavigate }
       return els
     }
 
-    return renderNode(root, 0)
+    return renderNode(root, 0, '')
   }
 
   return (
