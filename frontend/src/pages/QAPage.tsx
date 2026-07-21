@@ -270,31 +270,19 @@ export function QAPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load session from URL path /qa/qN — responds to sidebar clicks
-  const sessionLoadRef = useRef<number | null>(null)
+  // Click session in sidebar → load by qid from URL /qa/qN
   useEffect(() => {
     const match = location.pathname.match(/^\/qa\/q(\d+)$/)
     if (!match) return
-    const qidNum = parseInt(match[1], 10)
-    // Don't reload the same qid
-    if (sessionLoadRef.current === qidNum) return
-    // Check if already loaded
-    const info = sessionList.find(s => s.root_qid === qidNum)
-    if (info && sessions[info.session_id]?.messages.length) {
-      setActiveSessionId(info.session_id)
-      return
-    }
-
-    sessionLoadRef.current = qidNum
-    ;(async () => {
-      try {
-        const r = await fetch(`/api/qa/entry/${qidNum}`)
-        const d = await r.json()
+    const qid = parseInt(match[1], 10)
+    fetch(`/api/qa/entry/${qid}`)
+      .then(r => r.json())
+      .then(async d => {
         if (!d.ok || !d.data?.session_id) return
-        await loadSession(d.data.session_id, qidNum)
+        await loadSession(d.data.session_id, qid)
         setActiveSessionId(d.data.session_id)
-      } catch {}
-    })()
+      })
+      .catch(() => {})
   }, [location.pathname])
 
   return (
