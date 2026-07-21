@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchQaEntries, fetchTopics, fetchReviewQueue } from '@/api/client'
-import { useLayout } from '@/contexts/LayoutContext'
+import { useSessionHistory } from '@/hooks/useSessionHistory'
 import { PipelineProgress } from '@/components/knowledge/PipelineProgress'
 import { QaCalibrateCard } from '@/pages/admin/QaCalibrateCard'
 import { TopicDiscoverCard } from '@/pages/admin/TopicDiscoverCard'
@@ -9,9 +9,7 @@ import { WikiReviewCard } from '@/pages/admin/WikiReviewCard'
 import type { PipelineCounts } from '@/types'
 
 export function AdminPage() {
-  const { setDrawerContent } = useLayout()
-  // 清空上一页残留的抽屉内容
-  useEffect(() => { setDrawerContent({ title: '', items: [] }) }, [])
+  useSessionHistory()  // 侧边栏下方显示历史问答
 
   const [counts, setCounts] = useState<PipelineCounts>({
     qaPending: 0,

@@ -4,7 +4,7 @@ import { fetchSources, syncSource, deleteSourceApi } from '@/api/client'
 import type { SourceItem } from '@/api/client'
 import { KnowledgeCard } from '@/components/knowledge/KnowledgeCard'
 import { UploadDocCard } from '@/components/knowledge/UploadDocCard'
-import { useLayout } from '@/contexts/LayoutContext'
+import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
   Upload, Globe, Database, Loader2,
   FileText, Plus, Check,
@@ -14,10 +14,7 @@ export function SourcesPage() {
   const [sources, setSources] = useState<SourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
-  const { setDrawerContent } = useLayout()
-
-  // 清空上一页残留的抽屉内容
-  useEffect(() => { setDrawerContent({ title: '', items: [] }) }, [])
+  useSessionHistory()  // 侧边栏下方显示历史问答
 
   // 统一添加弹窗
   const [showAddModal, setShowAddModal] = useState(false)

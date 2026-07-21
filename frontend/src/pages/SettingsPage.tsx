@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { fetchSettings, saveSettings } from '@/api/client'
+import { useSessionHistory } from '@/hooks/useSessionHistory'
 import { Settings, Cpu, Check, Loader2 } from 'lucide-react'
 
 export function SettingsPage() {
+  useSessionHistory()  // 侧边栏下方显示历史问答
   const [section, setSection] = useState<'general' | 'model'>('general')
   const [siteName, setSiteName] = useState('')
   const [provider, setProvider] = useState('openai')
