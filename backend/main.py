@@ -548,11 +548,15 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
     except Exception:
         pass
 
+    # Inject wiki context as a system message (instead of appending to question)
+    if wiki_context:
+        prior_messages.insert(0, HumanMessage(content=f"[系统上下文 - 知识库已有沉淀，请参考]\n{wiki_context}"))
+
     final_answer = ""
     try:
         result = await asyncio.wait_for(
             graph.ainvoke(
-                {"question": augmented_question + wiki_context, "project": repo, "intent": "", "messages": prior_messages},
+                {"question": augmented_question, "project": repo, "intent": "", "messages": prior_messages},
                 config={"configurable": {"thread_id": session_id}},
             ),
             timeout=120,
