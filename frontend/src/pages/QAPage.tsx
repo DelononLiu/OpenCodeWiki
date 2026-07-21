@@ -464,7 +464,12 @@ export function QAPage() {
               </div>
             )}
 
-            {activeSession && (
+            {activeSession && (() => {
+              // 最后一条 assistant 消息始终显示按钮，其他仅 hover 显示
+              const lastAssistantIdx = activeSession.messages.reduce(
+                (acc, msg, idx) => (msg.role === 'assistant' ? idx : acc), -1,
+              )
+              return (
               <div className="max-w-3xl mx-auto space-y-8">
                 {activeSession.messages.map((m, i) => (
                   <Fragment key={i}>
@@ -491,9 +496,10 @@ export function QAPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="answer-block prose prose-sm max-w-none">
+                      <div className="answer-block prose prose-sm max-w-none group">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                         <AnswerActions
+                          showOnHover={i !== lastAssistantIdx}
                           accepted={activeSession.feedback === 'accepted'}
                           rejected={activeSession.feedback === 'rejected'}
                           onAccept={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
@@ -550,7 +556,8 @@ export function QAPage() {
                     </div>
                   )}
               </div>
-            )}
+            )
+            })()}
           </div>
 
           {/* Bottom input */}

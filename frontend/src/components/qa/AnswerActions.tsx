@@ -10,11 +10,14 @@ interface AnswerActionsProps {
   rejected: boolean
   rootQid?: number
   onPromoteTopic?: (title: string) => void
+  /** 非最后一条时仅 hover 显示按钮 */
+  showOnHover?: boolean
 }
 
 export function AnswerActions({
   onAccept, onReject, onCopy, onShare,
   accepted, rejected, rootQid, onPromoteTopic,
+  showOnHover,
 }: AnswerActionsProps) {
   const [showPromote, setShowPromote] = useState(false)
   const [topicTitle, setTopicTitle] = useState('')
@@ -35,8 +38,10 @@ export function AnswerActions({
 
   return (
     <div className="mt-4 pt-3 border-t border-gray-100">
-      {/* Action bar — always visible */}
-      <div className="flex items-center gap-1 text-gray-400 select-none">
+      {/* Action bar — last message always visible, others on hover */}
+      <div className={`flex items-center gap-1 text-gray-400 select-none transition-opacity duration-150 ${
+        showOnHover ? 'opacity-0 group-hover:opacity-100' : ''
+      }`}>
         <button
           className={`p-1.5 rounded-lg transition ${
             accepted ? 'bg-emerald-50 text-emerald-500' : 'hover:bg-gray-100 hover:text-emerald-500'
