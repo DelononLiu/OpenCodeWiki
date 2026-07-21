@@ -628,11 +628,20 @@ async def api_wiki_modules():
     modules = []
     # List stored pages
     try:
-        from stores.wiki import list_pages
+        from stores.wiki import list_pages, read_page
         stored = list_pages()
         for p in stored:
             if not any(m["slug"] == p["slug"] for m in modules):
-                modules.append({"slug": p["slug"], "name": p["slug"], "type": p["page_type"]})
+                title = p["slug"]
+                try:
+                    content = read_page(p["slug"], p["page_type"])
+                    if content:
+                        first_line = content.strip().split("\n")[0]
+                        if first_line.startswith("# "):
+                            title = first_line[2:].strip()
+                except Exception:
+                    pass
+                modules.append({"slug": p["slug"], "name": title, "type": p["page_type"], "title": title})
     except ImportError:
         pass
 
