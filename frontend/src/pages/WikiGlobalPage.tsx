@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Header } from '@/components/layout/Header'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
@@ -108,7 +107,6 @@ export function WikiGlobalPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" />
       <div className="flex-1 flex overflow-hidden">
 
         {/* 左侧导航 */}

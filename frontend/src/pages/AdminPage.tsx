@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Header } from '@/components/layout/Header'
 import { fetchQaEntries, calibrateQaEntry, fetchTopics, fetchTopic, fetchTopicDraft, fetchWikiModules, publishTopic, updateTopicDraft } from '@/api/client'
 import { useLayout } from '@/contexts/LayoutContext'
 import type { QaEntry, Topic, TopicDraft } from '@/types'
@@ -81,7 +80,6 @@ export function AdminPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" />
       <div className="flex-1 flex overflow-hidden">
 
         {/* 主内容 */}

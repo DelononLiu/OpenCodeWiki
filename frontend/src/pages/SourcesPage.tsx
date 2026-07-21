@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Header } from '@/components/layout/Header'
 import { fetchSources, syncSource, deleteSourceApi } from '@/api/client'
 import type { SourceItem } from '@/api/client'
 import { KnowledgeCard } from '@/components/knowledge/KnowledgeCard'
@@ -136,8 +135,6 @@ export function SourcesPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" />
-
       {/* 提示条 */}
       {success && (
         <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
 import { useLayout } from '@/contexts/LayoutContext'
@@ -309,8 +308,6 @@ export function QAPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" />
-
       <div className="flex-1 flex overflow-hidden">
 
         {/* Main */}
