@@ -3,6 +3,7 @@ store_wiki.py — Wiki 页面文件操作层。
 读取/写入 .md 文件到 ~/.opencodewiki/pages/ 目录。
 """
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,18 +41,46 @@ def write_page(slug: str, page_type: str, content: str) -> Path:
     return path
 
 
-def index_wiki_page(slug: str, content: str):
-    """Index a wiki page into FTS5 for full-text search."""
+def index_wiki_page(slug: str, content: str) -> None:
+    """将 Wiki 页面分块写入 FTS5 wiki_index 表。"""
     from database import get_qa_db
 
     db = get_qa_db()
-    now = datetime.now(timezone.utc).isoformat()
+
+    # 删除旧索引
     db.execute("DELETE FROM wiki_index WHERE slug = ?", (slug,))
-    db.execute(
-        "INSERT INTO wiki_index (slug, chunk_text, keywords, published_at) VALUES (?, ?, '', ?)",
-        (slug, content, now),
-    )
+
+    # 按段落分块（以 ## 为界）
+    chunks = re.split(r"\n(?=## )", content)
+    now = datetime.now(timezone.utc).isoformat()
+
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk or len(chunk) < 20:
+            continue
+        # 提取关键词（标题行 + 去停用词的前 10 个词）
+        first_line = chunk.split("\n")[0].lstrip("# ").strip()
+        keywords = first_line
+        db.execute(
+            "INSERT INTO wiki_index (slug, chunk_text, keywords, published_at) VALUES (?, ?, ?, ?)",
+            (slug, chunk, keywords, now),
+        )
     db.commit()
+
+
+def search_wiki_index(query: str, limit: int = 3) -> list[dict]:
+    """FTS5 搜索 wiki_index，返回匹配的 chunk。"""
+    from database import get_qa_db
+
+    db = get_qa_db()
+    try:
+        rows = db.execute(
+            "SELECT slug, chunk_text, keywords, rank FROM wiki_index WHERE wiki_index MATCH ? ORDER BY rank LIMIT ?",
+            (query, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
 
 
 def list_pages(page_type: str | None = None) -> list[dict]:
