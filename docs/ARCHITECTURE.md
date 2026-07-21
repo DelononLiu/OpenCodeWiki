@@ -122,26 +122,29 @@ opencodewiki/
 - 校准机制：高质量回答可标记为校准答案 (`PUT /api/qa/entry/{qid}/calibrate`)
 - 存储：`qa.db` — `qa_entries` 表 + `calibrated_answers` 表
 
-### 2. Topic 聚合 (`/admin`)
+### 2. 知识沉淀管线 (`/admin`)
 
-- 将语义相关的 QA 条目聚合为 Topic
-- `POST /api/topics/analyze` — LLM 自动分析 QA 群并建议 Topic
-- Draft 提炼 → 人工编辑 → 审核 → 发布为 Wiki 页面
-- 存储：`knowledge.db` — `topics` / `topic_qa` / `topic_drafts` 表
+四阶段半自动管线：
+
+1. **QA 校准** — 待校准 QA 列表，管理员输入标准答案
+2. **Topic 发现** — LLM 批量分析 QA 池 (`POST /api/topics/analyze`)，自动建议 topic 聚类
+3. **Draft 提炼** — LLM 按模板（概述/场景/方案/注意事项）生成结构化文档
+4. **Wiki 审核** — 待发布 Draft 审核队列，批准后写入 Wiki + FTS5 索引
+
+自进化闭环：
+- **RAG 增强**：Wiki 内容通过 FTS5 `wiki_index` 在 QA 时作为上下文注入
+- **反馈修正**：Wiki 被标记需修正后进入重新审核流
+
+存储：`knowledge.db` — `topics` / `topic_qa` / `topic_drafts` 表；`qa.db` — `wiki_index` FTS5 表
 
 ### 3. Wiki 页面 (`/wiki`, `/:repo`)
 
 - 发布后的 Topic 生成 `.md` 文件在 `~/.opencodewiki/pages/`
 - 三种类型：entity, overview, qa-archive
 - 首页联想搜索：API `/api/search` 检索 Topic + 热门 QA (`/api/qa/suggest`)
+- 知识库全文检索：API `/api/wiki/search-index` 搜索已沉淀的 Wiki 内容
 
-### 4. 审批台 (`/admin`)
-
-- 左右对比视图：raw → edited → 预览
-- 模块选择器（关联 wiki_module）
-- 晋升操作：Draft → approved → Wiki(published)
-
-### 5. 设置 (`/settings`)
+### 4. 设置 (`/settings`)
 
 - 知识源配置（仓库注册）：`registry.json` 管理
 - LLM API 配置：`config.json` 管理 (apiKey / baseUrl / model / provider)
@@ -164,6 +167,7 @@ opencodewiki/
 
 | 日期 | 变更 |
 |------|------|
+| 2026-07-21 | 知识沉淀 v2：四阶段半自动管线 + FTS5 RAG 自进化闭环 |
 | 2026-07-18 | 从 Node.js/Express 迁移到 Python FastAPI + LangGraph |
 | 2026-07-18 | 目录重构：删除 vendor/，统一 backend/frontend 两级结构 |
 | 2026-07-17 | UI 全局升级：Card 组件 + Wiki 欢迎页 + 首页样式丰富 |
