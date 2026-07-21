@@ -270,10 +270,13 @@ export function QAPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Click session in sidebar → load by qid from URL /qa/qN
+  // URL 变化时：/qa/qN → 加载会话，/qa → 清空
   useEffect(() => {
     const match = location.pathname.match(/^\/qa\/q(\d+)$/)
-    if (!match) return
+    if (!match) {
+      setActiveSessionId(null)
+      return
+    }
     const qid = parseInt(match[1], 10)
     fetch(`/api/qa/entry/${qid}`)
       .then(r => r.json())
