@@ -884,6 +884,20 @@ def _sync_modules_from_fs():
     sync_wiki_modules(knowledge_modules)
 
 
+@app.get("/api/wiki/review-queue")
+async def api_review_queue():
+    """获取待审核 draft 队列。"""
+    from stores.topics import get_review_queue
+    return _ok({"queue": get_review_queue()})
+
+
+@app.get("/api/wiki/conversions")
+async def api_wiki_conversions():
+    """获取所有 session→wiki 转换记录。"""
+    from stores.wiki import list_conversions
+    return _ok({"conversions": list_conversions()})
+
+
 @app.get("/api/wiki/{slug:path}")
 async def api_wiki_page(slug: str):
     """Get wiki page content by slug. Returns markdown or 404."""
@@ -1089,18 +1103,6 @@ try:
         if not ok:
             return _err("Draft not found or status is not submitted", 400)
         return _ok({"rejected": True})
-
-    @app.get("/api/wiki/review-queue")
-    async def api_review_queue():
-        """获取待审核 draft 队列。"""
-        from stores.topics import get_review_queue
-        return _ok({"queue": get_review_queue()})
-
-    @app.get("/api/wiki/conversions")
-    async def api_wiki_conversions():
-        """获取所有 session→wiki 转换记录。"""
-        from stores.wiki import list_conversions
-        return _ok({"conversions": list_conversions()})
 
     @app.get("/api/wiki/search-index")
     async def api_search_wiki_index(q: str = "", limit: int = 5):

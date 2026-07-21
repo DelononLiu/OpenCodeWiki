@@ -34,27 +34,33 @@ def read_page(slug: str, page_type: str = "entity") -> str | None:
         return None
 
 
-def write_page(slug: str, page_type: str, content: str) -> Path:
+def write_page(slug: str, page_type: str, content: str, kb_name: str = "") -> Path:
     _ensure_dirs()
     path = page_path(slug, page_type)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
     # Sync to wiki_modules table
-    _upsert_module(slug, page_type, content)
+    _upsert_module(slug, page_type, content, kb_name)
 
     return path
 
 
-def _upsert_module(slug: str, page_type: str, content: str = "") -> None:
+def _upsert_module(slug: str, page_type: str, content: str = "", kb_name: str = "") -> None:
     """将页面信息写入 wiki_modules 表，方便快速列出。"""
     from database import get_qa_db
     db = get_qa_db()
     title = _extract_h1(content) if content else slug.split("/")[-1]
+    existing_kb = ""
+    if not kb_name:
+        existing = db.execute("SELECT kb_name FROM wiki_modules WHERE slug = ?", (slug,)).fetchone()
+        existing_kb = (existing["kb_name"] or "") if existing else ""
+    final_kb = kb_name or existing_kb
+    display_name = f"{final_kb} / {title}" if final_kb else title
     db.execute(
-        """INSERT OR REPLACE INTO wiki_modules (slug, name, type, title, updated_at)
-           VALUES (?, ?, ?, ?, datetime('now'))""",
-        (slug, title, page_type, title),
+        """INSERT OR REPLACE INTO wiki_modules (slug, name, type, title, kb_name, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (slug, display_name, page_type, title, final_kb),
     )
     db.commit()
 
@@ -72,6 +78,11 @@ def sync_wiki_modules(knowledge_modules: list[dict] | None = None) -> None:
     from database import get_qa_db
     db = get_qa_db()
 
+    # 保存已有的 kb_name 映射
+    old_kb = {}
+    for row in db.execute("SELECT slug, kb_name FROM wiki_modules WHERE kb_name != ''").fetchall():
+        old_kb[row["slug"]] = row["kb_name"]
+
     # 清空后重建
     db.execute("DELETE FROM wiki_modules")
 
@@ -86,9 +97,11 @@ def sync_wiki_modules(knowledge_modules: list[dict] | None = None) -> None:
                     title = h1
         except Exception:
             pass
+        kb = old_kb.get(p["slug"], "")
+        display_name = f"{kb} / {title}" if kb else title
         db.execute(
-            "INSERT INTO wiki_modules (slug, name, type, title) VALUES (?, ?, ?, ?)",
-            (p["slug"], title, p["page_type"], title),
+            "INSERT INTO wiki_modules (slug, name, type, title, kb_name) VALUES (?, ?, ?, ?, ?)",
+            (p["slug"], display_name, p["page_type"], title, kb),
         )
 
     # 2. Knowledge source modules (from main.py)

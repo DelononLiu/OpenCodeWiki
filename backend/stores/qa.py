@@ -497,8 +497,8 @@ def convert_session_to_wiki(session_id: str, module_slug: str = "") -> dict:
     if not content:
         raise RuntimeError("LLM 生成内容为空")
 
-    # 3. 写入 wiki
-    write_page(slug, "qa-archive", content)
+    # 3. 写入 wiki（带 kb_name 关联知识库模块）
+    write_page(slug, "qa-archive", content, kb_name=module_slug)
     index_wiki_page(slug, content)
 
     # 4. 记录转换

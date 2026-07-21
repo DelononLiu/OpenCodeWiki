@@ -731,7 +731,7 @@ export function QAPage() {
                         <p className="text-sm text-gray-500 mt-1">{convertSuccess.title}</p>
                       </div>
                       <div className="flex items-center justify-center gap-3">
-                        <a href={`/wiki/${convertSuccess.slug}`} target="_blank" rel="noopener noreferrer"
+                        <a href={`/wiki/${wikiModule}#${convertSuccess.slug}`} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-4 py-2 bg-cyber-blue text-white text-sm rounded-lg hover:bg-cyber-blue-dark">
                           <ExternalLink className="w-4 h-4" /> 查看 Wiki
                         </a>
