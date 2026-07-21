@@ -20,6 +20,8 @@ interface Session {
   isStreaming: boolean
   feedback?: 'accepted' | 'rejected' | null
   rootQid?: number
+  /** 后端 session_id，用于多轮追问分组 */
+  backendSessionId?: string
 }
 
 function genSessionId(): string {
@@ -94,19 +96,19 @@ export function QAPage() {
     const t = line.trim()
     if (!t || !t.startsWith('data: ')) return null
     try {
-      return JSON.parse(t.slice(6)) as { type: string; content?: string; message?: string; qid?: number; sources?: {file: string; line: string; snippet: string}[] }
+      return JSON.parse(t.slice(6)) as { type: string; content?: string; message?: string; qid?: number; session_id?: string; sources?: {file: string; line: string; snippet: string}[] }
     } catch {
       return null
     }
   }, [])
 
   // 处理 SSE 事件，返回 streamDone / streamError
-  const handleSSEEvent = useCallback((msg: { type: string; content?: string; message?: string; qid?: number; sources?: {file: string; line: string; snippet: string}[] }, sid: string): 'streamDone' | 'streamError' | 'continue' => {
+  const handleSSEEvent = useCallback((msg: { type: string; content?: string; message?: string; qid?: number; session_id?: string; sources?: {file: string; line: string; snippet: string}[] }, sid: string): 'streamDone' | 'streamError' | 'continue' => {
     if (msg.type === 'meta' && msg.qid) {
       setSessions(prev => {
         const s = prev[sid]
         if (!s) return prev
-        return { ...prev, [sid]: { ...s, rootQid: msg.qid } }
+        return { ...prev, [sid]: { ...s, rootQid: msg.qid, backendSessionId: msg.session_id || s.backendSessionId } }
       })
       return 'continue'
     }
@@ -204,28 +206,58 @@ export function QAPage() {
     return { qid }
   }, [parseSSELine, handleSSEEvent])
 
-  // ── 提交新问题：POST /api/qa → 直接消费 SSE ─────────────
+  const activeSession = activeSessionId ? sessions[activeSessionId] : null
+
+  // ── 提交问题（新问题 or 追问）：POST /api/qa → 直接消费 SSE ──
   const submitQuestion = useCallback(async (question: string) => {
     if (!question.trim() || loading) return
     setLoading(true)
     setLoadError(null)
 
-    const session = createSession(question)
-    const sid = session.sessionId
+    const isFollowUp = activeSession && activeSession.backendSessionId && activeSession.messages.length > 0
+
+    let sid: string
+    let backendSid: string
+    let historyMessages: { role: string; content: string }[] | undefined
+
     const userMsg: Message = { role: 'user', content: question }
-    setSessions(prev => ({
-      ...prev,
-      [sid]: { ...session, messages: [userMsg], streamingAnswer: '', isStreaming: true },
-    }))
-    setActiveSessionId(sid)
+
+    if (isFollowUp) {
+      // 追问：复用当前 session 和 backend session_id
+      sid = activeSession!.sessionId
+      backendSid = activeSession!.backendSessionId!
+      historyMessages = activeSession!.messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content }))
+      // 追加用户消息，开启流式
+      setSessions(prev => {
+        const s = prev[sid]
+        if (!s) return prev
+        return { ...prev, [sid]: { ...s, messages: [...s.messages, userMsg], streamingAnswer: '', isStreaming: true } }
+      })
+    } else {
+      // 新问题：创建新 session
+      const session = createSession(question)
+      sid = session.sessionId
+      backendSid = sid  // 新 session，用本地 UUID 作为后端 session_id
+      setSessions(prev => ({
+        ...prev,
+        [sid]: { ...session, messages: [userMsg], streamingAnswer: '', isStreaming: true },
+      }))
+      setActiveSessionId(sid)
+    }
 
     let resolvedQid: number | null = null
 
     try {
+      const body: Record<string, unknown> = { question, sessionId: backendSid }
+      if (historyMessages && historyMessages.length > 0) {
+        body.messages = historyMessages
+      }
       const res = await fetch('/api/qa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, sessionId: sid }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -250,12 +282,11 @@ export function QAPage() {
     }
 
     setLoading(false)
-    // 用 replace 更新 URL，不触发 URL effect 重复加载（通过 streamCompleteQidRef 保护）
     if (resolvedQid) {
       streamCompleteQidRef.current = resolvedQid
       navigate(`/qa/q${resolvedQid}`, { replace: true })
     }
-  }, [loading, createSession, navigate, consumeSSEStream])
+  }, [loading, activeSession, createSession, navigate, consumeSSEStream])
 
   const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
     setSessions(prev => {
@@ -264,8 +295,6 @@ export function QAPage() {
       return { ...prev, [sessionId]: { ...s, feedback: type } }
     })
   }, [])
-
-  const activeSession = activeSessionId ? sessions[activeSessionId] : null
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -347,6 +376,7 @@ export function QAPage() {
             ],
             streamingAnswer: '',
             isStreaming: false,  // 历史问答不自动流式，避免重复跑 LLM
+            backendSessionId: entry.session_id || undefined,
           },
         }))
         setActiveSessionId(sid)

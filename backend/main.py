@@ -709,6 +709,7 @@ async def api_qa_create(request: Request):
         return _err("Missing question")
     session_id = body.get("sessionId") or str(uuid.uuid4())
     repo = body.get("repo") or body.get("project") or ""
+    history_messages = body.get("messages")  # 多轮对话历史
 
     from stores.qa import create_entry
     entry = create_entry({"question": question, "answer": "", "repo": repo, "session_id": session_id, "mode": "deep", "sources": []})
@@ -717,7 +718,7 @@ async def api_qa_create(request: Request):
     async def stream_with_meta():
         # 先发 meta 事件让前端拿到 qid（用于后续 URL 跳转）
         yield _sse("meta", {"qid": qid, "session_id": entry["session_id"]})
-        async for event in _run_qa_stream(qid, question, entry["session_id"], repo, None):
+        async for event in _run_qa_stream(qid, question, entry["session_id"], repo, history_messages):
             yield event
 
     return StreamingResponse(
