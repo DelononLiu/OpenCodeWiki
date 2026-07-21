@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+// useNavigate removed — drawer navigation no longer needed
 import { fetchSources, syncSource, deleteSourceApi } from '@/api/client'
 import type { SourceItem } from '@/api/client'
 import { KnowledgeCard } from '@/components/knowledge/KnowledgeCard'
@@ -14,21 +14,10 @@ export function SourcesPage() {
   const [sources, setSources] = useState<SourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
-  const navigate = useNavigate()
   const { setDrawerContent } = useLayout()
 
-  // Set drawer content (knowledge base list)
-  useEffect(() => {
-    setDrawerContent({
-      title: '知识库',
-      items: sources.map(s => ({
-        id: s.name,
-        label: s.name,
-        active: false,
-        onClick: () => navigate(`/wiki/${s.name}`),
-      })),
-    })
-  }, [sources])
+  // 清空上一页残留的抽屉内容
+  useEffect(() => { setDrawerContent({ title: '', items: [] }) }, [])
 
   // 统一添加弹窗
   const [showAddModal, setShowAddModal] = useState(false)
