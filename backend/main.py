@@ -782,38 +782,6 @@ try:
         update_draft_content(slug, content)
         return _ok({"updated": True})
 
-    @app.post("/api/topics/analyze")
-    async def api_analyze_topics():
-        """分析 QA 池，按 domain/tag 聚类生成 topic 建议"""
-        from stores.qa import list_entries
-
-        result = list_entries({"status": "active", "limit": 100})
-        entries = result.get("entries", [])
-
-        # 按 domain 分组
-        groups: dict = {}
-        for e in entries:
-            dom = e.get("domain", "general")
-            if dom not in groups:
-                groups[dom] = []
-            groups[dom].append(e)
-
-        suggestions = []
-        for domain, items in groups.items():
-            if len(items) < 2:
-                continue
-            slug = domain.replace("_", "-").replace(" ", "-")
-            name = {"general": "通用实践", "bug-analysis": "缺陷分析",
-                    "log-analysis": "日志分析", "stack-analysis": "堆栈分析",
-                    "build-issue": "编译构建", "program-analysis": "程序分析"}.get(domain, domain)
-            # 创建或更新 topic
-            topic = create_topic(slug, name, f"从 {len(items)} 条 {name} QA 自动聚合")
-            for item in items:
-                link_qa(slug, item["qid"])
-            suggestions.append(topic)
-
-        return _ok({"suggestions": suggestions, "total": len(suggestions)})
-
     @app.post("/api/topics/{slug}/publish")
     async def api_publish_topic(slug: str, body: dict):
         """沉淀 topic 为 wiki 页面"""
