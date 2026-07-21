@@ -7,7 +7,7 @@ import {
 import { useLayout, type TabType } from '@/contexts/LayoutContext'
 
 const TABS: { key: TabType; icon: typeof BookOpen; label: string; path: string }[] = [
-  { key: 'read', icon: BookOpen, label: '阅读', path: '/wiki' },
+  { key: 'read', icon: BookOpen, label: 'Wiki', path: '/wiki' },
   { key: 'qa', icon: MessageSquare, label: '问答', path: '/qa' },
   { key: 'wiki', icon: FileText, label: '知识沉淀', path: '/admin' },
   { key: 'manage', icon: Database, label: '知识库', path: '/sources' },
