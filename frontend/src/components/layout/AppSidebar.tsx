@@ -65,6 +65,8 @@ export function AppSidebar() {
 
   const handleTabClick = (tab: TabType, path: string) => {
     setActiveTab(tab)
+    // QA tab: 已在 QA 区时不动，从其他页来时跳 /qa
+    if (tab === 'qa' && location.pathname.startsWith('/qa')) return
     navigate(path)
   }
 
