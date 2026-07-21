@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
@@ -27,6 +27,7 @@ function genSessionId(): string {
 }
 
 export function QAPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<Record<string, Session>>({})
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -183,7 +184,7 @@ export function QAPage() {
 
     // Persist to backend
     try {
-      await fetch('/api/qa/save', {
+      const saveResp = await fetch('/api/qa/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,12 +196,17 @@ export function QAPage() {
           sources: collectedSources,
         }),
       })
+      const saveData = await saveResp.json()
+      // 新会话创建成功后跳转到专属 URL
+      if (saveData.ok && isNewSession && saveData.data?.qid) {
+        navigate(`/qa/q${saveData.data.qid}`, { replace: true })
+      }
       // Refresh session list so left panel shows updated history
       fetchSessionList()
     } catch { /* ignore */ }
 
     setLoading(false)
-  }, [activeSessionId, sessions, stream, createSession, fetchSessionList])
+  }, [activeSessionId, sessions, stream, createSession, fetchSessionList, navigate])
 
   const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
     setSessions(prev => {
