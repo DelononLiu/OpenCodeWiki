@@ -349,7 +349,8 @@ export function QAPage() {
 
     ;(async () => {
       try {
-        const entryRes = await fetch(`/api/qa/entry/${qid}`, { signal: abortCtrl.signal })
+        // 一次请求拿 entry + session 全部消息，避免两次顺序请求
+        const entryRes = await fetch(`/api/qa/entry/${qid}?with_session=true`, { signal: abortCtrl.signal })
         if (!entryRes.ok) {
           setLoadError(`加载失败 (HTTP ${entryRes.status})`)
           return
@@ -360,35 +361,24 @@ export function QAPage() {
           return
         }
         const entry = entryData.data
-        const sessionId = entry.session_id
+        const sessionMessages: any[] | undefined = entryData.data.session_messages
 
         let messages: { role: 'user' | 'assistant'; content: string; sources?: {file: string; line: string; snippet: string}[] }[] = []
         let rootQid = qid
         let allSources: {file: string; line: string; snippet: string}[] = []
 
-        if (sessionId && entry.session_id) {
-          // 多轮对话：加载整个 session 的所有消息
-          try {
-            const sessRes = await fetch(`/api/qa/session/${encodeURIComponent(sessionId)}`, { signal: abortCtrl.signal })
-            if (sessRes.ok) {
-              const sessData = await sessRes.json()
-              if (sessData.ok && sessData.data?.messages) {
-                const rawMsgs: any[] = sessData.data.messages
-                rootQid = rawMsgs.length > 0 ? rawMsgs[0].qid : qid
-                for (const m of rawMsgs) {
-                  messages.push({ role: 'user', content: m.question || '' })
-                  if (m.answer) {
-                    messages.push({ role: 'assistant', content: m.answer, sources: m.sources })
-                  }
-                  if (m.sources?.length) allSources = m.sources
-                }
-              }
+        if (sessionMessages && sessionMessages.length > 0) {
+          // 用 session 全部消息构建完整对话
+          rootQid = sessionMessages[0].qid
+          for (const m of sessionMessages) {
+            messages.push({ role: 'user', content: m.question || '' })
+            if (m.answer) {
+              messages.push({ role: 'assistant', content: m.answer, sources: m.sources })
             }
-          } catch { /* fallback to single entry */ }
-        }
-
-        // 如果 session 加载失败或没有 session_id，退化为单条
-        if (messages.length === 0) {
+            if (m.sources?.length) allSources = m.sources
+          }
+        } else {
+          // 退化为单条
           const question = entry.question || ''
           messages.push({ role: 'user' as const, content: question })
           if (entry.answer) {
@@ -406,7 +396,7 @@ export function QAPage() {
             messages: messages as Message[],
             streamingAnswer: '',
             isStreaming: false,
-            backendSessionId: sessionId || undefined,
+            backendSessionId: entry.session_id || undefined,
             rootQid,
           },
         }))

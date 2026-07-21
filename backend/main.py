@@ -490,10 +490,13 @@ async def api_qa_entries(
 
 
 @app.get("/api/qa/entry/{qid}")
-async def api_qa_entry(qid: int):
+async def api_qa_entry(qid: int, with_session: bool = False):
     entry = get_entry(qid)
     if not entry:
         raise HTTPException(404, f"#Q{qid} not found")
+    if with_session and entry.get("session_id"):
+        from stores.qa import list_session_messages
+        entry["session_messages"] = list_session_messages(entry["session_id"])
     return _ok(entry)
 
 
