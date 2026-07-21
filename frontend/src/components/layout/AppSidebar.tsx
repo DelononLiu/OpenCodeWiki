@@ -5,7 +5,7 @@ import { fetchWikiModules, fetchTopics } from '@/api/client'
 import type { Topic } from '@/types'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import {
-  BookOpen, MessageSquare, FileText, Settings,
+  BookOpen, MessageSquare, FileText, Database, Settings,
   Plus, ChevronLeft, ChevronDown, GitFork,
 } from 'lucide-react'
 
@@ -31,6 +31,7 @@ export function AppSidebar() {
 
   // Session history for QA page
   const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string}[]>([])
+  const [sessionsExpanded, setSessionsExpanded] = useState(true)
 
   // useParams doesn't work outside <Routes> — use useMatch instead
   const wikiMatch = useMatch('/wiki/:name')
@@ -164,9 +165,10 @@ export function AppSidebar() {
         {/* Nav tabs */}
         <nav className="flex flex-col gap-0.5 px-2 mb-2">
           {[
+            { key: 'qa' as TabType, icon: MessageSquare, label: '新问题', path: '/qa' },
             { key: 'read' as TabType, icon: BookOpen, label: 'Wiki', path: '/wiki' },
-            { key: 'qa' as TabType, icon: MessageSquare, label: '问答', path: '/qa' },
-            { key: 'wiki' as TabType, icon: FileText, label: 'Topics', path: '/admin' },
+            { key: 'wiki' as TabType, icon: FileText, label: '知识沉淀', path: '/admin' },
+            { key: 'sources' as TabType, icon: Database, label: '知识库', path: '/sources' },
           ].map(tab => (
             <button key={tab.key} onClick={() => handleTabClick(tab.key, tab.path)}
               title={tab.label}
@@ -248,17 +250,23 @@ export function AppSidebar() {
             ) : (
               /* QA / Admin / Other pages — session history */
               <div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5">历史问答</div>
-                {sessionList.length > 0 ? sessionList.map((s: any) => (
-                  <button key={s.session_id}
-                    onClick={() => navigate(`/qa/q${s.root_qid}`)}
-                    className={`block w-full text-left px-2.5 py-1.5 rounded text-[11px] leading-snug hover:bg-white/10 transition truncate ${
-                      location.pathname === `/qa/q${s.root_qid}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
-                    }`}>
-                    {s.root_question || '新对话'}
-                  </button>
-                )) : (
-                  <div className="text-[10px] text-slate-600 px-2.5 py-4 text-center">暂无问答记录</div>
+                <button onClick={() => setSessionsExpanded(o => !o)}
+                  className="w-full flex items-center gap-1 px-2.5 py-1 mb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition">
+                  <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${sessionsExpanded ? '' : '-rotate-90'}`} />
+                  历史问答
+                </button>
+                {sessionsExpanded && (
+                  sessionList.length > 0 ? sessionList.map((s: any) => (
+                    <button key={s.session_id}
+                      onClick={() => navigate(`/qa/q${s.root_qid}`)}
+                      className={`block w-full text-left px-2.5 py-1.5 rounded text-[11px] leading-snug hover:bg-white/10 transition truncate ${
+                        location.pathname === `/qa/q${s.root_qid}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
+                      }`}>
+                      {s.root_question || '新对话'}
+                    </button>
+                  )) : (
+                    <div className="text-[10px] text-slate-600 px-2.5 py-4 text-center">暂无问答记录</div>
+                  )
                 )}
               </div>
             )}

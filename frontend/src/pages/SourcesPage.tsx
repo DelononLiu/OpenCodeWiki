@@ -85,7 +85,7 @@ export function SourcesPage() {
           form.append('name', kbName)
           form.append('tags', 'uploaded')
           try {
-            const resp = await fetch('/api/documents/upload', { method: 'POST', body: form })
+            const resp = await fetch('/api/sources', { method: 'POST', body: form })
             if (resp.ok) {
               const result = await resp.json()
               // zip 上传返回 { uploaded: [...], total: N }，单文件返回 { slug, ... }

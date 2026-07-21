@@ -48,6 +48,40 @@ def _write(data: list[dict]):
     REGISTRY_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def sync_registry(dry_run: bool = False) -> list[dict]:
+    """扫描 KNOWLEDGE_DIR，把有目录但没注册的自动补上注册条目。
+
+    这是修复 registry ↔ 目录不一致的核心方法。
+    自动识别类型：含 .git 的标记为 code，其余标记为 docs。
+    返回本次新增的条目列表。dry_run=True 只返回待新增条目，不实际写入。
+    """
+    if not KNOWLEDGE_DIR.exists():
+        return []
+
+    registered = {e["name"] for e in _read()}
+    now = datetime.now(timezone.utc).isoformat()
+    new_entries = []
+
+    for entry in sorted(KNOWLEDGE_DIR.iterdir()):
+        if not entry.is_dir() or entry.name in registered:
+            continue
+
+        guessed_type = "code" if (entry / ".git").exists() else "docs"
+        new_entry = {
+            "name": entry.name,
+            "type": guessed_type,
+            "path": str(entry),
+            "created_at": now,
+            "updated_at": now,
+        }
+        if not dry_run:
+            create_source(new_entry)
+            print(f"[sync] 自动注册未记录的知识库: {entry.name} ({guessed_type})", file=sys.stderr)
+        new_entries.append(new_entry)
+
+    return new_entries
+
+
 def list_sources(type: str | None = None) -> list[dict]:
     """列出所有注册的来源，可按 type 筛选。"""
     sources = _read()

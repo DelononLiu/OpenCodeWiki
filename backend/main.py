@@ -29,7 +29,7 @@ from typing import AsyncGenerator
 
 import asyncio
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -137,76 +137,89 @@ async def api_source(name: str):
 
 
 @app.post("/api/sources")
-async def api_create_source(body: dict):
-    name = (body.get("name") or "").strip()
-    url = (body.get("url") or "").strip()
-    source_type = body.get("type", "code")
-    if not name:
-        return _err("Missing name")
-    if get_source_entry(name):
-        return _err(f"Source '{name}' already exists")
-    try:
-        if source_type == "code":
-            result = await import_code_git(name, url)
-        elif source_type == "docs":
-            result = await import_docs_git(name, url)
-        elif source_type == "svn":
-            svn_url = (body.get("svn_url") or url or "").strip()
-            if not svn_url:
-                return _err("Missing svn_url for SVN source")
-            username = (body.get("username") or "").strip()
-            password = (body.get("password") or "").strip()
-            encrypted = ""
-            if password:
-                from utils.crypto import encrypt_credential
-                encrypted = encrypt_credential(password)
-            from stores.sources import create_source as do_create
-            result = do_create({
-                "name": name,
-                "type": "svn",
-                "url": svn_url,
-                "svn_url": svn_url,
-                "username": username,
-                "encrypted_password": encrypted,
-            })
-            # 首次检出
-            from stores.sources import svn_checkout, KNOWLEDGE_DIR
-            dest = KNOWLEDGE_DIR / name
-            svn_checkout(svn_url, dest, username, password)
+async def api_create_source(request: Request):
+    """创建知识来源。统一入口：
+    - Content-Type: application/json → URL 导入 (git/svn/docs)
+    - Content-Type: multipart/form-data → 文件上传 (zip/.md)
+    """
+    ctype = request.headers.get("content-type", "").lower()
+
+    # ── JSON: URL 来源 ─────────────────────────────────────
+    if "application/json" in ctype:
+        body = await request.json()
+        name = (body.get("name") or "").strip()
+        url = (body.get("url") or "").strip()
+        source_type = body.get("type", "code")
+        if not name:
+            return _err("Missing name")
+        if get_source_entry(name):
+            return _err(f"Source '{name}' already exists")
+        try:
+            if source_type == "code":
+                result = await import_code_git(name, url)
+            elif source_type == "docs":
+                result = await import_docs_git(name, url)
+            elif source_type == "svn":
+                svn_url = (body.get("svn_url") or url or "").strip()
+                if not svn_url:
+                    return _err("Missing svn_url for SVN source")
+                username = (body.get("username") or "").strip()
+                password = (body.get("password") or "").strip()
+                encrypted = ""
+                if password:
+                    from utils.crypto import encrypt_credential
+                    encrypted = encrypt_credential(password)
+                from stores.sources import create_source as do_create
+                result = do_create({
+                    "name": name, "type": "svn", "url": svn_url,
+                    "svn_url": svn_url, "username": username,
+                    "encrypted_password": encrypted,
+                })
+                from stores.sources import svn_checkout, KNOWLEDGE_DIR
+                dest = KNOWLEDGE_DIR / name
+                svn_checkout(svn_url, dest, username, password)
+                return _ok(result)
+            else:
+                return _err(f"Invalid type: {source_type}")
             return _ok(result)
-        else:
-            return _err(f"Invalid type: {source_type}")
-        return _ok(result)
-    except Exception as e:
-        return _err(str(e), 500)
+        except Exception as e:
+            return _err(str(e), 500)
 
+    # ── multipart: 文件上传 ────────────────────────────────
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    source_type = (form.get("type") or "").strip().lower()
+    tags = (form.get("tags") or "").strip()
+    file: UploadFile | None = form.get("file")
 
-@app.post("/api/sources/upload")
-async def api_upload_source(
-    name: str = Form(...),
-    type: str = Form("code"),
-    file: UploadFile = File(...),
-):
+    if not file:
+        return _err("Missing file")
+
+    # code/docs zip → import_code_zip / import_docs_zip
+    if source_type in ("code", "docs"):
+        if not name:
+            return _err("Missing name")
+        if get_source_entry(name):
+            return _err(f"Source '{name}' already exists")
+        zip_path = Path.home() / ".opencodewiki" / "tmp" / f"{name}.zip"
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        content = await file.read()
+        zip_path.write_bytes(content)
+        try:
+            if source_type == "code":
+                result = await import_code_zip(name, zip_path)
+            else:
+                result = await import_docs_zip(name, zip_path)
+            return _ok(result)
+        except Exception as e:
+            return _err(str(e), 500)
+        finally:
+            zip_path.unlink(missing_ok=True)
+
+    # 零散文档上传（.md 文件 或 .md zip 包，name 可选）
     if not name:
-        return _err("Missing name")
-    if get_source_entry(name):
-        return _err(f"Source '{name}' already exists")
-    zip_path = Path.home() / ".opencodewiki" / "tmp" / f"{name}.zip"
-    zip_path.parent.mkdir(parents=True, exist_ok=True)
-    content = await file.read()
-    zip_path.write_bytes(content)
-    try:
-        if type == "code":
-            result = await import_code_zip(name, zip_path)
-        elif type == "docs":
-            result = await import_docs_zip(name, zip_path)
-        else:
-            return _err(f"Invalid type: {type}")
-        return _ok(result)
-    except Exception as e:
-        return _err(str(e), 500)
-    finally:
-        zip_path.unlink(missing_ok=True)
+        name = (file.filename or "unknown").rsplit(".", 1)[0]
+    return await _handle_document_upload(file, name, tags)
 
 
 @app.post("/api/sources/{name}/sync")
@@ -339,11 +352,10 @@ async def api_delete_document(slug: str):
     raise HTTPException(404, f"Document '{slug}' not found")
 
 
-@app.post("/api/documents/upload")
-async def api_document_upload(
-    file: UploadFile = File(...),
-    name: str = Form(""),
-    tags: str = Form(""),
+async def _handle_document_upload(
+    file: UploadFile,
+    kb_name: str,
+    tags: str = "",
 ):
     filename = file.filename or "unknown"
     ext = Path(filename).suffix.lower()
@@ -355,9 +367,6 @@ async def api_document_upload(
         return _err(f"文件过大，最大 50MB")
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    kb_name = name.strip()
-
-    # ── zip 解压处理 ──
     if ext == ".zip":
         import io, zipfile
         try:
@@ -411,6 +420,11 @@ async def api_document_upload(
                 "size": len(text.encode("utf-8")),
             })
 
+        # 确保知识库在 registry 中有记录
+        if not get_source_entry(kb_name):
+            from stores.sources import create_source
+            create_source({"name": kb_name, "type": "docs"})
+
         return _ok({"uploaded": uploaded, "total": len(uploaded)})
 
     # ── 单文件上传（原有逻辑）──
@@ -425,6 +439,11 @@ async def api_document_upload(
     kb_dir.mkdir(parents=True, exist_ok=True)
     md_path = kb_dir / f"{slug}.md"
     md_path.write_text(header + text, encoding="utf-8")
+
+    # 确保知识库在 registry 中有记录
+    if not get_source_entry(kb_name):
+        from stores.sources import create_source
+        create_source({"name": kb_name, "type": "docs"})
 
     return _ok({
         "slug": slug,
@@ -665,18 +684,12 @@ async def api_qa(request: Request):
 
 @app.get("/api/knowledge")
 async def api_knowledge():
-    """列出所有知识库（knowledge/ 目录下的文件夹）。"""
-    bases = []
-    if KNOWLEDGE_DIR.exists():
-        for d in sorted(KNOWLEDGE_DIR.iterdir()):
-            if d.is_dir() and not d.name.startswith('_'):
-                bases.append({"name": d.name})
+    """列出所有已注册的知识库（供前端侧边栏/wiki使用）。"""
+    bases = [{"name": s["name"]} for s in get_sources()]
     return _ok(bases)
 
 
 # ── Wiki ────────────────────────────────────────────────────────
-
-from stores.sources import KNOWLEDGE_DIR
 
 
 def _strip_frontmatter(content: str) -> str:

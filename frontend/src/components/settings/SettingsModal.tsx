@@ -7,12 +7,10 @@ interface SettingsModalProps {
   onClose: () => void
 }
 
-type TabKey = 'general' | 'knowledge' | 'repos' | 'api' | 'about'
+type TabKey = 'general' | 'api' | 'about'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'general', label: '通用' },
-  { key: 'knowledge', label: '知识库' },
-  { key: 'repos', label: '代码仓库' },
   { key: 'api', label: 'API 配置' },
   { key: 'about', label: '关于' },
 ]
@@ -52,15 +50,15 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[720px] max-h-[560px] flex overflow-hidden"
+      <div className="bg-white rounded-2xl shadow-2xl w-[900px] h-[80vh] flex overflow-hidden"
         onClick={e => e.stopPropagation()}>
         {/* Left tabs */}
-        <div className="w-44 bg-slate-50 border-r border-gray-100 py-4 px-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 px-3">设置</div>
+        <div className="w-52 bg-slate-50 border-r border-gray-100 py-6 px-3">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-3">设置</div>
           {TABS.map(tab => (
             <button key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition mb-0.5 ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition mb-0.5 ${
                 activeTab === tab.key
                   ? 'bg-white text-slate-800 font-semibold shadow-sm'
                   : 'text-slate-500 hover:bg-white/50'

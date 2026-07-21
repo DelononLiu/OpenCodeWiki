@@ -16,7 +16,6 @@ from langchain_core.tools import tool
 from stores.sources import KNOWLEDGE_DIR
 
 # ── 配置 ─────────────────────────────────────────────────────
-
 REGISTRY_PATH = Path.home() / ".opencodewiki" / "registry.json"
 BINARY_NAMES = ["codebase-memory-mcp"]
 
@@ -56,11 +55,16 @@ def _repo_path_to_project_name(p: str) -> str:
 
 
 def _load_registry() -> list[dict]:
-    """读取仓库注册表"""
+    """读取仓库注册表（原始数据，不含自动同步）"""
     try:
         return json.loads(REGISTRY_PATH.read_text())
     except (FileNotFoundError, json.JSONDecodeError):
         return []
+
+
+def _discover_knowledge_bases() -> list[dict]:
+    """读取注册表，获取所有已注册的知识库。"""
+    return _load_registry()
 
 
 def _project_for_repo(repo_name: str) -> str | None:
@@ -415,7 +419,7 @@ async def docs_read(project: str = "") -> str:
 @tool
 async def code_list_repos() -> str:
     """
-    列出所有已索引的代码仓库。
+    列出所有已注册的代码仓库。
     用于：首次搜索前了解可用的仓库列表。
     """
     registry = _load_registry()

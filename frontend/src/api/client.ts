@@ -129,7 +129,7 @@ export async function addSourceZip(name: string, type: string, file: File): Prom
   formData.append('name', name)
   formData.append('type', type)
   formData.append('file', file)
-  const res = await fetch('/api/sources/upload', { method: 'POST', body: formData })
+  const res = await fetch('/api/sources', { method: 'POST', body: formData })
   const body = await res.json()
   if (!body.ok) throw new Error(body.error || 'Upload failed')
   return body.data

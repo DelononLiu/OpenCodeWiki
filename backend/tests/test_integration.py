@@ -76,7 +76,7 @@ def test_document_upload():
     ).encode()
 
     req = urllib.request.Request(
-        f"{BASE_URL}/api/documents/upload",
+        f"{BASE_URL}/api/sources",
         data=body,
         method="POST",
     )
@@ -85,12 +85,12 @@ def test_document_upload():
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
             assert resp.status == 200, f"Expected 200, got {resp.status}"
-            assert data.get("slug") == "test_doc", f"Expected slug 'test_doc', got {data.get('slug')}"
-            print(f"  ✅ PASS POST /api/documents/upload (slug={data.get('slug')})")
+            assert data.get("data", {}).get("slug") == "test_doc", f"Expected slug 'test_doc', got {data.get('data')}"
+            print(f"  ✅ PASS POST /api/sources documents (slug={data.get('data', {}).get('slug')})")
             global PASS
             PASS += 1
     except Exception as e:
-        print(f"  ❌ FAIL POST /api/documents/upload: {e}")
+        print(f"  ❌ FAIL POST /api/sources documents: {e}")
         global FAIL
         FAIL += 1
 
