@@ -18,17 +18,22 @@ export function SourcesPage() {
   const navigate = useNavigate()
   const { setDrawerContent } = useLayout()
 
-  // Set drawer content (knowledge base list)
+  // Set drawer content (knowledge base list + 知识沉淀)
   useEffect(() => {
-    setDrawerContent({
-      title: '知识库',
-      items: sources.map(s => ({
+    const items: { id: string; label: string; active?: boolean; onClick: () => void }[] = [
+      {
+        id: '_wiki',
+        label: '📄 知识沉淀',
+        onClick: () => navigate('/wiki'),
+      },
+      ...sources.map(s => ({
         id: s.name,
         label: s.name,
         active: false,
         onClick: () => navigate(`/wiki/${s.name}`),
       })),
-    })
+    ]
+    setDrawerContent({ title: '知识库', items })
   }, [sources])
 
   // 统一添加弹窗
