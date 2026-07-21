@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ContentRightPanel } from '@/components/layout/ContentRightPanel'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
@@ -11,12 +11,14 @@ import { Loader2, BookOpen } from 'lucide-react'
 export function WikiGlobalPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
   const [currentSlug, setCurrentSlug] = useState('')
   const [rawContent, setRawContent] = useState('')
   const [pageType, setPageType] = useState<'wiki' | 'topic'>('wiki')
   const [wikiData, setWikiData] = useState<WikiPageResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initialSlug, setInitialSlug] = useState<string | null>(null)
 
   const selectedKb = name || ''
 
@@ -35,6 +37,7 @@ export function WikiGlobalPage() {
     setCurrentSlug('')
     setRawContent('')
     setWikiPages([])
+    setInitialSlug(null)
     fetchWikiModules().then(modules => {
       const pages = modules
         .filter(m => {
@@ -45,10 +48,29 @@ export function WikiGlobalPage() {
         .map(m => ({ slug: m.slug, name: (m.title || m.slug.split('/').pop() || m.slug) }))
       setWikiPages(pages)
       if (pages.length > 0) {
-        loadContent(pages[0].slug, true)
+        // 优先从 URL hash 取 slug，否则选第一个
+        const hashSlug = location.hash?.replace(/^#/, '') || ''
+        const target = hashSlug && pages.find(p => p.slug === hashSlug) ? hashSlug : pages[0].slug
+        setInitialSlug(target)
       }
     }).catch(() => {})
   }, [name])
+
+  // URL hash 变化时切换文档（侧边栏文档树点击触发）
+  useEffect(() => {
+    const hash = location.hash?.replace(/^#/, '') || ''
+    if (hash && hash !== currentSlug && wikiPages.find(p => p.slug === hash)) {
+      loadContent(hash, true)
+    }
+  }, [location.hash])
+
+  // 初始加载选中的文档
+  useEffect(() => {
+    if (initialSlug) {
+      loadContent(initialSlug, true)
+      setInitialSlug(null)
+    }
+  }, [initialSlug])
 
   const extractText = (children: any): string => {
     if (typeof children === 'string') return children
@@ -66,6 +88,12 @@ export function WikiGlobalPage() {
       setRawContent(data.content || '')
       setPageType(data.type as 'wiki' | 'topic')
       setCurrentSlug(slug)
+      // 更新 URL hash，侧边栏文档树据此高亮
+      const newHash = `#${slug}`
+      if (location.hash !== newHash) {
+        window.history.replaceState(null, '', newHash)
+        window.dispatchEvent(new Event('popstate'))
+      }
     } catch {
       setRawContent('')
       setPageType('wiki')

@@ -115,7 +115,7 @@ export function AppSidebar() {
           <div key={`dir-${dirPath}`}>
             <button onClick={() => toggleDir(dirPath)}
               style={{ paddingLeft: `${indent + 12}px` }}
-              className="w-full flex items-center gap-0.5 text-left py-0.5 pr-2 rounded text-[11px] font-mono text-sidebar-text hover:bg-white/10 hover:text-sidebar-active transition">
+              className="w-full flex items-center gap-0.5 text-left py-0.5 pr-2 rounded text-[12px] font-mono text-sidebar-text hover:bg-white/10 hover:text-sidebar-active transition">
               <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
               <span className="truncate">{dirName}</span>
             </button>
@@ -127,7 +127,7 @@ export function AppSidebar() {
         els.push(
           <button key={m.slug} onClick={() => navigate(`/${currentKB}#${m.slug}`)}
             style={{ paddingLeft: `${indent + 28}px` }}
-            className={`block w-full text-left py-0.5 pr-2 rounded text-[11px] leading-snug hover:bg-white/10 transition truncate font-mono ${
+            className={`block w-full text-left py-0.5 pr-2 rounded text-[12px] leading-snug hover:bg-white/10 transition truncate font-mono ${
               location.hash === `#${m.slug}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
             }`}>
             {m.title || m.slug.split('/').pop()}
@@ -152,7 +152,7 @@ export function AppSidebar() {
             W
           </button>
           {sidebarOpen && (
-            <span className="text-[11px] font-bold text-sidebar-active truncate ml-2">OpenCodeWiki</span>
+            <span className="text-[12px] font-bold text-sidebar-active truncate ml-2">OpenCodeWiki</span>
           )}
           {sidebarOpen && (
             <button onClick={toggleSidebar} className="p-1 rounded hover:bg-white/10 text-sidebar-text ml-auto">
@@ -188,7 +188,7 @@ export function AppSidebar() {
           <div className="px-2 mb-2">
             <div className="relative">
               <button onClick={() => setKbDropdownOpen(o => !o)}
-                className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono text-sidebar-text hover:bg-white/10 transition">
+                className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-mono text-sidebar-text hover:bg-white/10 transition">
                 <GitFork className="w-3 h-3 shrink-0" />
                 <span className="truncate">{currentKB || '选择知识库'}</span>
                 <ChevronDown className="w-3 h-3 ml-auto shrink-0" />
@@ -199,7 +199,7 @@ export function AppSidebar() {
                   {kbList.map(kb => (
                     <button key={kb.name}
                       onClick={() => { navigate(`/wiki/${kb.name}`); setKbDropdownOpen(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-mono hover:bg-white/10 transition ${
+                      className={`w-full text-left px-3 py-1.5 text-[12px] font-mono hover:bg-white/10 transition ${
                         currentKB === kb.name ? 'text-cyber-blue-light bg-cyber-blue/10' : 'text-sidebar-text'
                       }`}>
                       {kb.name}
@@ -220,22 +220,22 @@ export function AppSidebar() {
             {showDocTree ? (
               /* Doc tree */
               <div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5 flex items-center justify-between">
+                <div className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5 flex items-center justify-between">
                   文档
                   <button className="text-slate-500 hover:text-sidebar-text">
                     <Plus className="w-3 h-3" />
                   </button>
                 </div>
                 {kbModules.length > 0 ? docTree : (
-                  <div className="text-[10px] text-slate-600 px-2.5 py-4 text-center">暂无文档</div>
+                  <div className="text-[12px] text-slate-600 px-2.5 py-4 text-center">暂无文档</div>
                 )}
                 {/* Topics in sidebar */}
                 {topics.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-slate-700">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5">主题</div>
+                    <div className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5">主题</div>
                     {topics.map(t => (
                       <button key={t.slug} onClick={() => navigate(`/${currentKB}#${t.slug}`)}
-                        className={`block w-full text-left px-2.5 py-1 rounded text-[11px] hover:bg-white/10 transition truncate font-mono ${
+                        className={`block w-full text-left px-2.5 py-1 rounded text-[12px] hover:bg-white/10 transition truncate font-mono ${
                           location.hash === `#${t.slug}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
                         }`}>
                         #{t.slug}
@@ -251,7 +251,7 @@ export function AppSidebar() {
               /* QA / Admin / Other pages — session history */
               <div>
                 <button onClick={() => setSessionsExpanded(o => !o)}
-                  className="w-full flex items-center gap-1 px-2.5 py-1 mb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition">
+                  className="w-full flex items-center gap-1 px-2.5 py-1 mb-1 text-[12px] font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition">
                   <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${sessionsExpanded ? '' : '-rotate-90'}`} />
                   历史问答
                 </button>
@@ -259,13 +259,13 @@ export function AppSidebar() {
                   sessionList.length > 0 ? sessionList.map((s: any) => (
                     <button key={s.session_id}
                       onClick={() => navigate(`/qa/q${s.root_qid}`)}
-                      className={`block w-full text-left px-2.5 py-1.5 rounded text-[11px] leading-snug hover:bg-white/10 transition truncate ${
+                      className={`block w-full text-left px-2.5 py-1.5 rounded text-[12px] leading-snug hover:bg-white/10 transition truncate ${
                         location.pathname === `/qa/q${s.root_qid}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
                       }`}>
                       {s.root_question || '新对话'}
                     </button>
                   )) : (
-                    <div className="text-[10px] text-slate-600 px-2.5 py-4 text-center">暂无问答记录</div>
+                    <div className="text-[12px] text-slate-600 px-2.5 py-4 text-center">暂无问答记录</div>
                   )
                 )}
               </div>
@@ -289,7 +289,7 @@ export function AppSidebar() {
 
         {/* User */}
         <div className={`mb-3 ${sidebarOpen ? 'px-2' : 'flex justify-center'}`}>
-          <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center text-[10px] font-bold text-sidebar-text">
+          <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center text-[12px] font-bold text-sidebar-text">
             L
           </div>
         </div>

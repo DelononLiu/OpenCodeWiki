@@ -24,14 +24,14 @@ function renderQAPage(route = '/qa') {
 describe('QAPage (simplified)', () => {
   it('should show empty state when no active session', () => {
     renderQAPage()
-    const hints = screen.getAllByText('对代码库提问')
+    const hints = screen.getAllByText('对代码和文档提问')
     expect(hints.length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('我可以帮你理解架构、定位代码或解释工作原理')).toBeInTheDocument()
+    expect(screen.getByText('我可以帮你理解代码架构、检索文档或解释工作原理')).toBeInTheDocument()
   })
 
   it('should render bottom input bar', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('在此继续追问...')
+    const input = screen.getByPlaceholderText('输入你的问题...')
     expect(input).toBeInTheDocument()
     expect(screen.getByText('发送')).toBeInTheDocument()
   })
@@ -44,7 +44,7 @@ describe('QAPage (simplified)', () => {
 
   it('should show bottom input is enabled initially', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('在此继续追问...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('输入你的问题...') as HTMLInputElement
     expect(input.disabled).toBe(false)
   })
 })

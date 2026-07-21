@@ -300,8 +300,8 @@ export function QAPage() {
           <div ref={messageAreaRef} className="flex-1 overflow-y-auto px-8 py-6 no-scrollbar pb-28">
             {!activeSession && (
               <div className="text-center text-gray-400 py-20">
-                <h2 className="text-lg font-bold text-gray-700 mb-2">对代码库提问</h2>
-                <p className="text-sm">我可以帮你理解架构、定位代码或解释工作原理</p>
+                <h2 className="text-lg font-bold text-gray-700 mb-2">对代码和文档提问</h2>
+                <p className="text-sm">我可以帮你理解代码架构、检索文档或解释工作原理</p>
               </div>
             )}
 
@@ -371,7 +371,7 @@ export function QAPage() {
                   }
                 }}
                 className="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1.5 px-2"
-                placeholder="在此继续追问..."
+                placeholder="输入你的问题..."
                 data-qa-input
                 disabled={loading}
               />
