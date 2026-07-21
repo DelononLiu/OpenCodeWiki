@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout/Header'
 import { fetchQaEntries, calibrateQaEntry, fetchTopics, fetchTopic, fetchTopicDraft, fetchWikiModules, publishTopic, updateTopicDraft } from '@/api/client'
+import { useLayout } from '@/contexts/LayoutContext'
 import type { QaEntry, Topic, TopicDraft } from '@/types'
 import { Loader2, CheckCircle, Eye, ArrowUpCircle, BookOpen, Shield } from 'lucide-react'
 
@@ -12,6 +13,19 @@ export function AdminPage() {
   const [pendingQa, setPendingQa] = useState<QaEntry[]>([])
   const [poolTopics, setPoolTopics] = useState<Topic[]>([])
   const [pendingCounts, setPendingCounts] = useState({ qa: 0, topic: 0, wiki: 0, repo: 0 })
+  const { setDrawerContent } = useLayout()
+
+  // Set drawer content (知识沉淀子项)
+  useEffect(() => {
+    setDrawerContent({
+      title: '知识沉淀',
+      items: [
+        { id: 'qa-cal', label: `⏳ QA 校准${pendingCounts.qa > 0 ? ` (${pendingCounts.qa})` : ''}`, active: false, onClick: () => setCurrentView('qa') },
+        { id: 'topic-sug', label: `📝 Topic 建议${pendingCounts.topic > 0 ? ` (${pendingCounts.topic})` : ''}`, active: false, onClick: () => setCurrentView('topic') },
+        { id: 'wiki-chg', label: `📖 Wiki 变动${pendingCounts.wiki > 0 ? ` (${pendingCounts.wiki})` : ''}`, active: false, onClick: () => setCurrentView('wiki') },
+      ],
+    })
+  }, [pendingCounts])
 
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null)
   const [selectedDraft, setSelectedDraft] = useState<TopicDraft | null>(null)

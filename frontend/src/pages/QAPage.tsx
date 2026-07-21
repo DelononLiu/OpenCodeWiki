@@ -55,7 +55,7 @@ export function QAPage() {
 
   useEffect(() => { fetchSessionList() }, [fetchSessionList])
 
-  // Feed session history to sidebar drawer
+  // Feed drawer content (session history)
   useEffect(() => {
     setDrawerContent({
       title: '历史问答',
