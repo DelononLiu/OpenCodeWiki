@@ -195,6 +195,41 @@ def _init_knowledge_db(db: sqlite3.Connection):
         except Exception:
             pass
 
+    # Migration: fix CHECK constraint to include 'submitted' for existing databases
+    try:
+        # Check if 'submitted' is in the CHECK by examining table_info
+        # We detect old constraint by trying a temp insert — if it fails, we migrate
+        old_check = True
+        try:
+            db.execute("INSERT INTO topic_drafts (topic_slug, raw_content, status) VALUES ('__migration_test__', 'test', 'submitted')")
+            db.execute("DELETE FROM topic_drafts WHERE topic_slug = '__migration_test__'")
+            old_check = False
+        except Exception:
+            pass
+
+        if old_check:
+            # Recreate table with correct CHECK constraint
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS topic_drafts_new (
+                    topic_slug    TEXT PRIMARY KEY REFERENCES topics(slug),
+                    raw_content   TEXT NOT NULL,
+                    edited_content TEXT DEFAULT NULL,
+                    status        TEXT DEFAULT 'pending'
+                                  CHECK(status IN ('pending','submitted','approved','rejected')),
+                    reviewer      TEXT DEFAULT '',
+                    created_at    TEXT DEFAULT (datetime('now')),
+                    updated_at    TEXT DEFAULT (datetime('now')),
+                    reviewed_at   TEXT DEFAULT NULL,
+                    reject_reason TEXT DEFAULT NULL,
+                    generated_at  TEXT DEFAULT NULL
+                );
+                INSERT INTO topic_drafts_new SELECT * FROM topic_drafts;
+                DROP TABLE topic_drafts;
+                ALTER TABLE topic_drafts_new RENAME TO topic_drafts;
+            """)
+    except Exception:
+        pass
+
 
 def close_knowledge_db():
     global _knowledge_db
