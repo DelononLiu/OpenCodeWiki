@@ -58,7 +58,7 @@ def index_wiki_page(slug: str, content: str) -> None:
         chunk = chunk.strip()
         if not chunk or len(chunk) < 20:
             continue
-        # 提取关键词（标题行 + 去停用词的前 10 个词）
+        # 提取关键词：取 chunk 的第一行（去掉 ## 前缀）
         first_line = chunk.split("\n")[0].lstrip("# ").strip()
         keywords = first_line
         db.execute(
