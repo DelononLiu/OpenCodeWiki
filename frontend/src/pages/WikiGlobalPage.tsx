@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
-import { useLayout } from '@/contexts/LayoutContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -13,7 +12,6 @@ import { ChevronDown, Loader2, BookOpen } from 'lucide-react'
 export function WikiGlobalPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
-  const { setDrawerContent } = useLayout()
   const [kbList, setKbList] = useState<{name: string}[]>([])
   const [selectedKb, setSelectedKb] = useState(name || '')
   const [wikiPages, setWikiPages] = useState<{slug: string; name: string}[]>([])
@@ -35,18 +33,65 @@ export function WikiGlobalPage() {
     }).catch(() => {})
   }, [name])
 
-  // 设置抽屉内容（页面列表）
-  useEffect(() => {
-    setDrawerContent({
-      title: '页面',
-      items: wikiPages.map(p => ({
-        id: p.slug,
-        label: p.name,
-        active: p.slug === currentSlug,
-        onClick: () => loadContent(p.slug),
-      })),
+  // 折叠状态
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const toggleDir = (path: string) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
     })
-  }, [wikiPages, currentSlug])
+  }
+
+  // 将页面列表渲染为可折叠树
+  const renderWikiTree = () => {
+    interface TreeNode { dirs: Record<string, TreeNode>; files: {slug:string; title:string}[] }
+    const root: TreeNode = { dirs: {}, files: [] }
+    for (const p of wikiPages) {
+      const parts = p.slug.split('/')
+      let node = root
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!node.dirs[parts[i]]) node.dirs[parts[i]] = { dirs: {}, files: [] }
+        node = node.dirs[parts[i]]
+      }
+      node.files.push({ slug: p.slug, title: p.name })
+    }
+
+    const renderNode = (node: TreeNode, depth: number, path: string): React.ReactNode[] => {
+      const els: React.ReactNode[] = []
+      const indent = depth * 12
+      for (const dirName of Object.keys(node.dirs).sort()) {
+        const dirPath = path ? `${path}/${dirName}` : dirName
+        const isExpanded = expandedDirs.has(dirPath)
+        els.push(
+          <div key={`dir-${dirPath}`}>
+            <button onClick={() => toggleDir(dirPath)}
+              style={{ paddingLeft: `${indent + 6}px` }}
+              className="w-full flex items-center gap-0.5 text-left py-1 pr-2 rounded text-[11px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+              <span className={`inline-block w-3 h-3 text-center text-[10px] leading-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▸</span>
+              <span className="truncate">📁 {dirName}</span>
+            </button>
+            {isExpanded && <div>{renderNode(node.dirs[dirName], depth + 1, dirPath)}</div>}
+          </div>
+        )
+      }
+      for (const f of node.files.sort((a,b) => a.title.localeCompare(b.title))) {
+        els.push(
+          <button key={f.slug} onClick={() => loadContent(f.slug)}
+            style={{ paddingLeft: `${indent + 22}px` }}
+            className={`block w-full text-left py-1 pr-2 rounded text-xs leading-snug hover:bg-gray-50 transition truncate ${currentSlug === f.slug ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-600'}`}>
+            {f.title}
+          </button>
+        )
+      }
+      return els
+    }
+    return renderNode(root, 0, '')
+  }
 
   // 切换知识库时重置并加载内容
   useEffect(() => {
@@ -66,7 +111,7 @@ export function WikiGlobalPage() {
           const sourceName = m.name.split(' / ')[0]
           return sourceName === kb
         })
-        .map(m => ({ slug: m.slug, name: m.slug }))
+        .map(m => ({ slug: m.slug, name: (m.title || m.slug.split('/').pop() || m.slug) }))
       setWikiPages(pages)
       if (pages.length > 0) {
         loadContent(pages[0].slug, true)
@@ -109,8 +154,15 @@ export function WikiGlobalPage() {
     <div className="h-full flex flex-col bg-[#F8F9FA]">
       <div className="flex-1 flex overflow-hidden">
 
-        {/* 左侧导航 */}
-        {/* 页面导航已移到左侧抽屉 */}
+        {/* 左侧文档树 */}
+        <aside className="w-56 border-r border-gray-200/50 bg-white flex flex-col overflow-y-auto no-scrollbar shrink-0">
+          <div className="py-3 px-2">
+            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2.5">文档</div>
+            {wikiPages.length > 0 ? renderWikiTree() : (
+              <div className="px-2.5 py-4 text-gray-400 text-sm">暂无文档</div>
+            )}
+          </div>
+        </aside>
 
         {/* 主内容区 */}
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">

@@ -48,7 +48,7 @@ export function fetchWikiPage(slug: string): Promise<WikiPageResponse> {
 
 // ── Wiki Modules ──
 
-export function fetchWikiModules(): Promise<{ slug: string; name: string; type: string }[]> {
+export function fetchWikiModules(): Promise<{ slug: string; name: string; type: string; title?: string }[]> {
   return request('/wiki/modules')
 }
 
