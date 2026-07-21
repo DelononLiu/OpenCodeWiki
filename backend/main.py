@@ -588,14 +588,19 @@ async def api_qa_refine(qid: int):
 # ── QA SSE (Streaming) ────────────────────────────────────────
 
 from langchain_core.messages import HumanMessage, AIMessage
-async def _qa_event_stream(question: str, session_id: str, repo: str = "", context: dict | None = None, history: list | None = None) -> AsyncGenerator[str, None]:
-    """LangGraph SSE 流式输出"""
+
+
+def _sse(event_type: str, data: dict) -> str:
+    return f"data: {json.dumps({'type': event_type, **data}, ensure_ascii=False)}\n\n"
+
+
+async def _run_qa_stream(qid: int, question: str, session_id: str, repo: str = "", history_messages: list | None = None) -> AsyncGenerator[str, None]:
+    """执行 QA 流式回答，产出的 SSE 事件由 /api/qa/stream/{qid} 转发。"""
     from agent.graph import get_graph, get_agent
 
-    # 构建历史消息上下文
     prior_messages = []
-    if history:
-        for m in history:
+    if history_messages:
+        for m in history_messages:
             role = m.get("role", "")
             content = m.get("content", "")
             if role == "user":
@@ -603,15 +608,9 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
             elif role == "assistant":
                 prior_messages.append(AIMessage(content=content))
 
-    # 追问场景 - 问题前缀指引 LLM 基于上文回答
     augmented_question = question
     if prior_messages:
         augmented_question = f"[多轮对话，请基于上文继续回答]\n{question}"
-
-    def _sse(event_type: str, data: dict) -> str:
-        return f"data: {json.dumps({'type': event_type, **data}, ensure_ascii=False)}\n\n"
-
-    yield _sse("session", {"id": session_id})
 
     # Search wiki_index for relevant knowledge
     wiki_context = ""
@@ -620,19 +619,16 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
         wiki_results = search_wiki_index(question, limit=3)
         if wiki_results:
             wiki_chunks = "\n---\n".join(
-                f"来源: {r['slug']}\n{r['chunk_text'][:500]}"
-                for r in wiki_results
+                f"来源: {r['slug']}\n{r['chunk_text'][:500]}" for r in wiki_results
             )
             wiki_context = f"\n\n[知识库相关沉淀]\n{wiki_chunks}\n"
     except Exception:
         pass
 
-    # Inject wiki context as a system message
     if wiki_context:
         prior_messages.insert(0, HumanMessage(content=f"[系统上下文 - 知识库已有沉淀，请参考]\n{wiki_context}"))
 
     try:
-        # 第一步：意图分类（不需要流式）
         graph = get_graph()
         state = await asyncio.wait_for(
             graph.ainvoke(
@@ -643,7 +639,6 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
         )
         intent = state.get("intent", "general")
 
-        # 第二步：从子 agent 流式输出 token
         agent = get_agent(intent)
         repo_hint = f"\n\n(当前项目: {repo})" if repo else ""
         msgs = list(prior_messages) + [HumanMessage(content=augmented_question + repo_hint)]
@@ -663,14 +658,12 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
             except StopAsyncIteration:
                 break
 
-            # 流式 LLM token
             if event["event"] == "on_chat_model_stream":
                 chunk = event["data"]["chunk"]
                 if hasattr(chunk, "content") and chunk.content:
                     final_answer += chunk.content
                     yield _sse("token", {"content": chunk.content})
 
-            # 收集引用文件
             if event["event"] == "on_tool_end":
                 tool_name = event.get("name", "")
                 if tool_name in ("code_search", "code_context", "code_grep", "code_files", "doc_read"):
@@ -684,8 +677,7 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
                                 if key not in seen_keys:
                                     seen_keys.add(key)
                                     sources.append({
-                                        "file": item["file"],
-                                        "line": item.get("line", ""),
+                                        "file": item["file"], "line": item.get("line", ""),
                                         "snippet": str(item.get("snippet", item.get("content", "")))[:300],
                                     })
                     except (json.JSONDecodeError, TypeError):
@@ -693,7 +685,12 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
 
         if sources:
             yield _sse("sources", {"sources": sources})
-        if not final_answer:
+
+        if final_answer:
+            from stores.qa import update_entry_answer, match_topic
+            update_entry_answer(qid, final_answer, sources)
+            match_topic(session_id, question, final_answer)
+        else:
             yield _sse("error", {"message": "Agent did not produce an answer"})
     except asyncio.TimeoutError:
         yield _sse("error", {"message": "搜索超时，请简化问题重试"})
@@ -704,22 +701,33 @@ async def _qa_event_stream(question: str, session_id: str, repo: str = "", conte
 
 
 @app.post("/api/qa")
-async def api_qa(request: Request):
+async def api_qa_create(request: Request):
+    """创建 QA 条目，返回 qid。前端拿到 qid 后跳转，再连接流式。"""
     body = await request.json()
     question = (body.get("question") or "").strip()
+    if not question:
+        return _err("Missing question")
     session_id = body.get("sessionId") or str(uuid.uuid4())
     repo = body.get("repo") or body.get("project") or ""
-    context = body.get("context")
-    history_messages = body.get("messages") or []
 
-    if not question:
-        return StreamingResponse(
-            iter([f"data: {json.dumps({'type': 'error', 'message': 'Missing question'})}\n\n"]),
-            media_type="text/event-stream",
-        )
+    from stores.qa import create_entry
+    entry = create_entry({"question": question, "answer": "", "repo": repo, "session_id": session_id, "mode": "deep", "sources": []})
+    return _ok({"qid": entry["qid"], "session_id": entry["session_id"]})
+
+
+@app.get("/api/qa/stream/{qid}")
+async def api_qa_stream(qid: int, request: Request):
+    """流式回答指定 QA 条目。"""
+    from stores.qa import get_entry
+    entry = get_entry(qid)
+    if not entry:
+        raise HTTPException(404, f"QA #{qid} not found")
+
+    history_messages_raw = request.query_params.get("messages")
+    history_messages = json.loads(history_messages_raw) if history_messages_raw else None
 
     return StreamingResponse(
-        _qa_event_stream(question, session_id, repo, context, history_messages),
+        _run_qa_stream(qid, entry["question"], entry["session_id"], entry.get("repo", ""), history_messages),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )

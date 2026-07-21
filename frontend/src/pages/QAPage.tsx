@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2 } from 'lucide-react'
@@ -32,10 +31,8 @@ export function QAPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const { stream, abort } = useSSE()
   const [searchParams, setSearchParams] = useSearchParams()
   const autoSubmitDoneRef = useRef(false)
-  const streamAbortedRef = useRef(false)
   const messageAreaRef = useRef<HTMLDivElement>(null)
 
   // ── Backend data ────────────────────────────────────────
@@ -87,126 +84,21 @@ export function QAPage() {
     }
   }, [])
 
-  const cancelStream = useCallback(() => {
-    streamAbortedRef.current = true
-    abort()
-  }, [abort])
-
-  const submitQuestion = useCallback(async (question: string, sessionId?: string) => {
+  const submitQuestion = useCallback(async (question: string) => {
     if (!question.trim()) return
     setLoading(true)
-
-    // Determine or create session
-    let sid = sessionId || activeSessionId
-    let session: Session
-    if (sid && sessions[sid]) {
-      session = sessions[sid]
-    } else {
-      session = createSession(question)
-      sid = session.sessionId
-      setSessions(prev => ({ ...prev, [sid!]: session }))
-    }
-
-    // Add user message
-    const userMsg: Message = { role: 'user', content: question }
-    const updatedMessages = [...session.messages, userMsg]
-
-    setSessions(prev => ({
-      ...prev,
-      [sid!]: {
-        ...prev[sid!],
-        messages: updatedMessages,
-        isStreaming: true,
-        streamingAnswer: '',
-      },
-    }))
-    setActiveSessionId(sid!)
-
-    let collectedAnswer = ''
-    let collectedSources: any[] = []
-    let errorMsg = ''
-    streamAbortedRef.current = false
-    const isNewSession = !sessionId && !activeSessionId
-
-    // Auto-abort after 120s timeout
-    const timeoutId = setTimeout(() => {
-      streamAbortedRef.current = true
-      cancelStream()
-    }, 120_000)
-
-    // Pass message history for multi-turn context
-    const history = isNewSession ? [] : session.messages
-    await stream('/api/qa', { question, messages: history }, (msg) => {
-      if (msg.type === 'token' && msg.content) {
-        collectedAnswer += msg.content as string
-        setSessions(prev => ({
-          ...prev,
-          [sid!]: {
-            ...prev[sid!],
-            streamingAnswer: collectedAnswer,
-          },
-        }))
-      } else if (msg.type === 'sources' && msg.sources) {
-        collectedSources = msg.sources as any[]
-        setSourceRefs(collectedSources)
-      } else if (msg.type === 'error' && msg.message) {
-        errorMsg = msg.message as string
-      }
-    })
-
-    clearTimeout(timeoutId)
-
-    if (streamAbortedRef.current) {
-      setSessions(prev => {
-        const s = prev[sid!]
-        if (!s) return prev
-        return { ...prev, [sid!]: { ...s, isStreaming: false } }
-      })
-      setLoading(false)
-      return
-    }
-
-    // Stream complete — add assistant message
-    const assistantMsg: Message = {
-      role: 'assistant',
-      content: collectedAnswer || (errorMsg ? `> ⚠️ ${errorMsg}` : ''),
-    }
-
-    setSessions(prev => ({
-      ...prev,
-      [sid!]: {
-        ...prev[sid!],
-        messages: [...prev[sid!].messages, assistantMsg],
-        streamingAnswer: '',
-        isStreaming: false,
-      },
-    }))
-
-    // Persist to backend
     try {
-      const saveResp = await fetch('/api/qa/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          answer: collectedAnswer || '',
-          repo: '',
-          session_id: sid,
-          session_create: isNewSession,
-          sources: collectedSources,
-        }),
+      const res = await fetch('/api/qa', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
       })
-      const saveData = await saveResp.json()
-      // 新会话创建成功后跳转到专属 URL
-      if (saveData.ok && isNewSession && saveData.data?.qid) {
-        navigate(`/qa/q${saveData.data.qid}`, { replace: true })
+      const d = await res.json()
+      if (d.ok && d.data?.qid) {
+        navigate(`/qa/q${d.data.qid}`, { replace: true })
       }
-      // Refresh session list so left panel shows updated history
-      fetchSessionList()
     } catch { /* ignore */ }
-
     setLoading(false)
-  }, [activeSessionId, sessions, stream, createSession, fetchSessionList, navigate])
+  }, [navigate])
 
   const handleFeedback = useCallback((sessionId: string, _msgIndex: number, type: 'accepted' | 'rejected') => {
     setSessions(prev => {
@@ -225,43 +117,6 @@ export function QAPage() {
     }
   }, [activeSession?.messages, activeSession?.streamingAnswer])
 
-  // Load a session from backend (for history clicks / ?qid= links)
-  const loadSession = useCallback(async (sessionId: string, rootQid: number) => {
-    if (sessions[sessionId]?.messages.length) return  // already loaded
-
-    const [entryRes, fuRes] = await Promise.all([
-      fetch(`/api/qa/entry/${rootQid}`),
-      fetch(`/api/qa/entry/${rootQid}/followups`),
-    ])
-    const entry = await entryRes.json()
-    const followups = await fuRes.json()
-
-    if (!entry.ok) return
-
-    const e = entry.data
-    const msgs: Message[] = [
-      { role: 'user', content: e.question },
-      { role: 'assistant', content: e.answer || '' },
-    ]
-    if (followups.ok && followups.data) {
-      for (const f of followups.data) {
-        msgs.push({ role: 'user', content: f.question })
-        if (f.answer) msgs.push({ role: 'assistant', content: f.answer })
-      }
-    }
-
-    setSessions(prev => ({
-      ...prev,
-      [sessionId]: {
-        sessionId,
-        question: e.question,
-        messages: msgs,
-        streamingAnswer: '',
-        isStreaming: false,
-      },
-    }))
-  }, [sessions])
-
   // Auto-submit ?q= on first mount only
   useEffect(() => {
     if (autoSubmitDoneRef.current) return
@@ -276,7 +131,7 @@ export function QAPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // URL 变化时：/qa/qN → 加载会话，/qa → 清空
+  // URL 变化时：/qa/qN → 加载会话 + 连接流式，/qa → 清空
   useEffect(() => {
     const match = location.pathname.match(/^\/qa\/q(\d+)$/)
     if (!match) {
@@ -284,14 +139,58 @@ export function QAPage() {
       return
     }
     const qid = parseInt(match[1], 10)
-    fetch(`/api/qa/entry/${qid}`)
-      .then(r => r.json())
-      .then(async d => {
-        if (!d.ok || !d.data?.session_id) return
-        await loadSession(d.data.session_id, qid)
-        setActiveSessionId(d.data.session_id)
+    const sid = `session-${qid}`
+
+    // 创建临时 session 并立即连接流式
+    const session = createSession('')
+    const sid_actual = session.sessionId
+    setSessions(prev => ({ ...prev, [sid_actual]: { ...session, isStreaming: true } }))
+    setActiveSessionId(sid_actual)
+
+    // 连接 SSE 流式
+    const abortCtrl = new AbortController()
+    ;(async () => {
+      try {
+        const resp = await fetch(`/api/qa/stream/${qid}`, {
+          signal: abortCtrl.signal,
+        })
+        const reader = resp.body!.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() || ''
+          for (const line of lines) {
+            const t = line.trim()
+            if (!t || !t.startsWith('data: ')) continue
+            try {
+              const msg = JSON.parse(t.slice(6))
+              if (msg.type === 'token' && msg.content) {
+                setSessions(prev => {
+                  const s = prev[sid_actual]
+                  if (!s) return prev
+                  return { ...prev, [sid_actual]: { ...s, streamingAnswer: (s.streamingAnswer || '') + msg.content } }
+                })
+              } else if (msg.type === 'sources' && msg.sources) {
+                setSourceRefs(msg.sources)
+              }
+            } catch { /* skip */ }
+          }
+        }
+      } catch { /* ignore abort */ }
+      // 流式结束
+      setSessions(prev => {
+        const s = prev[sid_actual]
+        if (!s) return prev
+        return { ...prev, [sid_actual]: { ...s, isStreaming: false } }
       })
-      .catch(() => {})
+    })()
+
+    return () => abortCtrl.abort()  // 清理
   }, [location.pathname])
 
   return (

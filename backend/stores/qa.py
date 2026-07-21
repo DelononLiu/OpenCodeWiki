@@ -46,6 +46,17 @@ def create_entry(data: dict) -> dict:
     return {"id": eid, "qid": qid, "session_id": session_id}
 
 
+def update_entry_answer(qid: int, answer: str, sources: list | None = None):
+    """流式回答完成后，更新条目的回答内容和引用来源。"""
+    db = get_qa_db()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "UPDATE qa_entries SET answer = ?, sources = ?, status = 'done', updated_at = ? WHERE qid = ?",
+        (answer, json.dumps(sources or []), now, qid),
+    )
+    db.commit()
+
+
 def _parse_json(val: str | None, default: list = None) -> list:
     if not val:
         return default or []
