@@ -217,6 +217,23 @@ def list_followups(qid: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def list_session_messages(session_id: str) -> list[dict]:
+    """返回某个 session 的所有消息（全部轮次），按时间正序，含 sources。"""
+    db = get_qa_db()
+    rows = db.execute(
+        "SELECT qid, question, answer, status, sources, created_at, session_id "
+        "FROM qa_entries WHERE session_id = ? "
+        "ORDER BY created_at ASC",
+        (session_id,),
+    ).fetchall()
+    result = []
+    for r in rows:
+        entry = dict(r)
+        entry["sources"] = _parse_json(entry.get("sources"))
+        result.append(entry)
+    return result
+
+
 def list_sessions() -> list[dict]:
     """返回所有 session 摘要，按时间倒序。"""
     db = get_qa_db()

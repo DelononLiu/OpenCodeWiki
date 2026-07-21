@@ -503,6 +503,16 @@ async def api_qa_followups(qid: int):
     return _ok(list_followups(qid))
 
 
+@app.get("/api/qa/session/{session_id}")
+async def api_qa_session_messages(session_id: str):
+    """返回某个 session 的全部消息（多轮对话）。"""
+    from stores.qa import list_session_messages
+    msgs = list_session_messages(session_id)
+    if not msgs:
+        raise HTTPException(404, "Session not found")
+    return _ok({"session_id": session_id, "messages": msgs})
+
+
 @app.post("/api/qa/entry/{qid}/calibrate")
 async def api_qa_calibrate(qid: int, body: dict):
     answer = (body.get("answer") or "").strip()

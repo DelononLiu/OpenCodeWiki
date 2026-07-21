@@ -360,29 +360,58 @@ export function QAPage() {
           return
         }
         const entry = entryData.data
-        const question = entry.question || ''
-        const hasAnswer = !!entry.answer
+        const sessionId = entry.session_id
 
-        const session = createSession(question, qid)
+        let messages: { role: 'user' | 'assistant'; content: string; sources?: {file: string; line: string; snippet: string}[] }[] = []
+        let rootQid = qid
+        let allSources: {file: string; line: string; snippet: string}[] = []
+
+        if (sessionId && entry.session_id) {
+          // 多轮对话：加载整个 session 的所有消息
+          try {
+            const sessRes = await fetch(`/api/qa/session/${encodeURIComponent(sessionId)}`, { signal: abortCtrl.signal })
+            if (sessRes.ok) {
+              const sessData = await sessRes.json()
+              if (sessData.ok && sessData.data?.messages) {
+                const rawMsgs: any[] = sessData.data.messages
+                rootQid = rawMsgs.length > 0 ? rawMsgs[0].qid : qid
+                for (const m of rawMsgs) {
+                  messages.push({ role: 'user', content: m.question || '' })
+                  if (m.answer) {
+                    messages.push({ role: 'assistant', content: m.answer, sources: m.sources })
+                  }
+                  if (m.sources?.length) allSources = m.sources
+                }
+              }
+            }
+          } catch { /* fallback to single entry */ }
+        }
+
+        // 如果 session 加载失败或没有 session_id，退化为单条
+        if (messages.length === 0) {
+          const question = entry.question || ''
+          messages.push({ role: 'user' as const, content: question })
+          if (entry.answer) {
+            messages.push({ role: 'assistant' as const, content: entry.answer, sources: entry.sources })
+          }
+          if (entry.sources?.length) allSources = entry.sources
+        }
+
+        const session = createSession(messages[0]?.content || '', rootQid)
         const sid = session.sessionId
-        const userMsg: Message = { role: 'user', content: question }
         setSessions(prev => ({
           ...prev,
           [sid]: {
             ...session,
-            messages: [
-              userMsg,
-              ...(hasAnswer ? [{ role: 'assistant' as const, content: entry.answer }] : []),
-            ],
+            messages: messages as Message[],
             streamingAnswer: '',
-            isStreaming: false,  // 历史问答不自动流式，避免重复跑 LLM
-            backendSessionId: entry.session_id || undefined,
+            isStreaming: false,
+            backendSessionId: sessionId || undefined,
+            rootQid,
           },
         }))
         setActiveSessionId(sid)
-        if (hasAnswer && entry.sources) {
-          setSourceRefs(entry.sources)
-        }
+        if (allSources.length > 0) setSourceRefs(allSources)
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         setLoadError('网络错误，请检查后端是否运行')
