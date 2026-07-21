@@ -29,11 +29,7 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Answer block hover action bar */
+/* Answer block action bar — always visible */
 .answer-block .action-bar {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.answer-block:hover .action-bar {
-  opacity: 1 !important;
+  opacity: 1;
 }

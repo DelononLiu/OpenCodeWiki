@@ -1,16 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
-import { Header } from '@/components/layout/Header'
-import { LeftSidebar } from '@/components/layout/LeftSidebar'
-import { WikiRightSidebar } from '@/components/layout/WikiRightSidebar'
-import { TopicRightSidebar } from '@/components/layout/TopicRightSidebar'
 import { BottomInput } from '@/components/layout/BottomInput'
+import { ContentRightPanel } from '@/components/layout/ContentRightPanel'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
 import type { WikiPageResponse } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { CodeBlock } from '@/components/content/CodeBlock'
 import { Hash, BookOpen, Loader2 } from 'lucide-react'
 
 export function WikiPage() {
@@ -23,7 +19,6 @@ export function WikiPage() {
   const [loading, setLoading] = useState(false)
   const articleRef = useRef<HTMLDivElement>(null)
 
-  // 从 markdown 提取第一级标题
   const extractH1 = (content: string): string => {
     const match = content.match(/^#\s+(.+)$/m)
     return match ? match[1].trim() : ''
@@ -59,7 +54,6 @@ export function WikiPage() {
       loadContent(currentHash)
       return
     }
-    // Default to first available document
     fetchWikiModules().then(modules => {
       const first = modules.find((m: any) => m.type === 'source') || modules[0]
       if (first) loadContent(first.slug, true)
@@ -67,7 +61,6 @@ export function WikiPage() {
     }).catch(() => loadContent('overview', true))
   }, [currentHash, loadContent])
 
-  // 从 React children 提取文本
   const extractText = (children: any): string => {
     if (typeof children === 'string') return children
     if (Array.isArray(children)) return children.map(c => extractText(c)).join('')
@@ -93,16 +86,14 @@ export function WikiPage() {
     }
   }, [rawContent])
 
-  // 检测是否含 ASCII art
   const isAsciiArt = (text: string) => /[┌└│├─┐┘┴┬┤╰╮╭╯]/.test(text)
 
   const handleNavigate = (slug: string) => { window.location.hash = slug }
 
   return (
-    <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" repoName={pageTitle || repo} />
+    <div className="h-full flex flex-col bg-[#F8FAFC]">
       <div className="flex-1 flex overflow-hidden">
-        <LeftSidebar currentSlug={currentSlug} currentTopic={pageType === 'topic' ? currentSlug : undefined} onNavigate={handleNavigate} />
+        {/* 主内容区 — 侧栏已包含文档树 */}
         <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
           <main className="flex-1 overflow-y-auto no-scrollbar">
             <div className="flex justify-center py-8 px-6">
@@ -119,15 +110,15 @@ export function WikiPage() {
                 {rawContent ? (
                   <div>
                     {pageType === 'topic' && (
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
-                        <span className="text-[10px] font-mono bg-cyber-blue/10 text-cyber-blue px-2 py-0.5 rounded font-bold">
-                          <Hash className="w-3 h-3 inline mr-1" />TOPIC VIEW
+                      /* Topic banner */
+                      <div className="flex items-center gap-3 mb-6 px-4 py-3 bg-gradient-to-r from-indigo-50 to-white rounded-xl border border-indigo-100">
+                        <span className="text-[10px] font-mono bg-cyber-blue text-white px-2.5 py-1 rounded-md font-bold flex items-center gap-1">
+                          <Hash className="w-3 h-3" />TOPIC
                         </span>
-                        <span className="text-[10px] text-gray-400">主题聚合视图</span>
+                        <span className="text-xs text-gray-500">
+                          {wikiData?.qa_entries?.length || 0} 个 QA 条目 · {wikiData?.wiki_links?.length || 0} 个关联文档
+                        </span>
                       </div>
-                    )}
-                    {pageType === 'wiki' && pageTitle && (
-                      <h1 className="text-2xl font-bold text-gray-900 mb-6 pb-3 border-b border-gray-200">{pageTitle}</h1>
                     )}
                     <article ref={articleRef}>
                       <ReactMarkdown
@@ -165,12 +156,9 @@ export function WikiPage() {
                               return <pre className="bg-gray-50 rounded-lg p-4 my-4 text-center text-gray-400 text-sm">mermaid</pre>
                             }
                             return (
-                              <SyntaxHighlighter style={vscDarkPlus} language={lang} PreTag="div" customStyle={{
-                                margin: '1.5rem 0', padding: '16px', borderRadius: '8px',
-                                fontSize: '13px', lineHeight: '1.6',
-                              }}>
+                              <CodeBlock language={lang}>
                                 {String(children).replace(/\n$/, '')}
-                              </SyntaxHighlighter>
+                              </CodeBlock>
                             )
                           },
                           pre: ({ children }) => <>{children}</>,
@@ -193,10 +181,12 @@ export function WikiPage() {
           </main>
           <BottomInput visible placeholder="对当前文档提问..." contextTag={currentSlug} />
         </div>
-        {pageType === 'topic'
-          ? <TopicRightSidebar qaEntries={wikiData?.qa_entries || []} wikiLinks={wikiData?.wiki_links || []} />
-          : <WikiRightSidebar renderedHtml={rawContent} />
-        }
+        <ContentRightPanel
+          pageType={pageType}
+          renderedHtml={rawContent}
+          qaEntries={wikiData?.qa_entries}
+          wikiLinks={wikiData?.wiki_links}
+        />
       </div>
     </div>
   )

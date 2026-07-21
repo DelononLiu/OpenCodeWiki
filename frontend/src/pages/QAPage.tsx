@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useSSE } from '@/hooks/useSSE'
-import { useLayout } from '@/contexts/LayoutContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  Loader2,
-  ThumbsUp, ThumbsDown, Copy, Share2, Check,
-} from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import { AnswerActions } from '@/components/qa/AnswerActions'
+import { CodeTraceCard } from '@/components/qa/CodeTraceCard'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -44,7 +42,6 @@ export function QAPage() {
   const [relatedQuestions, setRelatedQuestions] = useState<{qid: number; question: string; status: string}[]>([])
   const [sourceRefs, setSourceRefs] = useState<{file: string; line: string; snippet: string}[]>([])
   const [activeRootQid, setActiveRootQid] = useState<number | null>(null)
-  const { setDrawerContent } = useLayout()
   // Fetch session history
   const fetchSessionList = useCallback(() => {
     fetch('/api/sessions').then(r => r.json()).then(d => {
@@ -53,22 +50,6 @@ export function QAPage() {
   }, [])
 
   useEffect(() => { fetchSessionList() }, [fetchSessionList])
-
-  // Feed drawer content (session history)
-  useEffect(() => {
-    setDrawerContent({
-      title: '历史问答',
-      items: sessionList.map(sl => ({
-        id: sl.session_id,
-        label: sl.root_question || '新对话',
-        active: sl.session_id === activeSessionId,
-        onClick: () => {
-          if (sl.root_qid) loadSession(sl.session_id, sl.root_qid)
-          setActiveSessionId(sl.session_id)
-        },
-      })),
-    })
-  }, [sessionList, activeSessionId])
 
   // When active session changes, look up root_qid and fetch related + sources
   useEffect(() => {
@@ -275,36 +256,46 @@ export function QAPage() {
     }))
   }, [sessions])
 
-  // Auto-submit ?q= or load ?qid=
+  // Auto-submit ?q= on first mount only
   useEffect(() => {
     if (autoSubmitDoneRef.current) return
     const q = searchParams.get('q')
-    const qid = searchParams.get('qid')
-
     if (q) {
       autoSubmitDoneRef.current = true
       const clean = new URLSearchParams(searchParams)
       clean.delete('q')
       setSearchParams(clean, { replace: true })
       submitQuestion(q)
-    } else if (qid) {
-      const qidNum = parseInt(qid, 10)
-      if (!isNaN(qidNum)) {
-        autoSubmitDoneRef.current = true
-        const clean = new URLSearchParams(searchParams)
-        clean.delete('qid')
-        setSearchParams(clean, { replace: true })
-        // Find session from list, or load via entry API
-        fetch(`/api/qa/entry/${qidNum}`).then(r => r.json()).then(d => {
-          if (d.ok && d.data.session_id) {
-            loadSession(d.data.session_id, qidNum)
-            setActiveSessionId(d.data.session_id)
-          }
-        }).catch(() => {})
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Load session from URL path /qa/qN — responds to sidebar clicks
+  const sessionLoadRef = useRef<number | null>(null)
+  useEffect(() => {
+    const match = location.pathname.match(/^\/qa\/q(\d+)$/)
+    if (!match) return
+    const qidNum = parseInt(match[1], 10)
+    // Don't reload the same qid
+    if (sessionLoadRef.current === qidNum) return
+    // Check if already loaded
+    const info = sessionList.find(s => s.root_qid === qidNum)
+    if (info && sessions[info.session_id]?.messages.length) {
+      setActiveSessionId(info.session_id)
+      return
+    }
+
+    sessionLoadRef.current = qidNum
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/qa/entry/${qidNum}`)
+        const d = await r.json()
+        if (!d.ok || !d.data?.session_id) return
+        await loadSession(d.data.session_id, qidNum)
+        setActiveSessionId(d.data.session_id)
+      } catch {}
+    })()
+  }, [location.pathname])
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
@@ -327,38 +318,35 @@ export function QAPage() {
               <div className="max-w-3xl mx-auto space-y-8">
                 {activeSession.messages.map((m, i) => (
                   m.role === 'user' ? (
-                    <h2 key={i} className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">
-                      {m.content}
-                    </h2>
+                    <div key={i} className="flex justify-end mb-4">
+                      <div className="bg-cyber-blue text-white px-4 py-2 rounded-2xl rounded-br-md max-w-[80%]">
+                        <p className="text-sm font-medium">{m.content}</p>
+                      </div>
+                    </div>
                   ) : (
                     <div key={i} className="answer-block prose prose-sm max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-
-                      {activeSession.feedback == null && (
-                      <div className="action-bar flex items-center gap-1 text-gray-400 select-none mt-4 pt-3 border-t border-gray-100">
-                        <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-green transition" onClick={() => handleFeedback(activeSession!.sessionId, i, 'accepted')} title="回答已采纳"><ThumbsUp className="w-3.5 h-3.5" /></button>
-                        <button className="p-1 hover:bg-slate-100 rounded hover:text-cyber-red transition" onClick={() => handleFeedback(activeSession!.sessionId, i, 'rejected')} title="待验证"><ThumbsDown className="w-3.5 h-3.5" /></button>
-                        <button className="p-1 hover:bg-slate-100 rounded hover:text-gray-700 transition" onClick={() => navigator.clipboard.writeText(m.content)}><Copy className="w-3.5 h-3.5" /></button>
-                        {activeRootQid && (
-                          <button
-                            className="p-1 hover:bg-slate-100 rounded hover:text-cyber-blue transition"
-                            onClick={() => {
-                              const url = `${window.location.origin}/qa/q/${activeRootQid}`
-                              navigator.clipboard.writeText(url)
-                            }}
-                            title="复制分享链接"
-                          >
-                            <Share2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      )}
-                      {activeSession.feedback === 'accepted' && (
-                        <span className="text-[10px] font-medium text-cyber-green flex items-center gap-1 mt-2"><Check className="w-3 h-3" /> 已收集反馈</span>
-                      )}
+                      <AnswerActions
+                        accepted={activeSession.feedback === 'accepted'}
+                        rejected={activeSession.feedback === 'rejected'}
+                        onAccept={() => handleFeedback(activeSession!.sessionId, i, 'accepted')}
+                        onReject={() => handleFeedback(activeSession!.sessionId, i, 'rejected')}
+                        onCopy={() => navigator.clipboard.writeText(m.content)}
+                        onShare={() => {
+                          const url = `${window.location.origin}/qa/q${activeRootQid}`
+                          navigator.clipboard.writeText(url)
+                        }}
+                        rootQid={activeRootQid ?? undefined}
+                        onPromoteTopic={(title) => {
+                          console.log('Promote to topic:', title, activeRootQid)
+                        }}
+                      />
                     </div>
                   )
                 ))}
+
+                {/* Code trace card at the end of all messages */}
+                {sourceRefs.length > 0 && <CodeTraceCard sourceRefs={sourceRefs} />}
 
                 {/* Streaming answer */}
                 {activeSession.isStreaming && (

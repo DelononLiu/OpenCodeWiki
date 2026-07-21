@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Header } from '@/components/layout/Header'
 import { fetchRepos, fetchQaEntries, fetchTopics } from '@/api/client'
 import type { Repo, QaEntry, Topic } from '@/types'
 import { Search, GitFork, FileText, MessageCircle, Flame, Plus, ArrowRight } from 'lucide-react'
@@ -72,7 +71,6 @@ export function HomePage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="home" />
       <main className="flex-1 overflow-y-auto no-scrollbar">
         <div className="max-w-5xl mx-auto space-y-10 py-10 px-6">
 
@@ -82,9 +80,9 @@ export function HomePage() {
               <div className="w-9 h-9 bg-cyber-blue rounded-xl flex items-center justify-center text-white font-black text-lg font-mono shadow-md shadow-cyber-blue/20">W</div>
               <h1 className="text-3xl font-bold tracking-tight text-gray-900">OpenCodeWiki</h1>
             </div>
-            <p className="text-gray-400 text-sm max-w-md mx-auto">基于代码和问答的自进化团队知识平台</p>
+            <p className="text-gray-400 text-sm max-w-xl mx-auto">围绕知识库提问，Agent 基于源码回答，高质量答案自动沉淀为 Wiki</p>
             <div className="max-w-2xl mx-auto relative px-4">
-              <div className="bg-white border border-gray-200/80 rounded-2xl shadow-lg p-3.5 flex items-center gap-3 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-3.5 flex items-center gap-3 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
                 <Search className="w-5 h-5 text-gray-400 shrink-0 ml-1" />
                 <input type="text" value={searchVal}
                   onChange={e => { setSearchVal(e.target.value); setShowSuggest(true) }}
@@ -150,17 +148,27 @@ export function HomePage() {
           {/* 代码库 (全宽独立区域) */}
           <section>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <GitFork className="w-4 h-4" /> 代码库
+              <GitFork className="w-4 h-4" /> 知识库
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {repos.map(r => (
                 <button key={r.name} onClick={() => navigate(`/${r.name}`)}
                   className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-cyber-blue/30 hover:shadow-sm transition group">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-sm font-bold text-gray-800 group-hover:text-cyber-blue transition">{r.name}</span>
-                    <span className="text-[10px] text-cyber-green bg-cyber-green/10 px-2 py-0.5 rounded-full font-bold shrink-0">已接入</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-sm font-bold text-gray-800 group-hover:text-cyber-blue transition">
+                      {r.name}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-[10px] text-emerald-600 font-medium">在线</span>
+                    </span>
                   </div>
-                  <span className="text-[10px] text-gray-400 font-mono block mt-1 truncate">{r.path}</span>
+                  <span className="text-[10px] text-gray-400 font-mono block truncate mb-2">{r.path}</span>
+                  <div className="text-[10px] text-gray-500 flex items-center gap-3">
+                    <span className="text-cyan-500 font-semibold">0 次问答</span>
+                    <span className="text-violet-500 font-semibold">0 个 Topic</span>
+                    <span className="text-blue-500 font-semibold">0 篇 Wiki</span>
+                  </div>
                 </button>
               ))}
               <button onClick={() => navigate('/admin')}
@@ -173,7 +181,7 @@ export function HomePage() {
           {/* 三内容卡片 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* 最新文档 */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm hover:shadow-md transition group">
+            <div className="bg-white border border-gray-200/50 rounded-xl p-5 hover:-translate-y-0.5 transition group">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-cyber-blue" /> 最新文档
               </h3>
@@ -190,7 +198,7 @@ export function HomePage() {
             </div>
 
             {/* 最新 QA */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm hover:shadow-md transition group">
+            <div className="bg-white border border-gray-200/50 rounded-xl p-5 hover:-translate-y-0.5 transition group">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4 text-amber-500" /> 最新问答
               </h3>
@@ -209,7 +217,7 @@ export function HomePage() {
             </div>
 
             {/* 最热 QA */}
-            <div className="bg-white border border-gray-200/50 rounded-xl p-5 shadow-sm hover:shadow-md transition group">
+            <div className="bg-white border border-gray-200/50 rounded-xl p-5 hover:-translate-y-0.5 transition group">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-red-500" /> 最热问答
               </h3>

@@ -21,9 +21,8 @@ export default function App() {
             <Route path="/wiki/:name" element={<WikiGlobalPage />} />
             <Route path="/wiki" element={<WikiGlobalPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/qa/q/:qid" element={<QASharePage />} />
+            <Route path="/qa/*" element={<QAPage />} />
             <Route path="/:repo" element={<WikiPage />} />
-            <Route path="/qa" element={<QAPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/sources" element={<SourcesPage />} />
           </Routes>

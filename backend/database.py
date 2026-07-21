@@ -91,6 +91,15 @@ def _init_qa_db(db: sqlite3.Connection):
             content='',
             content_rowid='rowid'
         );
+
+        CREATE TABLE IF NOT EXISTS wiki_modules (
+            slug       TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            type       TEXT NOT NULL DEFAULT 'source',
+            title      TEXT,
+            kb_name    TEXT DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     """)
 
     # 新增列（migration-safe）

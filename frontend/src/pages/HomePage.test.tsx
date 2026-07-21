@@ -23,7 +23,7 @@ describe('HomePage', () => {
 
     // 等待 API 数据加载完成
     await waitFor(() => {
-      expect(screen.getByText('代码库')).toBeInTheDocument()
+      expect(screen.getByText('知识库')).toBeInTheDocument()
     })
 
     expect(screen.getByText('最新文档')).toBeInTheDocument()

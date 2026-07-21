@@ -713,47 +713,50 @@ def _extract_h1_from_md(content: str) -> str | None:
 
 @app.get("/api/wiki/modules")
 async def api_wiki_modules():
-    """返回 wiki 模块目录列表（供 Admin 选择沉淀位置）"""
-    modules = []
-    # List stored pages
-    try:
-        from stores.wiki import list_pages, read_page
-        stored = list_pages()
-        for p in stored:
-            if not any(m["slug"] == p["slug"] for m in modules):
-                title = p["slug"].split("/")[-1]
-                try:
-                    content = read_page(p["slug"], p["page_type"])
-                    if content:
-                        h1 = _extract_h1_from_md(content)
-                        if h1:
-                            title = h1
-                except Exception:
-                    pass
-                modules.append({"slug": p["slug"], "name": title, "type": p["page_type"], "title": title})
-    except ImportError:
-        pass
+    """返回 wiki 模块目录列表（从 wiki_modules 表读取，首次自动同步）。"""
+    from database import get_qa_db
 
-    # List all knowledge/ directories as wiki sources
+    db = get_qa_db()
+    rows = db.execute("SELECT slug, name, type, title, kb_name FROM wiki_modules ORDER BY type, name").fetchall()
+
+    # 首次请求时表为空，从文件系统同步
+    if not rows:
+        _sync_modules_from_fs()
+        rows = db.execute("SELECT slug, name, type, title, kb_name FROM wiki_modules ORDER BY type, name").fetchall()
+
+    modules = [{"slug": r["slug"], "name": r["name"], "type": r["type"], "title": r["title"]} for r in rows]
+    return _ok(modules)
+
+
+@app.post("/api/wiki/modules/refresh")
+async def api_wiki_modules_refresh():
+    """强制刷新 wiki_modules 表（管理员操作后调用）。"""
+    _sync_modules_from_fs()
+    return _ok({"refreshed": True})
+
+
+def _sync_modules_from_fs():
+    """从文件系统扫描全部模块，写入 wiki_modules 表。"""
+    from stores.wiki import sync_wiki_modules, list_pages, read_page
+
+    # 收集 knowledge source 模块
+    knowledge_modules = []
     if KNOWLEDGE_DIR.exists():
         for kb_dir in sorted(KNOWLEDGE_DIR.iterdir()):
             if not kb_dir.is_dir():
                 continue
-            name = kb_dir.name
+            kb_name = kb_dir.name
             # code 知识库的 wiki 在 openwiki/ 子目录
             md_dirs = [kb_dir] if not (kb_dir / "openwiki").exists() else [kb_dir / "openwiki"]
             for md_dir in md_dirs:
                 if not md_dir.exists():
                     continue
                 for md_file in sorted(md_dir.rglob("*.md")):
-                    # 计算相对 slug（如 "test1/kcode/data-models"）
                     try:
                         rel = md_file.relative_to(md_dir)
                     except ValueError:
                         rel = md_file
                     slug = str(rel.with_suffix('')).replace("\\", "/")
-                    if any(m["slug"] == slug for m in modules):
-                        continue
                     title = slug.split("/")[-1]
                     try:
                         h1 = _extract_h1_from_md(md_file.read_text(encoding="utf-8"))
@@ -761,15 +764,16 @@ async def api_wiki_modules():
                             title = h1
                     except Exception:
                         pass
-                    # 目录层级展示名
-                    display_name = f"{name} / {slug}" if "/" in slug else f"{name} / {title}"
-                    modules.append({
+                    display_name = f"{kb_name} / {slug}" if "/" in slug else f"{kb_name} / {title}"
+                    knowledge_modules.append({
                         "slug": slug,
                         "name": display_name,
                         "type": "source",
                         "title": title,
+                        "kb_name": kb_name,
                     })
-    return _ok(modules)
+
+    sync_wiki_modules(knowledge_modules)
 
 
 @app.get("/api/wiki/{slug:path}")

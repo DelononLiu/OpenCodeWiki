@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/button'
 import { fetchSettings, saveSettings } from '@/api/client'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
@@ -53,7 +52,6 @@ export function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <Header variant="global" />
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-56 border-r border-gray-200/50 bg-[#FBFBFC] flex flex-col shrink-0">
           <div className="p-4 space-y-4 text-xs font-medium">
