@@ -6,7 +6,7 @@ import { useSSE } from '@/hooks/useSSE'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  Loader2, Plus,
+  Loader2,
   ThumbsUp, ThumbsDown, Copy, Share2, Check,
 } from 'lucide-react'
 
@@ -298,13 +298,6 @@ export function QAPage() {
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
 
-          {/* Top bar */}
-          <div className="px-4 py-2 border-b border-gray-100 flex items-center shrink-0">
-            <button onClick={() => { setActiveSessionId(null); setTimeout(() => document.querySelector<HTMLInputElement>("[data-qa-input]")?.focus(), 50) }}
-              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-cyber-blue transition" title="新问题">
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
 
           {/* Message area */}
           <div ref={messageAreaRef} className="flex-1 overflow-y-auto px-8 py-6 no-scrollbar pb-28">
