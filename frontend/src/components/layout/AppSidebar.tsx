@@ -31,7 +31,6 @@ export function AppSidebar() {
 
   // Session history for QA page
   const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string}[]>([])
-  const [activeSessionId, setActiveSessionId] = useState('')
 
   // useParams doesn't work outside <Routes> — use useMatch instead
   const wikiMatch = useMatch('/wiki/:name')
@@ -262,12 +261,9 @@ export function AppSidebar() {
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5">历史问答</div>
                 {sessionList.length > 0 ? sessionList.map((s: any) => (
                   <button key={s.session_id}
-                    onClick={() => {
-                      setActiveSessionId(s.session_id)
-                      navigate(`/qa/q${s.root_qid}`)
-                    }}
+                    onClick={() => navigate(`/qa/q${s.root_qid}`)}
                     className={`block w-full text-left px-2.5 py-1.5 rounded text-[11px] leading-snug hover:bg-white/10 transition truncate ${
-                      activeSessionId === s.session_id ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
+                      location.pathname === `/qa/q${s.root_qid}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
                     }`}>
                     {s.root_question || '新对话'}
                   </button>
