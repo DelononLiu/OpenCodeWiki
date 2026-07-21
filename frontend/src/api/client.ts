@@ -1,4 +1,4 @@
-import type { ApiResponse, Repo, QaEntry, Topic, TopicDraft, WikiPageResponse } from '@/types'
+import type { AnalyzeResult, ApiResponse, Repo, QaEntry, ReviewItem, Topic, TopicDraft, WikiPageResponse } from '@/types'
 
 const BASE = '/api'
 
@@ -131,4 +131,36 @@ export async function addSourceZip(name: string, type: string, file: File): Prom
   const body = await res.json()
   if (!body.ok) throw new Error(body.error || 'Upload failed')
   return body.data
+}
+
+// ── Knowledge Pipeline ──
+
+export function analyzeTopics(): Promise<AnalyzeResult> {
+  return request<AnalyzeResult>('/topics/analyze', { method: 'POST' })
+}
+
+export function generateDraft(slug: string): Promise<TopicDraft> {
+  return request<TopicDraft>(`/topics/${encodeURIComponent(slug)}/generate`, { method: 'POST' })
+}
+
+export function submitDraft(slug: string): Promise<{ submitted: boolean }> {
+  return request<{ submitted: boolean }>(`/topics/${encodeURIComponent(slug)}/submit`, { method: 'POST' })
+}
+
+export function approveDraft(slug: string, wikiModule: string): Promise<{ published: boolean; slug: string }> {
+  return request<{ published: boolean; slug: string }>(`/topics/${encodeURIComponent(slug)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ wiki_module: wikiModule }),
+  })
+}
+
+export function rejectDraft(slug: string, reason: string): Promise<{ rejected: boolean }> {
+  return request<{ rejected: boolean }>(`/topics/${encodeURIComponent(slug)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export function fetchReviewQueue(): Promise<{ queue: ReviewItem[] }> {
+  return request<{ queue: ReviewItem[] }>('/wiki/review-queue')
 }
