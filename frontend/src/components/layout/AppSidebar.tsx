@@ -59,14 +59,15 @@ export function AppSidebar() {
   const toggleSidebar = () => setSidebarOpen(o => !o)
 
   const isActive = (path: string) => {
+    if (path === '/qa') return location.pathname === '/qa'
     if (path === '/wiki') return location.pathname.startsWith('/wiki') || !!isRepoRoute
     return location.pathname.startsWith(path)
   }
 
   const handleTabClick = (tab: TabType, path: string) => {
     setActiveTab(tab)
-    // QA tab: 已在 QA 区时不动，从其他页来时跳 /qa
-    if (tab === 'qa' && location.pathname.startsWith('/qa')) return
+    // QA tab: 已在 /qa 时不动，其他情况都跳转
+    if (tab === 'qa' && location.pathname === '/qa') return
     navigate(path)
   }
 
