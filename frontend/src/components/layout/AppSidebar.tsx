@@ -274,7 +274,7 @@ export function AppSidebar() {
         )}
 
         {/* Spacer */}
-        <div className="flex-1" />
+        <div className="h-4 shrink-0" />
 
         {/* Settings icon */}
         <div className={`mb-1 ${sidebarOpen ? 'px-2' : 'flex justify-center'}`}>
