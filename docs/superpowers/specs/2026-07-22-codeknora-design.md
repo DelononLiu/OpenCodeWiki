@@ -13,6 +13,24 @@ CodeKnora 是一个面向团队共用的轻量级知识库问答系统。Phase 1
 
 Phase 2 补齐 QA → 知识库闭环进化能力（参考 OpenCodeWiki 的 QA→Topic→Wiki 管线）。
 
+### 1.1 项目位置
+
+存放在 OpenCodeWiki 仓库的 `codeknora` 分支，复用现有 CI 基础设施与前端组件栈。
+
+### 1.2 Phase 1 边界与取舍
+
+以下能力 Phase 1 **不做**，确保范围受控：
+
+| 不做 | 原因 |
+|------|------|
+| Pipeline 容错/降级 | 先跑通正常流程，异常直接报错 |
+| 多轮对话 | 每次 `/api/qa` 请求独立问答，session 仅做记录 |
+| Rerank 阶段 | 无 rerank 服务配置时直接跳过，top 5 送入 LLM |
+| 异步导入恢复 | `asyncio.create_task`，服务重启丢状态可接受 |
+| 跨库事务保证 | chunks(knora.db) + vectors(vectors.db) 可能不一致，接受 |
+| 向量维度动态适配 | 建表固定维度，换 embedding model = 删库重建 |
+| 认证/多租户 | 团队内用，不需要 |
+
 ## 2. 技术栈
 
 | 层 | 技术 |
@@ -58,7 +76,7 @@ CodeKnora/
 │   │       ├── query_understand.py   # 意图识别 + 查询重写
 │   │       ├── search.py       # 向量搜索 + FTS5 关键词搜索
 │   │       ├── rerank.py       # 重排序 (可选)
-│   │       ├── context_build.py # 上下文组装 (Prompt 模板注入)
+│   │       ├── context_build.py # 上下文组装 (Prompt 模板 + 检索结果注入, 无历史)
 │   │       └── chat_complete.py # LLM 调用 + SSE Stream 输出
 │   ├── knowledge/              # 知识库模块
 │   │   ├── importer.py         # 文档导入 (MD/TXT/PDF/DOCX)
@@ -76,10 +94,10 @@ CodeKnora/
 │       ├── kb.py               # 知识库 CRUD
 │       ├── doc.py              # 文档/切片 CRUD
 │       └── session.py          # 会话/消息 CRUD
-├── frontend/                   # React SPA
+├── frontend/                   # React SPA (复用 OpenCodeWiki 组件栈)
 │   └── src/
 │       ├── pages/              # QAPage / KBManagePage / SettingsPage
-│       ├── components/         # ChatWindow / DocUpload / ...
+│       ├── components/         # ChatWindow / DocUpload / ... (复用 shadcn/ui)
 │       └── api/                # API 客户端 + SSE 订阅
 ├── config.yaml                 # 主配置文件
 └── data/                       # 运行时数据目录
@@ -119,7 +137,6 @@ class PipelineEvent(BaseModel):
     question: str
     kb_ids: list[str]
     session_id: str | None = None
-    history: list[dict] = []
 
     # QueryUnderstand 产物
     rewritten_queries: list[str] = []
@@ -177,18 +194,18 @@ class Pipeline:
 │    · RRF (Reciprocal Rank Fusion) 合并去重      │
 │    · 输出: search_results (top 20)             │
 ├────────────────────────────────────────────────┤
-│ 3. RerankPlugin (可选)                         │
-│    · Cross-encoder 或 LLM-based 重排序           │
+│ 3. RerankPlugin                                │
+│    · 未配置 rerank 服务时直接跳过                 │
+│    · 有配置时: Cross-encoder 或 LLM-based 重排序  │
 │    · 输出: reranked_results (top 5)            │
 ├────────────────────────────────────────────────┤
 │ 4. ContextBuildPlugin                          │
 │    · 加载 system_prompt.yaml                   │
 │    · 检索结果 → context_template.yaml 注入      │
-│    · 历史消息注入                               │
 │    · 输出: system_prompt, context_text          │
 ├────────────────────────────────────────────────┤
 │ 5. ChatCompletePlugin                          │
-│    · 组装 messages: [system, ...history, user] │
+│    · 组装 messages: [system, user]             │
 │    · LLM 流式调用 (stream=True)                │
 │    · SSE 事件: token / sources / done / error   │
 │    · 输出: answer, sources, token_usage         │
@@ -202,7 +219,7 @@ class Pipeline:
 | EventManager + CHUNK_SEARCH | Pipeline.run() | 简化为顺序执行 |
 | query_understand (search.go) | QueryUnderstandPlugin | Prompt 直译 |
 | search_parallel + merge | SearchPlugin | 向量+FTS5 并行 |
-| rerank | RerankPlugin | 可选，依赖 Provider |
+| rerank | RerankPlugin | 可选，无配置时跳过 |
 | PluginChatCompletion | ContextBuildPlugin + ChatCompletePlugin | 拆分为上下文组装+LLM调用 |
 
 ## 5. 知识库导入流程
@@ -355,8 +372,8 @@ CREATE VIRTUAL TABLE chunk_fts USING fts5(
   GET    /api/kb/{id}/documents/{did}  文档详情 + 切片预览
   DELETE /api/kb/{id}/documents/{did}  删除文档 (级联切片+向量)
 
-问答
-  POST   /api/qa                      创建会话+提问 → SSE Stream
+问答 (独立问答，Phase 1 无多轮)
+  POST   /api/qa                      提问 → SSE Stream
 
 会话
   GET    /api/sessions?kb_id={id}     会话列表
@@ -375,8 +392,7 @@ POST /api/qa
   Content-Type: application/json
   Body: {
     "kb_id": "kb-001",
-    "question": "认证模块的 JWT 过期时间是多少？",
-    "session_id": "ses-001"   // 可选，不传则创建新会话
+    "question": "认证模块的 JWT 过期时间是多少？"
   }
 
   → 200 OK
@@ -470,9 +486,15 @@ Phase 2 核心能力：
 
 ## 10. 关键设计决策
 
-1. **Pipeline 插件模式** — 每个处理阶段独立为一个 Plugin，统一 `process(event) -> event` 接口。方便后续添加新阶段（如 Phase 2 的 QA 质量评估插件）。
-2. **双 SQLite 数据库** — 业务数据与向量/索引分离，避免锁竞争，也方便后续向量存储独立升级到 pgvector。
-3. **Prompt 外置 YAML** — 所有提示词文件化，多语言支持（WeKnora 已有 zh-CN/en-US），调优不涉及代码改动。
-4. **SSE 流式** — 和 OpenCodeWiki 一致，前端复用现成的 SSE 订阅代码。
-5. **无认证** — Phase 1 团队内用，不引入认证系统。环境和配置级访问控制足够。
-6. **asyncio 异步导入** — 不用 Redis 队列，`asyncio.create_task` 处理文档导入，状态机管理生命周期。
+1. **Pipeline 插件模式** — 每个处理阶段独立为一个 Plugin，统一 `process(event) -> event` 接口。Phase 1 无容错/降级，异常直接报错。
+2. **双 SQLite 数据库** — 业务数据与向量/索引分离。Phase 1 接受跨库事务不一致，不做补偿。
+3. **sqlite-vec 向量存储** — 零依赖，建表固定维度。换 embedding model 需删库重建。
+4. **Prompt 外置 YAML** — 所有提示词文件化。对 WeKnora 原版精剪：去掉 MCP/Skills/知识图谱/Web 搜索等工具调用指令，仅保留纯检索问答相关。
+5. **SSE 流式** — 和 OpenCodeWiki 一致，前端复用现成的 SSE 订阅代码。
+6. **独立问答（无多轮）** — Phase 1 每次 `/api/qa` 请求不注入历史消息，session 仅做存储记录。
+7. **无认证** — 团队内用，不引入认证系统。
+8. **asyncio 异步导入** — 不用 Redis 队列，`asyncio.create_task` 处理。服务重启时 `processing` 状态的文档无法自动恢复，接受。
+9. **Rerank 可选** — 无 rerank 服务配置（绝大多数情况）时跳过，top 20 搜索结果直接截断 top 5 送入 LLM。
+10. **RRF 融合** — 向量搜索 + FTS5 关键词搜索结果用 RRF 合并，照搬 WeKnora 策略。
+11. **项目位置** — OpenCodeWiki 仓库的 `codeknora` 分支，复用 CI 和前端组件栈。
+12. **前端三页面** — QAPage / KBManagePage / SettingsPage，复用 OpenCodeWiki 的 React + shadcn/ui 技术栈。
