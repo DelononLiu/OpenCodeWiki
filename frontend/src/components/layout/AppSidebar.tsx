@@ -6,7 +6,7 @@ import type { Topic } from '@/types'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import {
   BookOpen, MessageSquare, FileText, Database, Settings,
-  Plus, ChevronLeft, ChevronDown, GitFork,
+  Plus, ChevronLeft, ChevronDown, GitFork, Brain, Library,
 } from 'lucide-react'
 
 interface WikiModule {
@@ -169,6 +169,23 @@ export function AppSidebar() {
             { key: 'read' as TabType, icon: BookOpen, label: 'Wiki', path: '/wiki' },
             { key: 'wiki' as TabType, icon: FileText, label: '知识沉淀', path: '/admin' },
             { key: 'sources' as TabType, icon: Database, label: '知识库', path: '/sources' },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => handleTabClick(tab.key, tab.path)}
+              title={tab.label}
+              className={`flex items-center gap-2 rounded-lg transition ${
+                sidebarOpen ? 'w-full px-3 py-1.5 justify-start' : 'w-8 h-8 justify-center mx-auto'
+              } ${
+                isActive(tab.path) ? 'bg-cyber-blue/20 text-sidebar-active' : 'text-sidebar-text hover:bg-white/10 hover:text-sidebar-active'
+              }`}>
+              <tab.icon className="w-4 h-4 shrink-0" />
+              {sidebarOpen && <span className="text-xs font-semibold">{tab.label}</span>}
+            </button>
+          ))}
+          {sidebarOpen && <div className="mx-2 border-t border-slate-700 my-1" />}
+          {[
+            { key: 'kqa' as TabType, icon: Brain, label: '知识问答', path: '/knowledge/qa' },
+            { key: 'kkb' as TabType, icon: Library, label: '知识库管理', path: '/knowledge/kb' },
+            { key: 'ksettings' as TabType, icon: Settings, label: '知识设置', path: '/knowledge/settings' },
           ].map(tab => (
             <button key={tab.key} onClick={() => handleTabClick(tab.key, tab.path)}
               title={tab.label}
