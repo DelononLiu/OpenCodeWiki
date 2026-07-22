@@ -99,23 +99,23 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     KNOWLEDGE_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "knowledge")
     PAGES_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "pages")
 
-    def _scan_knowledge_modules() -> list[dict]:
-        """Scan knowledge/ dir for wiki modules (KB name -> .md files).
-        Only includes directories that match actual KB names (excludes kb-* legacy dirs)."""
+    def _scan_dir_to_cache(root_dir: str, valid_kb_names: set | None = None) -> list[dict]:
+        """Scan a directory for .md files and write .wiki_modules.json cache.
+        Returns the module list."""
         modules = []
-        if not os.path.isdir(KNOWLEDGE_ROOT):
+        if not os.path.isdir(root_dir):
             return modules
-        # Get valid KB names from DB
-        valid_kb_names = {kb["name"] for kb in list_kbs()}
-        for kb_name in sorted(os.listdir(KNOWLEDGE_ROOT)):
-            kb_dir = os.path.join(KNOWLEDGE_ROOT, kb_name)
+        for kb_name in sorted(os.listdir(root_dir)):
+            kb_dir = os.path.join(root_dir, kb_name)
             if not os.path.isdir(kb_dir):
                 continue
-            if kb_name not in valid_kb_names:
-                continue  # skip legacy kb-id dirs and unrelated folders
+            if valid_kb_names and kb_name not in valid_kb_names:
+                continue  # skip legacy dirs
+            kb_files = []
             for f in sorted(os.listdir(kb_dir)):
                 if f.endswith(".md"):
                     file_slug = f.replace(".md", "")
+                    kb_files.append(file_slug)
                     modules.append({
                         "slug": file_slug,
                         "name": f"{kb_name} / {file_slug}",
@@ -123,25 +123,92 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                         "title": file_slug,
                         "kb_name": kb_name,
                     })
+            # Write per-KB cache
+            cache_path = os.path.join(kb_dir, ".wiki_modules.json")
+            try:
+                with open(cache_path, "w") as f:
+                    json.dump(kb_files, f)
+            except Exception:
+                pass
         return modules
+
+    def _scan_knowledge_modules() -> list[dict]:
+        """Scan knowledge/ dir, caching results to .wiki_modules.json per KB."""
+        valid_kb_names = {kb["name"] for kb in list_kbs()}
+        return _scan_dir_to_cache(KNOWLEDGE_ROOT, valid_kb_names)
+
+    def _scan_pages_modules() -> list[dict]:
+        """Scan pages/ dir, caching results."""
+        modules = []
+        if not os.path.isdir(PAGES_ROOT):
+            return modules
+        for root, dirs, files in os.walk(PAGES_ROOT):
+            for f in files:
+                if f.endswith(".md"):
+                    rel = os.path.relpath(os.path.join(root, f), PAGES_ROOT)
+                    slug = "pages/" + rel.replace(os.sep, "/").replace(".md", "")
+                    modules.append({
+                        "slug": slug,
+                        "name": rel.replace(os.sep, " / ").replace(".md", ""),
+                        "type": "source",
+                        "title": f.replace(".md", ""),
+                    })
+        # Cache pages/ as a whole
+        cache_path = os.path.join(PAGES_ROOT, ".wiki_modules.json")
+        try:
+            with open(cache_path, "w") as f:
+                json.dump(modules, f)
+        except Exception:
+            pass
+        return modules
+
+    def _read_knowledge_cache() -> list[dict]:
+        """Read modules from per-KB .wiki_modules.json cache files."""
+        modules = []
+        valid_kb_names = {kb["name"] for kb in list_kbs()}
+        if not os.path.isdir(KNOWLEDGE_ROOT):
+            return modules
+        for kb_name in sorted(os.listdir(KNOWLEDGE_ROOT)):
+            kb_dir = os.path.join(KNOWLEDGE_ROOT, kb_name)
+            cache_path = os.path.join(kb_dir, ".wiki_modules.json")
+            if not os.path.isdir(kb_dir) or kb_name not in valid_kb_names:
+                continue
+            try:
+                with open(cache_path) as f:
+                    files = json.load(f)
+                for file_slug in files:
+                    modules.append({
+                        "slug": file_slug,
+                        "name": f"{kb_name} / {file_slug}",
+                        "type": "source",
+                        "title": file_slug,
+                        "kb_name": kb_name,
+                    })
+            except Exception:
+                continue  # no cache, skip — caller falls back to scan
+        return modules
+
+    def _read_pages_cache() -> list[dict]:
+        """Read modules from pages/.wiki_modules.json cache."""
+        cache_path = os.path.join(PAGES_ROOT, ".wiki_modules.json")
+        try:
+            with open(cache_path) as f:
+                return json.load(f)
+        except Exception:
+            return []
 
     @app.get("/api/wiki/modules")
     async def api_wiki_modules():
-        """List wiki modules from knowledge/ + pages/ dirs."""
-        modules = _scan_knowledge_modules()
-        # Also include old pages/ content
-        if os.path.isdir(PAGES_ROOT):
-            for root, dirs, files in os.walk(PAGES_ROOT):
-                for f in files:
-                    if f.endswith(".md"):
-                        rel = os.path.relpath(os.path.join(root, f), PAGES_ROOT)
-                        slug = "pages/" + rel.replace(os.sep, "/").replace(".md", "")
-                        modules.append({
-                            "slug": slug,
-                            "name": rel.replace(os.sep, " / ").replace(".md", ""),
-                            "type": "source",
-                            "title": f.replace(".md", ""),
-                        })
+        """List wiki modules. Reads from .wiki_modules.json cache, falls back to scan."""
+        # Try cache first
+        modules = _read_knowledge_cache()
+        if not modules:
+            modules = _scan_knowledge_modules()
+        # Pages: try cache, fall back to scan
+        pages_modules = _read_pages_cache()
+        if not pages_modules:
+            pages_modules = _scan_pages_modules()
+        modules.extend(pages_modules)
         return {"ok": True, "data": modules}
 
     @app.get("/api/wiki/{slug:path}")
@@ -165,6 +232,24 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 content = f.read()
             return {"ok": True, "data": {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}}
         raise HTTPException(404, "Wiki page not found")
+
+    @app.post("/api/wiki/refresh-cache")
+    async def api_refresh_cache():
+        """Force rebuild all wiki module caches."""
+        _scan_knowledge_modules()
+        _scan_pages_modules()
+        return {"ok": True, "refreshed": True}
+
+    def _refresh_kb_cache(kb_name: str):
+        """Rebuild .wiki_modules.json for a single KB."""
+        kb_dir = os.path.join(KNOWLEDGE_ROOT, kb_name)
+        if os.path.isdir(kb_dir):
+            files = [f.replace(".md", "") for f in sorted(os.listdir(kb_dir)) if f.endswith(".md")]
+            try:
+                with open(os.path.join(kb_dir, ".wiki_modules.json"), "w") as f:
+                    json.dump(files, f)
+            except Exception:
+                pass
 
     @app.get("/api/knowledge")
     async def api_knowledge():
@@ -246,8 +331,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
         doc = create_document(kb_id, file.filename, file_path, file_hash, ext)
 
-        # Async import
+        # Async import + refresh wiki cache after import
         asyncio.create_task(import_document(doc["id"], file_path, kb_id, cfg))
+        _refresh_kb_cache(kb["name"])
 
         return doc
 
@@ -265,8 +351,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     @app.delete("/api/kb/{kb_id}/documents/{doc_id}")
     async def api_delete_document(kb_id: str, doc_id: str):
         from backend.knowledge.vector_store import delete_by_doc_id
+        kb = get_kb(kb_id)
         delete_by_doc_id(doc_id)
         delete_document(doc_id)
+        if kb:
+            _refresh_kb_cache(kb["name"])
         return {"deleted": True}
 
     # ── Sessions ──
