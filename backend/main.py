@@ -95,24 +95,44 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         # Simple config update - write to config.yaml
         return {"updated": True}
 
-    # ── Wiki (file-based, read from ~/.opencodewiki/pages/) ──
-    WIKI_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "pages")
+    # ── Wiki (knowledge bases at ~/.opencodewiki/knowledge/{kb_name}/*.md) ──
+    KNOWLEDGE_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "knowledge")
+    PAGES_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "pages")
+
+    def _scan_knowledge_modules() -> list[dict]:
+        """Scan knowledge/ dir for wiki modules (KB name -> .md files)."""
+        modules = []
+        if not os.path.isdir(KNOWLEDGE_ROOT):
+            return modules
+        for kb_name in sorted(os.listdir(KNOWLEDGE_ROOT)):
+            kb_dir = os.path.join(KNOWLEDGE_ROOT, kb_name)
+            if not os.path.isdir(kb_dir):
+                continue
+            for f in sorted(os.listdir(kb_dir)):
+                if f.endswith(".md"):
+                    slug = f"{kb_name}/{f.replace('.md', '')}"
+                    modules.append({
+                        "slug": slug,
+                        "name": f"{kb_name} / {f.replace('.md', '')}",
+                        "type": "source",
+                        "title": f.replace(".md", ""),
+                    })
+        return modules
 
     @app.get("/api/wiki/modules")
     async def api_wiki_modules():
-        """List wiki modules (knowledge bases with wiki pages)."""
-        modules = []
-        if os.path.isdir(WIKI_ROOT):
-            for root, dirs, files in os.walk(WIKI_ROOT):
+        """List wiki modules from knowledge/ + pages/ dirs."""
+        modules = _scan_knowledge_modules()
+        # Also include old pages/ content
+        if os.path.isdir(PAGES_ROOT):
+            for root, dirs, files in os.walk(PAGES_ROOT):
                 for f in files:
                     if f.endswith(".md"):
-                        rel = os.path.relpath(os.path.join(root, f), WIKI_ROOT)
-                        parts = rel.split(os.sep)
-                        kb_name = parts[0] if len(parts) > 1 else "root"
-                        slug = rel.replace(os.sep, "/").replace(".md", "")
+                        rel = os.path.relpath(os.path.join(root, f), PAGES_ROOT)
+                        slug = "pages/" + rel.replace(os.sep, "/").replace(".md", "")
                         modules.append({
                             "slug": slug,
-                            "name": f"{kb_name} / {f.replace('.md', '')}",
+                            "name": rel.replace(os.sep, " / ").replace(".md", ""),
                             "type": "source",
                             "title": f.replace(".md", ""),
                         })
@@ -120,8 +140,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.get("/api/wiki/{slug:path}")
     async def api_wiki_page(slug: str):
-        """Get wiki page content by slug."""
-        path = os.path.join(WIKI_ROOT, slug + ".md")
+        """Get wiki page content by slug. Looks in knowledge/ first, then pages/."""
+        # Try knowledge/ first
+        path = os.path.join(KNOWLEDGE_ROOT, slug + ".md")
+        if not os.path.isfile(path):
+            # Try pages/
+            if slug.startswith("pages/"):
+                path = os.path.join(PAGES_ROOT, slug[6:] + ".md")
+            else:
+                path = os.path.join(PAGES_ROOT, slug + ".md")
         if not os.path.isfile(path):
             raise HTTPException(404, "Wiki page not found")
         with open(path, encoding="utf-8") as f:
@@ -130,16 +157,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.get("/api/knowledge")
     async def api_knowledge():
-        """Legacy: list knowledge from wiki pages + uploaded docs."""
+        """List all KB names from knowledge/ dir + DB."""
         data = []
-        if os.path.isdir(WIKI_ROOT):
-            for root, dirs, files in os.walk(WIKI_ROOT):
-                for f in files:
-                    if f.endswith(".md"):
-                        rel = os.path.relpath(os.path.join(root, f), WIKI_ROOT)
-                        kb_name = rel.split(os.sep, 1)[0]
-                        data.append({"name": kb_name})
-        # Also add KBs from database
+        if os.path.isdir(KNOWLEDGE_ROOT):
+            for name in os.listdir(KNOWLEDGE_ROOT):
+                if os.path.isdir(os.path.join(KNOWLEDGE_ROOT, name)):
+                    data.append({"name": name})
         for kb in list_kbs():
             data.append({"name": kb["name"]})
         return {"ok": True, "data": list({d["name"]: d for d in data}.values())}
