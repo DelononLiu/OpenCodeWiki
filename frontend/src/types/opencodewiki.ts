@@ -5,6 +5,9 @@ export interface KB {
   embedding_model: string
   chunk_config: string
   created_at: string
+  doc_count?: number
+  chunk_count?: number
+  is_default?: boolean
 }
 
 export interface Document {

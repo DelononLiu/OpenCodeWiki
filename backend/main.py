@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 
 from backend.config import Config, load_config
 from backend.database import init_databases
-from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb
+from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, ensure_default_kb, DEFAULT_KB_NAME
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
 from backend.knowledge.importer import import_document, compute_hash
@@ -44,6 +44,35 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         cfg = load_config()
 
     init_databases(cfg)
+
+    # Ensure default KB + auto-readme
+    default_kb = ensure_default_kb(cfg.embedding.model)
+    about_path = os.path.join(os.path.expanduser(cfg.database.path), "knowledge",
+                              DEFAULT_KB_NAME, "about-opencodewiki.md")
+    if not os.path.exists(about_path):
+        os.makedirs(os.path.dirname(about_path), exist_ok=True)
+        with open(about_path, "w") as f:
+            f.write(f"# OpenCodeWiki\n\n"
+                    f"OpenCodeWiki 是一个面向团队的知识库问答系统。\n\n"
+                    f"## 核心功能\n\n"
+                    f"- **知识库管理**: 上传 Markdown、PDF、DOCX、TXT 文档，自动切片、向量化、全文索引\n"
+                    f"- **智能问答**: 基于 Event Pipeline 的 RAG 检索增强生成\n"
+                    f"- **意图路由**: 自动识别问候/检索/通用意图，按需检索\n\n"
+                    f"## 技术架构\n\n"
+                    f"- Pipeline: QueryUnderstand → Search → Rerank → ContextBuild → ChatComplete\n"
+                    f"- 向量存储: sqlite-vec + FTS5 全文检索\n"
+                    f"- LLM: OpenAI 兼容接口\n"
+                    f"- Embedding: {cfg.embedding.model}\n\n"
+                    f"## 快速开始\n\n"
+                    f"1. 在「知识库」页面创建知识库，上传文档\n"
+                    f"2. 在「新问题」页面选择知识库，开始提问\n"
+                    f"3. 无需选择知识库时，默认搜索全部知识库\n")
+        # Import into default KB
+        doc = create_document(default_kb["id"], "about-opencodewiki.md",
+                              about_path, compute_hash(about_path), "md")
+        # Don't await — let it finish async
+        import asyncio as _asyncio
+        _asyncio.ensure_future(import_document(doc["id"], about_path, default_kb["id"], cfg))
 
     app = FastAPI(title="OpenCodeWiki", version="0.1.0")
     app.add_middleware(
@@ -102,7 +131,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return get_kb(kb_id)
 
     @app.delete("/api/kb/{kb_id}")
+    @app.delete("/api/kb/{kb_id}")
     async def api_delete_kb(kb_id: str):
+        kb = get_kb(kb_id)
+        if not kb:
+            raise HTTPException(404, "Knowledge base not found")
+        if kb.get("is_default"):
+            raise HTTPException(400, "默认知识库不可删除")
         from backend.knowledge.vector_store import delete_by_kb_id
         delete_by_kb_id(kb_id)
         delete_kb(kb_id)

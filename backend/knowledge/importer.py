@@ -19,9 +19,22 @@ def compute_hash(file_path: str) -> str:
     return sha.hexdigest()
 
 
+def _detect_encoding(file_path: str) -> str:
+    """Detect file encoding, fall back to utf-8."""
+    try:
+        import chardet
+        with open(file_path, "rb") as f:
+            raw = f.read()
+        result = chardet.detect(raw)
+        return result["encoding"] or "utf-8"
+    except Exception:
+        return "utf-8"
+
+
 def parse_file(file_path: str, file_type: str) -> str:
     if file_type in ("md", "txt"):
-        with open(file_path, "r", encoding="utf-8") as f:
+        enc = _detect_encoding(file_path)
+        with open(file_path, "r", encoding=enc, errors="replace") as f:
             return f.read()
     elif file_type == "pdf":
         import fitz  # pymupdf

@@ -3,7 +3,7 @@ import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDoc
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
-  Upload, Database, Loader2, FileText, Plus, Check, X, Trash2, Globe,
+  Upload, Database, Loader2, FileText, Plus, Check, X, Trash2, Globe, RefreshCw,
 } from 'lucide-react'
 
 export function SourcesPage() {
@@ -102,6 +102,30 @@ export function SourcesPage() {
     catch (e: any) { showError(`删除失败: ${e.message}`) }
   }
 
+  const handleRebuildIndex = async () => {
+    if (!selectedKB) return
+    try {
+      const docs = await fetchDocuments(selectedKB.id)
+      for (const doc of docs) {
+        await deleteDocument(selectedKB.id, doc.id)
+      }
+      for (const doc of docs) {
+        if (doc.status === 'completed') {
+          // Re-upload each document
+          const resp = await fetch(doc.file_path)
+          if (resp.ok) {
+            const blob = await resp.blob()
+            const file = new File([blob], doc.title)
+            await uploadDocument(selectedKB.id, file)
+          }
+        }
+      }
+      showSuccess(`「${selectedKB.name}」索引重建完成`)
+      await loadDocuments(selectedKB.id)
+      await loadKBs()
+    } catch (e: any) { showError(`重建失败: ${e.message}`) }
+  }
+
   const statusColor = (status: string) =>
     status === 'completed' ? 'text-green-600' : status === 'failed' ? 'text-red-600' : 'text-yellow-600'
 
@@ -146,24 +170,37 @@ export function SourcesPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-cyber-blue/10`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-cyber-blue/10">
                         <FileText className="w-4 h-4 text-cyber-blue" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-bold text-gray-900 truncate">{kb.name}</div>
+                        <div className="text-sm font-bold text-gray-900 truncate flex items-center gap-1">
+                          {kb.name}
+                          {kb.is_default && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1 py-0 rounded flex-shrink-0">默认</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDeleteKB(kb) }}
-                      className="text-gray-300 hover:text-red-500 transition"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!kb.is_default && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDeleteKB(kb) }}
+                        className="text-gray-300 hover:text-red-500 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 line-clamp-2">{kb.description || '暂无描述'}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400 pt-1">
+                  <div className="flex items-center gap-2 text-[10px] text-gray-400 pt-1 flex-wrap">
                     <span className="bg-gray-100 px-1.5 py-0.5 rounded">{kb.embedding_model}</span>
+                    {kb.doc_count !== undefined && (
+                      <span>{kb.doc_count} 文档</span>
+                    )}
+                    {kb.chunk_count !== undefined && (
+                      <span>{kb.chunk_count} 片段</span>
+                    )}
                     {kb.created_at && <span>{kb.created_at.slice(0, 10)}</span>}
                   </div>
                 </div>
@@ -194,12 +231,18 @@ export function SourcesPage() {
                     {docsLoading ? '加载中...' : `${documents.length} 个文档 · 模型 ${selectedKB.embedding_model}`}
                   </p>
                 </div>
-                <label className="cursor-pointer">
-                  <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition" onClick={() => {}}>
-                    <Upload className="w-3.5 h-3.5" /> 上传文档
+                <div className="flex items-center gap-2">
+                  <button onClick={handleRebuildIndex}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                    <RefreshCw className="w-3.5 h-3.5" /> 重建索引
                   </button>
-                  <input type="file" className="hidden" accept=".md,.txt,.pdf,.docx" onChange={handleUploadDoc} />
-                </label>
+                  <label className="cursor-pointer">
+                    <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition" onClick={() => {}}>
+                      <Upload className="w-3.5 h-3.5" /> 上传文档
+                    </button>
+                    <input type="file" className="hidden" accept=".md,.txt,.pdf,.docx" onChange={handleUploadDoc} />
+                  </label>
+                </div>
               </div>
 
               {documents.length === 0 ? (
