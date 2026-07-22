@@ -100,14 +100,19 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     PAGES_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "pages")
 
     def _scan_knowledge_modules() -> list[dict]:
-        """Scan knowledge/ dir for wiki modules (KB name -> .md files)."""
+        """Scan knowledge/ dir for wiki modules (KB name -> .md files).
+        Only includes directories that match actual KB names (excludes kb-* legacy dirs)."""
         modules = []
         if not os.path.isdir(KNOWLEDGE_ROOT):
             return modules
+        # Get valid KB names from DB
+        valid_kb_names = {kb["name"] for kb in list_kbs()}
         for kb_name in sorted(os.listdir(KNOWLEDGE_ROOT)):
             kb_dir = os.path.join(KNOWLEDGE_ROOT, kb_name)
             if not os.path.isdir(kb_dir):
                 continue
+            if kb_name not in valid_kb_names:
+                continue  # skip legacy kb-id dirs and unrelated folders
             for f in sorted(os.listdir(kb_dir)):
                 if f.endswith(".md"):
                     slug = f"{kb_name}/{f.replace('.md', '')}"
