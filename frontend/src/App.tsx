@@ -3,9 +3,7 @@ import { LayoutProvider } from '@/contexts/LayoutContext'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { HomePage } from '@/pages/HomePage'
 import { WikiGlobalPage } from '@/pages/WikiGlobalPage'
-import { WikiPage } from '@/pages/WikiPage'
 import { QAPage } from '@/pages/QAPage'
-import { QASharePage } from '@/pages/QASharePage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SourcesPage } from '@/pages/SourcesPage'
@@ -22,7 +20,6 @@ export default function App() {
             <Route path="/wiki" element={<WikiGlobalPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/qa/*" element={<QAPage />} />
-            <Route path="/:repo" element={<WikiPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/sources" element={<SourcesPage />} />
           </Routes>

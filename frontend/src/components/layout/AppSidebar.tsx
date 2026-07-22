@@ -125,7 +125,7 @@ export function AppSidebar() {
       }
       for (const m of node.files.sort((a, b) => (a.title || a.slug).localeCompare(b.title || b.slug))) {
         els.push(
-          <button key={m.slug} onClick={() => navigate(`/${currentKB}#${m.slug}`)}
+          <button key={m.slug} onClick={() => navigate(`/wiki/${currentKB}#${m.slug}`)}
             style={{ paddingLeft: `${indent + 28}px` }}
             className={`block w-full text-left py-0.5 pr-2 rounded text-[12px] leading-snug hover:bg-white/10 transition truncate font-mono ${
               location.hash === `#${m.slug}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
@@ -234,7 +234,7 @@ export function AppSidebar() {
                   <div className="mt-3 pt-3 border-t border-slate-700">
                     <div className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-2.5">主题</div>
                     {topics.map(t => (
-                      <button key={t.slug} onClick={() => navigate(`/${currentKB}#${t.slug}`)}
+                      <button key={t.slug} onClick={() => navigate(`/wiki/${currentKB}#${t.slug}`)}
                         className={`block w-full text-left px-2.5 py-1 rounded text-[12px] hover:bg-white/10 transition truncate font-mono ${
                           location.hash === `#${t.slug}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
                         }`}>
