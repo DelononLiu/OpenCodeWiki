@@ -15,10 +15,11 @@ from backend.stores.doc import create_document, list_documents, get_document, de
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
-from backend.pipeline.events import PipelineEvent
+from backend.pipeline.events import PipelineEvent, EventNames
 from backend.pipeline.pipeline import Pipeline
 from backend.pipeline.plugins.query_understand import QueryUnderstandPlugin
 from backend.pipeline.plugins.search import SearchPlugin
+from backend.pipeline.plugins.search_expand import ExpandContextPlugin
 from backend.pipeline.plugins.rerank import RerankPlugin
 from backend.pipeline.plugins.context_build import ContextBuildPlugin
 from backend.pipeline.plugins.chat_complete import ChatCompletePlugin
@@ -185,52 +186,43 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         if not kb:
             raise HTTPException(404, "Knowledge base not found")
 
-        # Build pipeline
+        # Build pipeline — WeKnora-style: multiple plugins per event
         client = AsyncOpenAI(api_key=cfg.llm.api_key, base_url=cfg.llm.base_url)
         embedder = Embedder(
             client=AsyncOpenAI(api_key=cfg.embedding.api_key, base_url=cfg.embedding.base_url),
-            model=cfg.embedding.model,
-            dimensions=cfg.embedding.dimensions,
+            model=cfg.embedding.model, dimensions=cfg.embedding.dimensions,
         )
-
         system_prompt = _load_prompt(cfg, "system_prompt.yaml")
         rewrite_prompt = _load_prompt(cfg, "rewrite.yaml")
         context_template = _load_prompt(cfg, "context_template.yaml")
         keywords_prompt = _load_prompt(cfg, "keywords_extraction.yaml")
-
         pipeline = Pipeline()
-        pipeline.register(QueryUnderstandPlugin(
-            client=client,
-            model=cfg.llm.model,
-            keywords_prompt=keywords_prompt,
-            rewrite_prompt=rewrite_prompt,
+        pipeline.on(EventNames.QUERY_UNDERSTAND, QueryUnderstandPlugin(
+            client=client, model=cfg.llm.model,
+            keywords_prompt=keywords_prompt, rewrite_prompt=rewrite_prompt,
         ))
-        pipeline.register(SearchPlugin(
+        pipeline.on(EventNames.SEARCH, SearchPlugin(
             embedder=embedder,
             top_k=cfg.retrieval.vector_top_k,
             keyword_top_k=cfg.retrieval.keyword_top_k,
             rrf_k=cfg.retrieval.rrf_k,
         ))
-        pipeline.register(RerankPlugin(top_k=cfg.retrieval.rerank_top_k))
-        pipeline.register(ContextBuildPlugin(
+        pipeline.on(EventNames.SEARCH, ExpandContextPlugin(expand_count=1, expand_top_k=3))
+        pipeline.on(EventNames.RERANK, RerankPlugin(top_k=cfg.retrieval.rerank_top_k))
+        pipeline.on(EventNames.CONTEXT_BUILD, ContextBuildPlugin(
             system_prompt_template=system_prompt,
             context_template=context_template,
         ))
 
         chat_plugin = ChatCompletePlugin(
-            client=client,
-            model=cfg.llm.model,
-            max_tokens=cfg.llm.max_tokens,
-            temperature=cfg.llm.temperature,
+            client=client, model=cfg.llm.model,
+            max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature,
         )
-        pipeline.register(chat_plugin)
+        pipeline.on(EventNames.CHAT_COMPLETE, chat_plugin)
 
-        # Run pipeline up to before ChatComplete to prepare context
+        # Run pipeline through CONTEXT_BUILD, then stream ChatComplete separately
         event = PipelineEvent(question=req.question, kb_ids=[req.kb_id])
-        event = await pipeline.plugins[0].process(event)  # QueryUnderstand
-        event = await pipeline.plugins[1].process(event)  # Search
-        event = await pipeline.plugins[2].process(event)  # Rerank
-        event = await pipeline.plugins[3].process(event)  # ContextBuild
+        event = await pipeline.run(event, until=EventNames.CONTEXT_BUILD)
 
         # Create session for record
         ses = create_session(req.kb_id, req.question[:50])

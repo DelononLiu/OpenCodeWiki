@@ -24,6 +24,7 @@ class PipelineEvent(BaseModel):
     session_id: str | None = None
 
     # QueryUnderstand
+    intent: str = "kb_search"  # greeting | kb_search | general
     rewritten_queries: list[str] = []
     keywords: list[str] = []
 
@@ -41,3 +42,18 @@ class PipelineEvent(BaseModel):
     answer: str = ""
     sources: list[Source] = []
     token_usage: int = 0
+
+
+# ── Pipeline event constants ──
+# Plugins register on these events; Pipeline fires them in order.
+# Multiple plugins can subscribe to the same event — they run sequentially
+# in registration order within the event, sharing the same PipelineEvent.
+class EventNames:
+    QUERY_UNDERSTAND = "query_understand"
+    SEARCH = "search"
+    RERANK = "rerank"
+    CONTEXT_BUILD = "context_build"
+    CHAT_COMPLETE = "chat_complete"
+
+    # Execution order
+    ORDER = [QUERY_UNDERSTAND, SEARCH, RERANK, CONTEXT_BUILD, CHAT_COMPLETE]
