@@ -16,7 +16,7 @@ from backend.stores.session import create_session, list_sessions, get_session, d
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
 from backend.pipeline.events import PipelineEvent, EventNames
-from backend.pipeline.pipeline import Pipeline
+from backend.pipeline.pipeline import Pipeline, PipelinePlan
 from backend.pipeline.plugins.query_understand import QueryUnderstandPlugin
 from backend.pipeline.plugins.search import SearchPlugin
 from backend.pipeline.plugins.search_expand import ExpandContextPlugin

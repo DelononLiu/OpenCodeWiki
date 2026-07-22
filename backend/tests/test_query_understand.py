@@ -40,6 +40,7 @@ async def test_rewrite_on_failure():
 
     plugin = QueryUnderstandPlugin(client=mock_client, keywords_prompt="kw", rewrite_prompt="rw")
     event = PipelineEvent(question="test", kb_ids=["kb-1"])
-    # Should raise — no fallback in Phase 1
-    with pytest.raises(Exception, match="API error"):
-        await plugin.process(event)
+    # Fallback: on failure, keywords extracted via regex, rewrite = original question
+    result = await plugin.process(event)
+    assert result.rewritten_queries == ["test"]
+    assert result.keywords == ["test"]
