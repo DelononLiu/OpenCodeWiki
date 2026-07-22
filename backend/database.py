@@ -72,8 +72,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
 
 
 def _db_path(cfg: Config, db_name: str) -> str:
-    os.makedirs(cfg.database.path, exist_ok=True)
-    return os.path.join(cfg.database.path, db_name)
+    data_dir = os.path.expanduser(cfg.database.path)
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, db_name)
 
 
 def init_databases(cfg: Config) -> None:

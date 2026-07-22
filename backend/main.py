@@ -115,7 +115,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(404, "Knowledge base not found")
 
         # Save file
-        files_dir = os.path.join(cfg.database.path, "files", kb_id)
+        files_dir = os.path.join(os.path.expanduser(cfg.database.path), "files", kb_id)
         os.makedirs(files_dir, exist_ok=True)
         file_path = os.path.join(files_dir, file.filename)
         content = await file.read()

@@ -31,7 +31,7 @@ class EmbeddingConfig:
 
 @dataclass
 class DatabaseConfig:
-    path: str = "./data"
+    path: str = "~/.opencodewiki"
 
 
 @dataclass
@@ -76,8 +76,10 @@ def _resolve_env(value: str) -> str:
     return value
 
 
-def load_config(path: str = "config.yaml") -> Config:
+def load_config(path: str | None = None) -> Config:
     cfg = Config()
+    if path is None:
+        path = os.path.expanduser("~/.opencodewiki/config.yaml")
 
     if os.path.exists(path):
         with open(path) as f:
