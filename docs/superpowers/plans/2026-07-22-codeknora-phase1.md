@@ -1,8 +1,8 @@
-# CodeKnora Phase 1 Implementation Plan
+# OpenCodeWiki Phase 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a minimal knowledge-base Q&A system (CodeKnora) on the `codeknora` branch, using Python+FastAPI backend with Event Pipeline architecture and React+TypeScript frontend.
+**Goal:** Build a minimal knowledge-base Q&A system (OpenCodeWiki) on the `codeknora` branch, using Python+FastAPI backend with Event Pipeline architecture and React+TypeScript frontend.
 
 **Architecture:** Event Pipeline (QueryUnderstand → Search → Rerank → ContextBuild → ChatComplete) driven by FastAPI SSE streaming. SQLite dual-database (knora.db + vectors.db) with sqlite-vec for vector search. Single-turn Q&A only, no auth.
 
@@ -21,7 +21,7 @@
 - Rerank skipped when no rerank service configured — top 20 → top 5 directly
 - Fixed embedding dimension at DB init — model change = delete + rebuild
 - Project lives on `codeknora` branch in OpenCodeWiki repo
-- Frontend reuses OpenCodeWiki's shadcn/ui components and SSE hook pattern
+- - Frontend reuses OpenCodeWiki's shadcn/ui components and SSE hook pattern
 - All files at repo root — not in a subdirectory
 
 ## File Structure
@@ -68,11 +68,11 @@
 │       │   ├── ChatWindow.tsx   # SSE stream rendering + sources panel
 │       │   └── DocUpload.tsx    # File upload with progress
 │       ├── api/
-│       │   └── codeknora.ts     # API client functions
+│       │   └── opencodewiki.ts     # API client functions
 │       ├── hooks/
 │       │   └── useSSE.ts       # SSE stream hook (adapt from OpenCodeWiki)
 │       └── types/
-│           └── codeknora.ts     # TypeScript interfaces
+│           └── opencodewiki.ts     # TypeScript interfaces
 ├── config.yaml                 # Main config file
 ├── requirements.txt            # Python dependencies
 └── data/                       # Created at runtime by backend
@@ -173,7 +173,7 @@ Expected: `OK`
 
 ```bash
 git add requirements.txt config.yaml backend/__init__.py backend/pipeline/ backend/knowledge/ backend/prompts/ backend/stores/ data/
-git commit -m "chore: scaffold CodeKnora project structure and dependencies
+git commit -m "chore: scaffold OpenCodeWiki project structure and dependencies
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -921,7 +921,7 @@ templates:
     default: true
     has_knowledge_base: true
     content: |
-      You are CodeKnora, a professional intelligent information retrieval assistant. You answer user questions based on retrieved information and must not use any prior knowledge.
+      You are OpenCodeWiki, a professional intelligent information retrieval assistant. You answer user questions based on retrieved information and must not use any prior knowledge.
       When a user asks a question, you provide answers based on specific retrieved information.
 
       ## Response Rules
@@ -2491,7 +2491,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     init_databases(cfg)
 
-    app = FastAPI(title="CodeKnora", version="0.1.0")
+    app = FastAPI(title="OpenCodeWiki", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -2741,7 +2741,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 15: Frontend Types + API Client + SSE Hook
 
 **Files:**
-- Create: `frontend/src/types/codeknora.ts`, `frontend/src/api/codeknora.ts`, `frontend/src/hooks/useCodeKnoraSSE.ts`
+- Create: `frontend/src/types/opencodewiki.ts`, `frontend/src/api/opencodewiki.ts`, `frontend/src/hooks/useOpenCodeWikiSSE.ts`
 
 **Interfaces:**
 - Consumed by: Tasks 16, 17, 18 (frontend pages)
@@ -2749,7 +2749,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 1: Create TypeScript types**
 
-Create `frontend/src/types/codeknora.ts`:
+Create `frontend/src/types/opencodewiki.ts`:
 
 ```typescript
 export interface KB {
@@ -2826,10 +2826,10 @@ export interface Config {
 
 - [ ] **Step 2: Create API client**
 
-Create `frontend/src/api/codeknora.ts`:
+Create `frontend/src/api/opencodewiki.ts`:
 
 ```typescript
-import type { KB, Document, Session, Message, Config } from '@/types/codeknora'
+import type { KB, Document, Session, Message, Config } from '@/types/opencodewiki'
 
 const BASE = ''
 
@@ -2893,14 +2893,14 @@ export function askQuestion(kbId: string, question: string): Promise<Response> {
 
 - [ ] **Step 3: Create SSE hook**
 
-Create `frontend/src/hooks/useCodeKnoraSSE.ts`:
+Create `frontend/src/hooks/useOpenCodeWikiSSE.ts`:
 
 ```typescript
 import { useState, useCallback, useRef } from 'react'
-import { askQuestion } from '@/api/codeknora'
-import type { QASource } from '@/types/codeknora'
+import { askQuestion } from '@/api/opencodewiki'
+import type { QASource } from '@/types/opencodewiki'
 
-interface UseCodeKnoraSSEReturn {
+interface UseOpenCodeWikiSSEReturn {
   answer: string
   sources: QASource[]
   streaming: boolean
@@ -2910,7 +2910,7 @@ interface UseCodeKnoraSSEReturn {
   reset: () => void
 }
 
-export function useCodeKnoraSSE(): UseCodeKnoraSSEReturn {
+export function useOpenCodeWikiSSE(): UseOpenCodeWikiSSEReturn {
   const [answer, setAnswer] = useState('')
   const [sources, setSources] = useState<QASource[]>([])
   const [streaming, setStreaming] = useState(false)
@@ -2998,7 +2998,7 @@ export function useCodeKnoraSSE(): UseCodeKnoraSSEReturn {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add frontend/src/types/codeknora.ts frontend/src/api/codeknora.ts frontend/src/hooks/useCodeKnoraSSE.ts
+git add frontend/src/types/opencodewiki.ts frontend/src/api/opencodewiki.ts frontend/src/hooks/useOpenCodeWikiSSE.ts
 git commit -m "feat: frontend types, API client, and SSE streaming hook
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -3018,8 +3018,8 @@ Create `frontend/src/pages/KBManagePage.tsx`:
 
 ```tsx
 import { useState, useEffect, useCallback } from 'react'
-import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument } from '@/api/codeknora'
-import type { KB, Document } from '@/types/codeknora'
+import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument } from '@/api/opencodewiki'
+import type { KB, Document } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -3183,8 +3183,8 @@ Create `frontend/src/pages/SettingsPage.tsx`:
 
 ```tsx
 import { useState, useEffect } from 'react'
-import { fetchConfig } from '@/api/codeknora'
-import type { Config } from '@/types/codeknora'
+import { fetchConfig } from '@/api/opencodewiki'
+import type { Config } from '@/types/opencodewiki'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -3275,7 +3275,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 Create `frontend/src/components/ChatWindow.tsx`:
 
 ```tsx
-import type { QASource } from '@/types/codeknora'
+import type { QASource } from '@/types/opencodewiki'
 import { Card, CardContent } from '@/components/ui/card'
 import { FileText, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -3354,10 +3354,10 @@ Create `frontend/src/pages/QAPage.tsx`:
 
 ```tsx
 import { useState, useEffect } from 'react'
-import { fetchKBs } from '@/api/codeknora'
-import { useCodeKnoraSSE } from '@/hooks/useCodeKnoraSSE'
+import { fetchKBs } from '@/api/opencodewiki'
+import { useOpenCodeWikiSSE } from '@/hooks/useOpenCodeWikiSSE'
 import ChatWindow from '@/components/ChatWindow'
-import type { KB } from '@/types/codeknora'
+import type { KB } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -3368,7 +3368,7 @@ export default function QAPage() {
   const [selectedKB, setSelectedKB] = useState<string>('')
   const [question, setQuestion] = useState('')
   const [submittedQuestion, setSubmittedQuestion] = useState('')
-  const { answer, sources, streaming, error, ask, reset } = useCodeKnoraSSE()
+  const { answer, sources, streaming, error, ask, reset } = useOpenCodeWikiSSE()
 
   useEffect(() => { fetchKBs().then(setKbs) }, [])
 
@@ -3452,11 +3452,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 19: App Routing Integration
 
 **Files:**
-- Modify: `frontend/src/App.tsx` (add CodeKnora routes alongside existing OpenCodeWiki routes)
+- Modify: `frontend/src/App.tsx` (add OpenCodeWiki routes alongside existing OpenCodeWiki routes)
 
-- [ ] **Step 1: Add CodeKnora routes to App.tsx**
+- [ ] **Step 1: Add OpenCodeWiki routes to App.tsx**
 
-Open `frontend/src/App.tsx` and add the CodeKnora routes. The existing file has OpenCodeWiki routes — add three new routes for CodeKnora pages:
+Open `frontend/src/App.tsx` and add the OpenCodeWiki routes. The existing file has OpenCodeWiki routes — add three new routes for OpenCodeWiki pages:
 
 ```tsx
 // Add these imports at the top of App.tsx:
@@ -3465,14 +3465,14 @@ import KBManagePage from '@/pages/KBManagePage'
 import SettingsPage from '@/pages/SettingsPage'
 
 // Add these routes inside the <Routes> block:
-<Route path="/codeknora/qa" element={<QAPage />} />
-<Route path="/codeknora/kb" element={<KBManagePage />} />
-<Route path="/codeknora/settings" element={<SettingsPage />} />
+<Route path="/knowledge/qa" element={<QAPage />} />
+<Route path="/knowledge/kb" element={<KBManagePage />} />
+<Route path="/knowledge/settings" element={<SettingsPage />} />
 ```
 
 - [ ] **Step 2: Add navigation links**
 
-Add a nav section or sidebar link for CodeKnora in the existing layout, pointing to `/codeknora/qa`, `/codeknora/kb`, `/codeknora/settings`.
+Add a nav section or sidebar link for OpenCodeWiki in the existing layout, pointing to `/knowledge/qa`, `/knowledge/kb`, `/knowledge/settings`.
 
 - [ ] **Step 3: Verify build**
 
@@ -3486,7 +3486,7 @@ Expected: Build succeeds without errors.
 
 ```bash
 git add frontend/src/App.tsx
-git commit -m "feat: integrate CodeKnora routes into App with nav links
+git commit -m "feat: integrate OpenCodeWiki routes into App with nav links
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```

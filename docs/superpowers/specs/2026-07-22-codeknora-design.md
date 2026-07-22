@@ -1,11 +1,11 @@
-# CodeKnora Phase 1 Design
+# OpenCodeWiki Phase 1 Design
 
 > 基于 WeKnora 架构 + Python/TypeScript 技术栈重写，融合 OpenCodeWiki 的知识闭环理念。
 > Phase 1 目标：极简版知识库问答（效果优先，达到或接近 WeKnora 同问题回答质量）。
 
 ## 1. 项目定位
 
-CodeKnora 是一个面向团队共用的轻量级知识库问答系统。Phase 1 聚焦核心闭环的前半段：
+OpenCodeWiki 是一个面向团队共用的轻量级知识库问答系统。Phase 1 聚焦核心闭环的前半段：
 
 ```
 文档导入 → 切片 → 向量化 → 检索 → LLM 问答
@@ -15,7 +15,7 @@ Phase 2 补齐 QA → 知识库闭环进化能力（参考 OpenCodeWiki 的 QA�
 
 ### 1.1 项目位置
 
-存放在 OpenCodeWiki 仓库的 `codeknora` 分支，复用现有 CI 基础设施与前端组件栈。
+存放在 OpenCodeWiki 仓库的 `codeknora` 分支（Event Pipeline 重构），复用现有 CI 基础设施与前端组件栈。
 
 ### 1.2 Phase 1 边界与取舍
 
@@ -63,7 +63,7 @@ Phase 2 补齐 QA → 知识库闭环进化能力（参考 OpenCodeWiki 的 QA�
 ## 3. 项目结构
 
 ```
-CodeKnora/
+OpenCodeWiki/
 ├── backend/
 │   ├── main.py                 # FastAPI 入口 + API 路由
 │   ├── config.py               # 配置级联 (env > config.yaml > defaults)
@@ -214,7 +214,7 @@ class Pipeline:
 
 ### 4.3 与 WeKnora 的对应
 
-| WeKnora | CodeKnora | 说明 |
+| WeKnora | OpenCodeWiki | 说明 |
 |---------|-----------|------|
 | EventManager + CHUNK_SEARCH | Pipeline.run() | 简化为顺序执行 |
 | query_understand (search.go) | QueryUnderstandPlugin | Prompt 直译 |
