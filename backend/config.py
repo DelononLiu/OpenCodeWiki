@@ -31,7 +31,7 @@ class EmbeddingConfig:
 
 @dataclass
 class DatabaseConfig:
-    path: str = "~/.opencodewiki"
+    path: str = "~/.opencodewiki"  # knora.db, vectors.db, knowledge/
 
 
 @dataclass

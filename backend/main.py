@@ -115,8 +115,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         if not kb:
             raise HTTPException(404, "Knowledge base not found")
 
-        # Save file
-        files_dir = os.path.join(os.path.expanduser(cfg.database.path), "files", kb_id)
+        # Save file to ~/.opencodewiki/knowledge/{kb_name}/
+        files_dir = os.path.join(os.path.expanduser(cfg.database.path), "knowledge", kb["name"])
         os.makedirs(files_dir, exist_ok=True)
         file_path = os.path.join(files_dir, file.filename)
         content = await file.read()
