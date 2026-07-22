@@ -177,14 +177,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     # ── QA (SSE) ──
     class QARequest(BaseModel):
-        kb_id: str
+        kb_id: str = ""
         question: str
 
     @app.post("/api/qa")
     async def api_qa(req: QARequest):
-        kb = get_kb(req.kb_id)
-        if not kb:
-            raise HTTPException(404, "Knowledge base not found")
+        kb = get_kb(req.kb_id) if req.kb_id else None
 
         # Build pipeline — WeKnora-style: multiple plugins per event
         client = AsyncOpenAI(api_key=cfg.llm.api_key, base_url=cfg.llm.base_url)
@@ -221,13 +219,20 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         pipeline.on(EventNames.CHAT_COMPLETE, chat_plugin)
 
         # Run pipeline through CONTEXT_BUILD, then stream ChatComplete separately
-        event = PipelineEvent(question=req.question, kb_ids=[req.kb_id])
+        # No KB selected → search all KBs
+        if req.kb_id:
+            kb_ids = [req.kb_id]
+        else:
+            all_kbs = list_kbs()
+            kb_ids = [kb["id"] for kb in all_kbs]
+        event = PipelineEvent(question=req.question, kb_ids=kb_ids)
         event = await pipeline.run(event, until=EventNames.CONTEXT_BUILD)
 
-        # Create session for record
-        ses = create_session(req.kb_id, req.question[:50])
-        create_message(ses["id"], "user", req.question, "[]", 0)
-        event.session_id = ses["id"]
+        # Create session for record (skip if no KB selected)
+        if req.kb_id:
+            ses = create_session(req.kb_id, req.question[:50])
+            create_message(ses["id"], "user", req.question, "[]", 0)
+            event.session_id = ses["id"]
 
         async def event_stream():
             full_answer = ""
@@ -245,10 +250,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                     except Exception:
                         pass
                 elif "event: done" in sse_chunk or "event: error" in sse_chunk:
-                    # Save assistant message
-                    sources_json = json.dumps([s.model_dump() for s in event.sources]) if event.sources else "[]"
-                    token_count = len(full_answer.split())
-                    create_message(ses["id"], "assistant", full_answer, sources_json, token_count)
+                    # Save assistant message if session exists
+                    if req.kb_id:
+                        sources_json = json.dumps([s.model_dump() for s in event.sources]) if event.sources else "[]"
+                        token_count = len(full_answer.split())
+                        create_message(ses["id"], "assistant", full_answer, sources_json, token_count)
 
         return StreamingResponse(
             event_stream(),

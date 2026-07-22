@@ -47,7 +47,7 @@ export function QAPage() {
   const handleSubmit = async (text?: string, overrideKB?: string) => {
     const question = (text || input).trim()
     const kbId = overrideKB || selectedKB
-    if (!question || !kbId || streaming) return
+    if (!question || streaming) return
 
     setError(null)
     setInput('')
@@ -206,7 +206,7 @@ export function QAPage() {
             onChange={e => setSelectedKB(e.target.value)}
             className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 w-36"
           >
-            <option value="">选择知识库</option>
+            <option value="">全部知识库</option>
             {kbs.map(kb => (
               <option key={kb.id} value={kb.id}>{kb.name}</option>
             ))}
@@ -224,7 +224,7 @@ export function QAPage() {
             size="sm"
             className="bg-cyber-blue text-white rounded-lg px-3 py-2 text-xs font-semibold shrink-0"
             onClick={() => handleSubmit()}
-            disabled={streaming || !input.trim() || !selectedKB}
+            disabled={streaming || !input.trim()}
           >
             {streaming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </Button>

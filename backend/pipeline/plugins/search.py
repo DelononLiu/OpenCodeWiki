@@ -17,16 +17,20 @@ class SearchPlugin(BasePlugin):
         if event.intent not in ("kb_search",):
             return event
 
-        kb_id = event.kb_ids[0]
+        all_vector = []
+        all_keyword = []
 
-        # Run vector and keyword search in parallel
-        vector_results, keyword_results = await asyncio.gather(
-            self._vector_search(event, kb_id),
-            self._keyword_search(event, kb_id),
-        )
+        # Search across all specified KBs
+        for kb_id in event.kb_ids:
+            vector_results, keyword_results = await asyncio.gather(
+                self._vector_search(event, kb_id),
+                self._keyword_search(event, kb_id),
+            )
+            all_vector.extend(vector_results)
+            all_keyword.extend(keyword_results)
 
         # RRF merge
-        event.search_results = self._rrf_merge(vector_results, keyword_results)
+        event.search_results = self._rrf_merge(all_vector, all_keyword)
         return event
 
     async def _vector_search(self, event: PipelineEvent, kb_id: str) -> list[dict]:
