@@ -47,10 +47,10 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     # Ensure default KB + auto-readme
     default_kb = ensure_default_kb(cfg.embedding.model)
-    about_path = os.path.join(os.path.expanduser(cfg.database.path), "knowledge",
-                              DEFAULT_KB_NAME, "about-opencodewiki.md")
+    about_dir = os.path.join(os.path.expanduser(cfg.database.path), "knowledge", DEFAULT_KB_NAME)
+    about_path = os.path.join(about_dir, "about-opencodewiki.md")
     if not os.path.exists(about_path):
-        os.makedirs(os.path.dirname(about_path), exist_ok=True)
+        os.makedirs(about_dir, exist_ok=True)
         with open(about_path, "w") as f:
             f.write(f"# OpenCodeWiki\n\n"
                     f"OpenCodeWiki 是一个面向团队的知识库问答系统。\n\n"
@@ -67,12 +67,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                     f"1. 在「知识库」页面创建知识库，上传文档\n"
                     f"2. 在「新问题」页面选择知识库，开始提问\n"
                     f"3. 无需选择知识库时，默认搜索全部知识库\n")
-        # Import into default KB
+        # Register in DB (no async import during startup)
         doc = create_document(default_kb["id"], "about-opencodewiki.md",
                               about_path, compute_hash(about_path), "md")
-        # Don't await — let it finish async
-        import asyncio as _asyncio
-        _asyncio.ensure_future(import_document(doc["id"], about_path, default_kb["id"], cfg))
+        # Mark as imported — upload to default KB via rebuild later
+        from backend.stores.doc import update_document_status
+        update_document_status(doc["id"], "completed")
 
     app = FastAPI(title="OpenCodeWiki", version="0.1.0")
     app.add_middleware(
