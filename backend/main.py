@@ -115,12 +115,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 continue  # skip legacy kb-id dirs and unrelated folders
             for f in sorted(os.listdir(kb_dir)):
                 if f.endswith(".md"):
-                    slug = f"{kb_name}/{f.replace('.md', '')}"
+                    file_slug = f.replace(".md", "")
                     modules.append({
-                        "slug": slug,
-                        "name": f"{kb_name} / {f.replace('.md', '')}",
+                        "slug": file_slug,
+                        "name": f"{kb_name} / {file_slug}",
                         "type": "source",
-                        "title": f.replace(".md", ""),
+                        "title": file_slug,
+                        "kb_name": kb_name,
                     })
         return modules
 
@@ -145,20 +146,25 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.get("/api/wiki/{slug:path}")
     async def api_wiki_page(slug: str):
-        """Get wiki page content by slug. Looks in knowledge/ first, then pages/."""
-        # Try knowledge/ first
-        path = os.path.join(KNOWLEDGE_ROOT, slug + ".md")
-        if not os.path.isfile(path):
-            # Try pages/
-            if slug.startswith("pages/"):
-                path = os.path.join(PAGES_ROOT, slug[6:] + ".md")
-            else:
-                path = os.path.join(PAGES_ROOT, slug + ".md")
-        if not os.path.isfile(path):
-            raise HTTPException(404, "Wiki page not found")
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-        return {"ok": True, "data": {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}}
+        """Get wiki page content by slug (just the filename)."""
+        # First try: scan knowledge/ subdirs for {kb_name}/{slug}.md
+        if os.path.isdir(KNOWLEDGE_ROOT):
+            for kb_name in os.listdir(KNOWLEDGE_ROOT):
+                path = os.path.join(KNOWLEDGE_ROOT, kb_name, slug + ".md")
+                if os.path.isfile(path):
+                    with open(path, encoding="utf-8") as f:
+                        content = f.read()
+                    return {"ok": True, "data": {"slug": slug, "content": content, "title": slug}}
+        # Second try: pages/ (legacy with path prefix)
+        if slug.startswith("pages/"):
+            path = os.path.join(PAGES_ROOT, slug[6:] + ".md")
+        else:
+            path = os.path.join(PAGES_ROOT, slug + ".md")
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                content = f.read()
+            return {"ok": True, "data": {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}}
+        raise HTTPException(404, "Wiki page not found")
 
     @app.get("/api/knowledge")
     async def api_knowledge():
