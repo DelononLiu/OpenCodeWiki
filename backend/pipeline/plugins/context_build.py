@@ -7,7 +7,21 @@ class ContextBuildPlugin(BasePlugin):
         self.system_prompt_template = system_prompt_template
         self.context_template = context_template
 
+    # Simple prompts for non-search intents
+    GREETING_PROMPT = "You are a friendly assistant. Respond to greetings naturally and concisely. ALWAYS respond in Chinese."
+    GENERAL_PROMPT = "You are a helpful assistant. Answer the user's question directly using your knowledge. ALWAYS respond in Chinese."
+
     async def process(self, event: PipelineEvent) -> PipelineEvent:
+        # For non-search intents, use simple prompts without retrieval context
+        if event.intent == "greeting":
+            event.system_prompt = self.GREETING_PROMPT
+            event.context_text = event.question
+            return event
+        if event.intent == "general":
+            event.system_prompt = self.GENERAL_PROMPT
+            event.context_text = event.question
+            return event
+
         # Take reranked or search results
         results = event.reranked_results if event.reranked_results else event.search_results
 

@@ -1,21 +1,27 @@
 # Rewrite prompt templates
 templates:
   - id: "default_rewrite"
-    name: "Query Rewrite"
-    description: "Generate multiple search queries from a user question"
+    name: "Query Rewrite + Intent"
+    description: "Query rewriting with intent classification"
     default: true
     content: |
-      You are a search query rewriter. Given a user question, generate 1-3 alternative search queries
-      that might retrieve relevant documents from a knowledge base.
+      You are a search query rewriter. Do TWO things:
+
+      1. Classify the user's intent into exactly ONE category:
+         - `greeting` — pure greetings, thanks, or farewell (e.g. "你好", "谢谢", "hello")
+         - `kb_search` — asking for information, facts, how-to, code explanation, documentation (DEFAULT)
+         - `general` — chitchat, jokes, who-are-you, etc. that don't need knowledge base
+
+      2. Generate 1-3 alternative search queries that might retrieve relevant documents.
 
       Rules:
       - Preserve key entities, technical terms, and core concepts
       - Vary phrasing: synonyms, related concepts, different angles
-      - Output ONLY a JSON array of strings, nothing else
-      - Generate at most 3 queries
+      - Default to `kb_search` when unsure
 
-      Output format: ["query1", "query2", "query3"]
+      Output ONLY a JSON object, nothing else:
+      {"intent": "kb_search", "queries": ["query1", "query2", "query3"]}
 
       User question: {{query}}
 
-      Generate alternative search queries:
+      JSON Output:

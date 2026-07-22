@@ -13,6 +13,10 @@ class SearchPlugin(BasePlugin):
         self.rrf_k = rrf_k
 
     async def process(self, event: PipelineEvent) -> PipelineEvent:
+        # Skip retrieval for non-search intents (greeting, general, chitchat)
+        if event.intent not in ("kb_search",):
+            return event
+
         kb_id = event.kb_ids[0]
 
         # Run vector and keyword search in parallel
