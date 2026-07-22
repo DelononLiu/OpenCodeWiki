@@ -52,7 +52,7 @@ export default function ChatWindow({ question, answer, sources, streaming, error
                 <div className="flex items-center gap-2 text-gray-600">
                   <FileText className="w-3 h-3" />
                   <span className="font-medium">{s.doc_title}</span>
-                  <span className="text-xs text-gray-400">(相似度: {s.score.toFixed(2)})</span>
+                  <span className="text-xs text-gray-400">来源 {i + 1}</span>
                 </div>
                 <p className="text-gray-500 mt-1 text-xs line-clamp-2">{s.content}</p>
               </CardContent>
