@@ -7,9 +7,8 @@ import { WikiPage } from '@/pages/WikiPage'
 import { QAPage } from '@/pages/QAPage'
 import { QASharePage } from '@/pages/QASharePage'
 import { AdminPage } from '@/pages/AdminPage'
-import SettingsPage from '@/pages/SettingsPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { SourcesPage } from '@/pages/SourcesPage'
-import KBManagePage from '@/pages/KBManagePage'
 
 export default function App() {
   return (
@@ -26,9 +25,6 @@ export default function App() {
             <Route path="/:repo" element={<WikiPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/sources" element={<SourcesPage />} />
-            <Route path="/knowledge/qa" element={<QAPage />} />
-            <Route path="/knowledge/kb" element={<KBManagePage />} />
-            <Route path="/knowledge/settings" element={<SettingsPage />} />
           </Routes>
         </div>
       </div>
