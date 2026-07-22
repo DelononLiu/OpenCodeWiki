@@ -475,12 +475,24 @@ Phase 1: 文档导入 → 检索 → 问答
 Phase 2: 问答 → Topic 聚合 → Wiki 沉淀 → 回灌检索索引
 ```
 
-Phase 2 核心能力：
-- QA 校准：管理员标记正确答案
-- Topic 发现：LLM 批量聚类 QA → 主题
-- Draft 生成：LLM 按模板生成结构化 Wiki
+Phase 2 核心能力（引入 LangGraph Agent，负责需要多步推理的闭环场景）：
+
+```
+Pipeline (Phase 1)         Agent (Phase 2)
+  QueryUnderstand            QA 校准 ─┐
+  → Search                   Topic 发现 ─┤
+  → Rerank                   Draft 生成 ─┤ 多轮 ReAct
+  → ContextBuild             审核发布 ─┤
+  → ChatComplete             闭环回灌 ─┘
+```
+
+- QA 校准：Agent 对比用户答案与标准答案，判断是否需要修正
+- Topic 发现：Agent 批量分析 QA，聚类发现可沉淀的主题
+- Draft 生成：Agent 多轮迭代按模板生成结构化 Wiki
 - 审核发布：人工审核 → 写入 FTS5 索引
 - 闭环回灌：Wiki 内容在后续 QA 检索时作为上下文
+
+注意区分：Phase 1 的 Pipeline 各节点均为单次 LLM 调用（无需 Agent）；QueryUnderstand 不改写为 Agent——关键词提取+查询重写由简单 LLM 调用完成即可。Agent 只用在 Phase 2 那些需要多步推理/规划的闭环场景。
 
 这直接复用 OpenCodeWiki 的 `QA→Topic→Wiki→FTS5` 管线设计。
 
@@ -498,3 +510,4 @@ Phase 2 核心能力：
 10. **RRF 融合** — 向量搜索 + FTS5 关键词搜索结果用 RRF 合并，照搬 WeKnora 策略。
 11. **项目位置** — OpenCodeWiki 仓库的 `codeknora` 分支，复用 CI 和前端组件栈。
 12. **前端三页面** — QAPage / KBManagePage / SettingsPage，复用 OpenCodeWiki 的 React + shadcn/ui 技术栈。
+13. **Event Pipeline 主体 + LangGraph Agent 辅助** — Phase 1 纯 Pipeline（所有节点均为单次 LLM 调用，不需要 Agent）。Phase 2 在 Pipeline 之上引入 LangGraph Agent，仅用于 QA→Topic→Wiki 闭环中需要多步推理的场景（校准、聚类、迭代生成）。QueryUnderstand 保持简单 LLM 调用，永远不升级为 Agent。
