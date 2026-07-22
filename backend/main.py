@@ -73,7 +73,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
-        return create_kb(req.name, req.description)
+        return create_kb(req.name, req.description, embedding_model=cfg.embedding.model)
 
     @app.get("/api/kb")
     async def api_list_kbs():

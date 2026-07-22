@@ -1,15 +1,15 @@
 import uuid
 from backend.database import get_knora_db
 
-def create_kb(name: str, description: str = "") -> dict:
+def create_kb(name: str, description: str = "", embedding_model: str = "") -> dict:
     db = get_knora_db()
     kb_id = f"kb-{uuid.uuid4().hex[:8]}"
     db.execute(
-        "INSERT INTO knowledge_bases (id, name, description) VALUES (?, ?, ?)",
-        (kb_id, name, description)
+        "INSERT INTO knowledge_bases (id, name, description, embedding_model) VALUES (?, ?, ?, ?)",
+        (kb_id, name, description, embedding_model or "text-embedding-3-small")
     )
     db.commit()
-    return {"id": kb_id, "name": name, "description": description}
+    return {"id": kb_id, "name": name, "description": description, "embedding_model": embedding_model}
 
 def list_kbs() -> list[dict]:
     db = get_knora_db()
