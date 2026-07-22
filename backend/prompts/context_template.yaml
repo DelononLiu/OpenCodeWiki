@@ -1,0 +1,27 @@
+# Context templates
+templates:
+  - id: "default_context"
+    name: "Standard Template"
+    description: "Standard context formatting template"
+    default: true
+    has_knowledge_base: true
+    content: |
+      Reference materials:
+      {{contexts}}
+
+      Question: {{query}}
+
+      Please answer the above question based on the reference materials.
+      IMPORTANT: ALWAYS respond in {{language}}.
+
+  - id: "simple_context"
+    name: "Simple Template"
+    description: "Minimal template for simple Q&A"
+    has_knowledge_base: true
+    content: |
+      Reference materials:
+      {{contexts}}
+
+      Question: {{query}}
+
+      IMPORTANT: ALWAYS respond in {{language}}.

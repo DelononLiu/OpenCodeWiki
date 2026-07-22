@@ -1,0 +1,9 @@
+# Fallback templates
+templates:
+  - id: "default_fallback"
+    name: "Fallback Response"
+    description: "Response when no relevant information is found"
+    default: true
+    content: |
+      I couldn't find relevant information in the knowledge base to answer your question.
+      Please try rephrasing your question or check if the relevant documents have been uploaded.
