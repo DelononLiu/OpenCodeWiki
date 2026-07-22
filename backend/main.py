@@ -95,6 +95,55 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         # Simple config update - write to config.yaml
         return {"updated": True}
 
+    # ── Wiki (file-based, read from ~/.opencodewiki/pages/) ──
+    WIKI_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "pages")
+
+    @app.get("/api/wiki/modules")
+    async def api_wiki_modules():
+        """List wiki modules (knowledge bases with wiki pages)."""
+        modules = []
+        if os.path.isdir(WIKI_ROOT):
+            for root, dirs, files in os.walk(WIKI_ROOT):
+                for f in files:
+                    if f.endswith(".md"):
+                        rel = os.path.relpath(os.path.join(root, f), WIKI_ROOT)
+                        parts = rel.split(os.sep)
+                        kb_name = parts[0] if len(parts) > 1 else "root"
+                        slug = rel.replace(os.sep, "/").replace(".md", "")
+                        modules.append({
+                            "slug": slug,
+                            "name": f"{kb_name} / {f.replace('.md', '')}",
+                            "type": "source",
+                            "title": f.replace(".md", ""),
+                        })
+        return modules
+
+    @app.get("/api/wiki/{slug:path}")
+    async def api_wiki_page(slug: str):
+        """Get wiki page content by slug."""
+        path = os.path.join(WIKI_ROOT, slug + ".md")
+        if not os.path.isfile(path):
+            raise HTTPException(404, "Wiki page not found")
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        return {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}
+
+    @app.get("/api/knowledge")
+    async def api_knowledge():
+        """Legacy: list knowledge from wiki pages + uploaded docs."""
+        data = []
+        if os.path.isdir(WIKI_ROOT):
+            for root, dirs, files in os.walk(WIKI_ROOT):
+                for f in files:
+                    if f.endswith(".md"):
+                        rel = os.path.relpath(os.path.join(root, f), WIKI_ROOT)
+                        kb_name = rel.split(os.sep, 1)[0]
+                        data.append({"name": kb_name})
+        # Also add KBs from database
+        for kb in list_kbs():
+            data.append({"name": kb["name"]})
+        return {"ok": True, "data": list({d["name"]: d for d in data}.values())}
+
     # ── Knowledge Bases ──
     class CreateKBRequest(BaseModel):
         name: str
