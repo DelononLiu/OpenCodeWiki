@@ -141,7 +141,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                             "type": "source",
                             "title": f.replace(".md", ""),
                         })
-        return modules
+        return {"ok": True, "data": modules}
 
     @app.get("/api/wiki/{slug:path}")
     async def api_wiki_page(slug: str):
@@ -158,19 +158,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(404, "Wiki page not found")
         with open(path, encoding="utf-8") as f:
             content = f.read()
-        return {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}
+        return {"ok": True, "data": {"slug": slug, "content": content, "title": os.path.basename(path).replace(".md", "")}}
 
     @app.get("/api/knowledge")
     async def api_knowledge():
-        """List all KB names from knowledge/ dir + DB."""
-        data = []
-        if os.path.isdir(KNOWLEDGE_ROOT):
-            for name in os.listdir(KNOWLEDGE_ROOT):
-                if os.path.isdir(os.path.join(KNOWLEDGE_ROOT, name)):
-                    data.append({"name": name})
-        for kb in list_kbs():
-            data.append({"name": kb["name"]})
-        return {"ok": True, "data": list({d["name"]: d for d in data}.values())}
+        """List KB names from DB only (not filesystem scan)."""
+        data = [{"name": kb["name"]} for kb in list_kbs()]
+        return {"ok": True, "data": data}
 
     # ── Knowledge Bases ──
     class CreateKBRequest(BaseModel):
