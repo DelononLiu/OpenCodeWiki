@@ -28,7 +28,7 @@ class QueryUnderstandPlugin(BasePlugin):
         if not question.strip():
             return []
 
-        prompt = self.keywords_prompt.replace("{{query}}", question)
+        prompt = self.keywords_prompt.replace("{{query}}", question).replace("{{language}}", "Chinese")
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],

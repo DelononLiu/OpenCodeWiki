@@ -105,6 +105,7 @@ def search_vector(
                 "doc_id": chunk[2],
                 "score": score,
                 "source": "vector",
+                "title": chunk[4],
             })
 
     return results
@@ -156,6 +157,7 @@ def search_keyword(
                 "doc_id": chunk[2],
                 "score": float(row[1]) if row[1] else 0.0,
                 "source": "keyword",
+                "title": chunk[4],
             })
 
     return results

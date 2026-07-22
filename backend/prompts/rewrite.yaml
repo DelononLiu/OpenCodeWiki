@@ -16,7 +16,6 @@ templates:
 
       Output format: ["query1", "query2", "query3"]
 
-    user: |
       User question: {{query}}
 
       Generate alternative search queries:
