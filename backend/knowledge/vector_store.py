@@ -11,7 +11,15 @@ from backend.database import get_vectors_db, get_knora_db
 
 # ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
+def _insert_fts5_only(chunk_id: str, text: str, keywords: str) -> None:
+    """Insert only into FTS5 index (no vector), for embedding-free mode."""
+    vec_db = get_vectors_db()
+    vec_db.execute(
+        "INSERT INTO chunk_fts (chunk_id, text, keywords) VALUES (?, ?, ?)",
+        (chunk_id, text, keywords)
+    )
+    vec_db.commit()
+
 
 def _vector_to_blob(vector: list[float]) -> bytes:
     """Pack a list of floats into a binary blob for sqlite-vec."""

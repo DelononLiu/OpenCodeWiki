@@ -12,11 +12,22 @@ class QueryUnderstandPlugin(BasePlugin):
         self.rewrite_prompt = rewrite_prompt
 
     async def process(self, event: PipelineEvent) -> PipelineEvent:
-        # Step 1: Extract keywords
-        event.keywords = await self._extract_keywords(event.question)
+        # Step 1: Extract keywords (with fallback)
+        try:
+            event.keywords = await self._extract_keywords(event.question)
+        except Exception:
+            event.keywords = []
+        if not event.keywords:
+            # Fallback: extract words from raw question
+            import re
+            words = re.findall(r'[a-zA-Z0-9]+', event.question)
+            event.keywords = list(set(words))[:5]
 
-        # Step 2: Rewrite query into multiple variants
-        event.rewritten_queries = await self._rewrite(event.question)
+        # Step 2: Rewrite query into multiple variants (with fallback)
+        try:
+            event.rewritten_queries = await self._rewrite(event.question)
+        except Exception:
+            event.rewritten_queries = [event.question]
 
         # Always include original question as a search query
         if event.question not in event.rewritten_queries:

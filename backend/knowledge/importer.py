@@ -54,35 +54,44 @@ async def import_document(doc_id: str, file_path: str, kb_id: str, cfg: Config) 
             create_chunk(doc_id, kb_id, ct, i, "{}")
 
         # 4. Embed
-        client = AsyncOpenAI(
-            api_key=cfg.embedding.api_key,
-            base_url=cfg.embedding.base_url,
-        )
-        embedder = Embedder(
-            client=client,
-            model=cfg.embedding.model,
-            dimensions=cfg.embedding.dimensions,
-        )
-        vectors = await embedder.embed(chunk_texts)
-
-        # 5. Store in vector DB
-        records = [
-            {
-                "chunk_id": f"chk-import-{i}",
-                "vector": vec,
-                "text": chunk_texts[i],
-                "keywords": "",
-            }
-            for i, vec in enumerate(vectors)
-        ]
-        # Fix chunk IDs to match actual DB records
         from backend.stores.doc import get_chunks_by_doc
         db_chunks = get_chunks_by_doc(doc_id)
-        for i, ch in enumerate(db_chunks):
-            if i < len(records):
-                records[i]["chunk_id"] = ch["id"]
 
-        insert_vectors(records)
+        try:
+            # 4. Embed
+            client = AsyncOpenAI(
+                api_key=cfg.embedding.api_key,
+                base_url=cfg.embedding.base_url,
+            )
+            embedder = Embedder(
+                client=client,
+                model=cfg.embedding.model,
+                dimensions=cfg.embedding.dimensions,
+            )
+            vectors = await embedder.embed(chunk_texts)
+
+            # 5. Store in vector DB
+            records = [
+                {
+                    "chunk_id": f"chk-import-{i}",
+                    "vector": vec,
+                    "text": chunk_texts[i],
+                    "keywords": "",
+                }
+                for i, vec in enumerate(vectors)
+            ]
+            for i, ch in enumerate(db_chunks):
+                if i < len(records):
+                    records[i]["chunk_id"] = ch["id"]
+
+            insert_vectors(records)
+        except Exception as e:
+            # Embedding failed — still save FTS5 entries for keyword search
+            from backend.knowledge.vector_store import _insert_fts5_only
+            for i, ch in enumerate(db_chunks):
+                if i < len(chunk_texts):
+                    _insert_fts5_only(ch["id"], chunk_texts[i], "")
+            print(f"[import] Embedding failed (FTS5 saved): {e}")
 
         # 6. Mark complete
         update_document_chunks_count(doc_id, len(chunk_texts))

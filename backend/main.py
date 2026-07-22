@@ -267,6 +267,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     return app
 
 
+app = create_app()
+
 if __name__ == "__main__":
     import uvicorn
     cfg = load_config()

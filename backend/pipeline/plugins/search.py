@@ -26,16 +26,19 @@ class SearchPlugin(BasePlugin):
         return event
 
     async def _vector_search(self, event: PipelineEvent, kb_id: str) -> list[dict]:
-        all_results = []
-        seen = set()
-        for query in event.rewritten_queries[:3]:
-            vec = await self.embedder.embed_single(query)
-            results = search_vector(vec, kb_id, self.top_k)
-            for r in results:
-                if r["chunk_id"] not in seen:
-                    seen.add(r["chunk_id"])
-                    all_results.append(r)
-        return all_results
+        try:
+            all_results = []
+            seen = set()
+            for query in event.rewritten_queries[:3]:
+                vec = await self.embedder.embed_single(query)
+                results = search_vector(vec, kb_id, self.top_k)
+                for r in results:
+                    if r["chunk_id"] not in seen:
+                        seen.add(r["chunk_id"])
+                        all_results.append(r)
+            return all_results
+        except Exception:
+            return []
 
     async def _keyword_search(self, event: PipelineEvent, kb_id: str) -> list[dict]:
         if not event.keywords:
