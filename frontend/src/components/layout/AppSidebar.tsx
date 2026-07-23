@@ -145,14 +145,16 @@ export function AppSidebar() {
   return (
     <>
       <aside className={`h-screen bg-sidebar-bg flex flex-col shrink-0 z-30 transition-all duration-200 border-r border-slate-700/50 ${sidebarOpen ? 'w-[260px]' : 'w-14'}`}>
-        {/* Logo row — 和 WeKnora 一致的 header 高度 */}
+        {/* Logo row — W=折叠切换，标题=跳转主页 */}
         <div className={`flex items-center h-[50px] shrink-0 ${sidebarOpen ? 'px-[14px] justify-between' : 'justify-center'}`}>
           <button onClick={toggleSidebar}
             className="w-8 h-8 bg-gradient-to-br from-cyber-blue to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm hover:from-cyber-blue-dark hover:to-indigo-700 transition-all shrink-0 shadow-sm">
             W
           </button>
           {sidebarOpen && (
-            <span className="text-sm font-bold text-sidebar-active/90 truncate ml-3 tracking-wide">OpenCodeWiki</span>
+            <button onClick={() => navigate('/')} className="text-sm font-bold text-sidebar-active/90 truncate ml-3 tracking-wide hover:text-sidebar-active transition-colors">
+              OpenCodeWiki
+            </button>
           )}
           {sidebarOpen && (
             <button onClick={toggleSidebar} className="w-[18px] h-[18px] flex items-center justify-center rounded text-sidebar-text/40 hover:text-sidebar-active transition-colors ml-auto">
