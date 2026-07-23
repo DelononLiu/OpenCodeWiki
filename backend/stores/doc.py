@@ -60,9 +60,29 @@ def create_chunk(doc_id: str, kb_id: str, content: str, chunk_index: int, metada
     db.commit()
     return {"id": chunk_id, "doc_id": doc_id, "kb_id": kb_id, "content": content, "chunk_index": chunk_index}
 
+def create_chunks_batch(doc_id: str, kb_id: str, chunks: list[tuple[str, int, str]]) -> list[dict]:
+    """Bulk insert chunks. chunks = [(content, chunk_index, metadata), ...]"""
+    if not chunks:
+        return []
+    db = get_knora_db()
+    ids = [f"chk-{uuid.uuid4().hex[:8]}" for _ in chunks]
+    rows = [(ids[i], doc_id, kb_id, chunks[i][0], chunks[i][1], chunks[i][2]) for i in range(len(chunks))]
+    db.executemany(
+        "INSERT INTO chunks (id, doc_id, kb_id, content, chunk_index, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    db.commit()
+    return [{"id": ids[i], "doc_id": doc_id, "kb_id": kb_id,
+             "content": chunks[i][0], "chunk_index": chunks[i][1]} for i in range(len(chunks))]
+
 def delete_chunks_by_doc(doc_id: str) -> None:
     db = get_knora_db()
     db.execute("DELETE FROM chunks WHERE doc_id = ?", (doc_id,))
+    db.commit()
+
+def delete_chunks_by_kb(kb_id: str) -> None:
+    db = get_knora_db()
+    db.execute("DELETE FROM chunks WHERE kb_id = ?", (kb_id,))
     db.commit()
 
 def get_chunks_by_doc(doc_id: str) -> list[dict]:

@@ -16,14 +16,10 @@ def create_kb(name: str, description: str = "", embedding_model: str = "") -> di
 def list_kbs() -> list[dict]:
     db = get_knora_db()
     rows = db.execute(
-        """SELECT k.id, k.name, k.description, k.embedding_model, k.chunk_config, k.created_at,
-                  COUNT(DISTINCT d.id) as doc_count,
-                  COUNT(DISTINCT c.id) as chunk_count
-           FROM knowledge_bases k
-           LEFT JOIN documents d ON d.kb_id = k.id
-           LEFT JOIN chunks c ON c.kb_id = k.id
-           GROUP BY k.id
-           ORDER BY (k.name = ?) DESC, k.created_at DESC""",
+        """SELECT id, name, description, embedding_model, chunk_config,
+                  doc_count, chunk_count, created_at
+           FROM knowledge_bases
+           ORDER BY (name = ?) DESC, created_at DESC""",
         (DEFAULT_KB_NAME,)
     ).fetchall()
     return [_row_to_dict(r) for r in rows]
@@ -31,7 +27,7 @@ def list_kbs() -> list[dict]:
 def get_kb(kb_id: str) -> dict | None:
     db = get_knora_db()
     row = db.execute(
-        "SELECT id, name, description, embedding_model, chunk_config, created_at FROM knowledge_bases WHERE id = ?",
+        "SELECT id, name, description, embedding_model, chunk_config, doc_count, chunk_count, created_at FROM knowledge_bases WHERE id = ?",
         (kb_id,)
     ).fetchone()
     return _row_to_dict(row) if row else None
@@ -39,7 +35,7 @@ def get_kb(kb_id: str) -> dict | None:
 def get_kb_by_name(name: str) -> dict | None:
     db = get_knora_db()
     row = db.execute(
-        "SELECT id, name, description, embedding_model, chunk_config, created_at FROM knowledge_bases WHERE name = ?",
+        "SELECT id, name, description, embedding_model, chunk_config, doc_count, chunk_count, created_at FROM knowledge_bases WHERE name = ?",
         (name,)
     ).fetchone()
     return _row_to_dict(row) if row else None

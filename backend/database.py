@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     description   TEXT DEFAULT '',
     embedding_model TEXT DEFAULT 'text-embedding-3-small',
     chunk_config  TEXT DEFAULT '{"size":512,"overlap":50}',
+    doc_count     INTEGER DEFAULT 0,
+    chunk_count   INTEGER DEFAULT 0,
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
@@ -57,12 +59,65 @@ CREATE TABLE IF NOT EXISTS messages (
     thinking      TEXT DEFAULT '',
     created_at    TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id            TEXT PRIMARY KEY,
+    type          TEXT NOT NULL,
+    status        TEXT DEFAULT 'pending',
+    progress      INTEGER DEFAULT 0,
+    progress_msg  TEXT DEFAULT '',
+    kb_id         TEXT,
+    repo_id       TEXT,
+    params        TEXT DEFAULT '{}',
+    error_message TEXT,
+    created_at    TEXT DEFAULT (datetime('now')),
+    started_at    TEXT,
+    completed_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS remote_repos (
+    id            TEXT PRIMARY KEY,
+    type          TEXT NOT NULL CHECK(type IN ('git', 'svn')),
+    url           TEXT NOT NULL,
+    branch        TEXT DEFAULT 'main',
+    local_path    TEXT NOT NULL,
+    kb_id         TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+    schedule      TEXT DEFAULT '',
+    last_sync_at  TEXT,
+    last_status   TEXT DEFAULT 'pending',
+    created_at    TEXT DEFAULT (datetime('now'))
+);
 """
 
-# Add thinking column for existing databases (safe to run multiple times)
+# Add columns for existing databases (safe to run multiple times)
 _MIGRATIONS = [
     "ALTER TABLE messages ADD COLUMN thinking TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN doc_count INTEGER DEFAULT 0",
+    "ALTER TABLE knowledge_bases ADD COLUMN chunk_count INTEGER DEFAULT 0",
 ]
+
+# ── Triggers: auto-maintain KB doc_count / chunk_count ──
+_COUNT_TRIGGERS = """
+CREATE TRIGGER IF NOT EXISTS trg_kb_doc_count_insert
+AFTER INSERT ON documents BEGIN
+    UPDATE knowledge_bases SET doc_count = doc_count + 1 WHERE id = NEW.kb_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_kb_doc_count_delete
+AFTER DELETE ON documents BEGIN
+    UPDATE knowledge_bases SET doc_count = doc_count - 1 WHERE id = OLD.kb_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_kb_chunk_count_insert
+AFTER INSERT ON chunks BEGIN
+    UPDATE knowledge_bases SET chunk_count = chunk_count + 1 WHERE id = NEW.kb_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_kb_chunk_count_delete
+AFTER DELETE ON chunks BEGIN
+    UPDATE knowledge_bases SET chunk_count = chunk_count - 1 WHERE id = OLD.kb_id;
+END;
+"""
 
 def _ensure_vectors_schema(conn: sqlite3.Connection, dimensions: int) -> None:
     """Create or migrate vector tables to match configured dimensions."""
@@ -122,6 +177,18 @@ def init_databases(cfg: Config) -> None:
             _knora_conn.execute(migration)
         except Exception:
             pass  # column already exists
+    _knora_conn.commit()
+
+    # Create count triggers
+    _knora_conn.executescript(_COUNT_TRIGGERS)
+    _knora_conn.commit()
+
+    # Backfill cached counts for existing data (idempotent)
+    _knora_conn.execute("""
+        UPDATE knowledge_bases SET
+            doc_count = (SELECT COUNT(*) FROM documents WHERE documents.kb_id = knowledge_bases.id),
+            chunk_count = (SELECT COUNT(*) FROM chunks WHERE chunks.kb_id = knowledge_bases.id)
+    """)
     _knora_conn.commit()
 
     vectors_path = _db_path(cfg, "vectors.db")

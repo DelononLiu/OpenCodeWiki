@@ -4,9 +4,10 @@ import os
 from backend.config import Config
 from backend.knowledge.chunker import Chunker
 from backend.knowledge.embedder import Embedder
-from backend.knowledge.vector_store import insert_vectors
+from backend.knowledge.vector_store import insert_vectors, _insert_fts5_only
 from backend.stores.doc import (
-    create_chunk, update_document_status, update_document_chunks_count,
+    create_chunks_batch, get_chunks_by_doc,
+    update_document_status, update_document_chunks_count,
 )
 from openai import AsyncOpenAI
 
@@ -52,62 +53,94 @@ def parse_file(file_path: str, file_type: str) -> str:
         raise ValueError(f"Unsupported file type: {file_type}")
 
 
-async def import_document(doc_id: str, file_path: str, kb_id: str, cfg: Config) -> None:
+async def import_document(
+    doc_id: str,
+    file_path: str,
+    kb_id: str,
+    cfg: Config,
+    progress_callback=None,
+    cancel_check=None,
+) -> None:
+    """Import a document: parse → chunk → embed → index.
+
+    Args:
+        progress_callback: async callable(percent, message) for progress reporting.
+        cancel_check: async callable() → bool; return True to abort early.
+    """
+    async def _report(pct: int, msg: str = ""):
+        if progress_callback:
+            await progress_callback(pct, msg)
+
+    def _cancelled() -> bool:
+        return cancel_check is not None and cancel_check()
+
     try:
         # 1. Parse
         ext = os.path.splitext(file_path)[1].lstrip(".").lower()
         text = parse_file(file_path, ext)
+        await _report(10, "解析完成")
+
+        if _cancelled():
+            update_document_status(doc_id, "cancelled")
+            return
 
         # 2. Chunk
         chunker = Chunker(chunk_size=cfg.knowledge.chunk_size, chunk_overlap=cfg.knowledge.chunk_overlap)
         chunk_texts = chunker.split(text)
+        await _report(25, f"已分块: {len(chunk_texts)} 块")
 
-        # 3. Store chunks in knora.db
-        for i, ct in enumerate(chunk_texts):
-            create_chunk(doc_id, kb_id, ct, i, "{}")
+        if _cancelled():
+            update_document_status(doc_id, "cancelled")
+            return
 
-        # 4. Embed
-        from backend.stores.doc import get_chunks_by_doc
-        db_chunks = get_chunks_by_doc(doc_id)
+        # 3. Bulk store chunks in knora.db
+        chunk_data = [(ct, i, "{}") for i, ct in enumerate(chunk_texts)]
+        db_chunks = create_chunks_batch(doc_id, kb_id, chunk_data)
+        await _report(40, "分块已写入")
 
-        try:
-            # 4. Embed
-            client = AsyncOpenAI(
-                api_key=cfg.embedding.api_key,
-                base_url=cfg.embedding.base_url,
-            )
-            embedder = Embedder(
-                client=client,
-                model=cfg.embedding.model,
-                dimensions=cfg.embedding.dimensions,
-            )
-            vectors = await embedder.embed(chunk_texts)
+        # 4. Embed (with retry)
+        client = AsyncOpenAI(
+            api_key=cfg.embedding.api_key,
+            base_url=cfg.embedding.base_url,
+        )
+        embedder = Embedder(
+            client=client,
+            model=cfg.embedding.model,
+            dimensions=cfg.embedding.dimensions,
+        )
 
+        vectors = None
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            if _cancelled():
+                update_document_status(doc_id, "cancelled")
+                return
+            try:
+                vectors = await embedder.embed(chunk_texts)
+                break
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    await _report(50, f"嵌入请求失败，正在重试 ({attempt + 1}/{max_attempts})")
+                    await asyncio.sleep(1)
+                else:
+                    raise e
+
+        if vectors:
             # 5. Store in vector DB
             records = [
-                {
-                    "chunk_id": f"chk-import-{i}",
-                    "vector": vec,
-                    "text": chunk_texts[i],
-                    "keywords": "",
-                }
+                {"chunk_id": db_chunks[i]["id"], "vector": vec,
+                 "text": chunk_texts[i], "keywords": ""}
                 for i, vec in enumerate(vectors)
             ]
-            for i, ch in enumerate(db_chunks):
-                if i < len(records):
-                    records[i]["chunk_id"] = ch["id"]
-
             insert_vectors(records)
-        except Exception as e:
-            # Embedding failed — still save FTS5 entries for keyword search
-            from backend.knowledge.vector_store import _insert_fts5_only
-            for i, ch in enumerate(db_chunks):
-                if i < len(chunk_texts):
-                    _insert_fts5_only(ch["id"], chunk_texts[i], "")
-            print(f"[import] Embedding failed (FTS5 saved): {e}")
+            await _report(85, "向量写入完成")
+        else:
+            raise RuntimeError("Embedding returned no vectors after retry")
 
         # 6. Mark complete
         update_document_chunks_count(doc_id, len(chunk_texts))
+        await _report(100, "完成")
 
     except Exception as e:
         update_document_status(doc_id, "failed", str(e))
+        raise

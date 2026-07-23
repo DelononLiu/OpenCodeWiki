@@ -14,6 +14,8 @@ from backend.database import init_databases
 from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, ensure_default_kb, DEFAULT_KB_NAME
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
+from backend.stores.task import create_task, get_task, list_tasks, cancel_task
+from backend.stores.repo import create_repo, get_repo, list_repos, delete_repo, update_repo
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
 from backend.pipeline.events import PipelineEvent, EventNames
@@ -24,6 +26,9 @@ from backend.pipeline.plugins.search_expand import ExpandContextPlugin
 from backend.pipeline.plugins.rerank import RerankPlugin
 from backend.pipeline.plugins.context_build import ContextBuildPlugin
 from backend.pipeline.plugins.chat_complete import ChatCompletePlugin
+from backend.task_worker.worker import TaskWorker
+from backend.task_worker.plugins.rebuild import RebuildPlugin
+from backend.task_worker.plugins.sync_repo import SyncRepoPlugin
 
 
 def _load_prompt(cfg: Config, name: str) -> str:
@@ -82,6 +87,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Background Task Worker ──
+    worker = TaskWorker(cfg)
+    worker.on("rebuild", RebuildPlugin(cfg))
+    worker.on("sync_repo", SyncRepoPlugin(cfg))
+
+    @app.on_event("startup")
+    async def _start_worker():
+        asyncio.create_task(worker.run())
 
     # ── Config ──
     @app.get("/api/config")
@@ -376,6 +390,82 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     async def api_delete_session(sid: str):
         delete_session(sid)
         return {"deleted": True}
+
+    # ── Tasks ──
+    class CreateTaskRequest(BaseModel):
+        type: str
+        kb_id: str | None = None
+        repo_id: str | None = None
+        params: dict | None = None
+
+    @app.get("/api/tasks")
+    async def api_list_tasks(status: str | None = None, type: str | None = None):
+        return list_tasks(status, type)
+
+    @app.post("/api/tasks")
+    async def api_create_task(req: CreateTaskRequest):
+        return create_task(req.type, req.kb_id, req.repo_id, req.params)
+
+    @app.get("/api/tasks/{task_id}")
+    async def api_get_task(task_id: str):
+        t = get_task(task_id)
+        if not t:
+            raise HTTPException(404, "Task not found")
+        return t
+
+    @app.post("/api/tasks/{task_id}/cancel")
+    async def api_cancel_task(task_id: str):
+        cancel_task(task_id)
+        return {"cancelled": True}
+
+    # ── Rebuild ──
+    @app.post("/api/kb/{kb_id}/rebuild")
+    async def api_rebuild_kb(kb_id: str):
+        kb = get_kb(kb_id)
+        if not kb:
+            raise HTTPException(404, "Knowledge base not found")
+        task = create_task("rebuild", kb_id=kb_id, params={"kb_id": kb_id})
+        return task
+
+    @app.post("/api/kb/rebuild-all")
+    async def api_rebuild_all():
+        task = create_task("rebuild")
+        return task
+
+    # ── Remote Repos ──
+    class CreateRepoRequest(BaseModel):
+        type: str
+        url: str
+        branch: str = "main"
+        local_path: str
+        kb_id: str
+        schedule: str = ""
+
+    @app.get("/api/repos")
+    async def api_list_repos(kb_id: str | None = None):
+        return list_repos(kb_id)
+
+    @app.post("/api/repos")
+    async def api_create_repo(req: CreateRepoRequest):
+        return create_repo(req.type, req.url, req.branch, req.local_path, req.kb_id, req.schedule)
+
+    @app.put("/api/repos/{repo_id}")
+    async def api_update_repo(repo_id: str, data: dict):
+        update_repo(repo_id, **data)
+        return get_repo(repo_id)
+
+    @app.delete("/api/repos/{repo_id}")
+    async def api_delete_repo(repo_id: str):
+        delete_repo(repo_id)
+        return {"deleted": True}
+
+    @app.post("/api/repos/{repo_id}/sync")
+    async def api_sync_repo(repo_id: str):
+        repo = get_repo(repo_id)
+        if not repo:
+            raise HTTPException(404, "Remote repo not found")
+        task = create_task("sync_repo", repo_id=repo_id, params={"repo_id": repo_id})
+        return task
 
     # ── QA (SSE) ──
     class QARequest(BaseModel):
