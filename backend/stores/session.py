@@ -29,20 +29,20 @@ def delete_session(sid: str) -> None:
     db.execute("DELETE FROM sessions WHERE id = ?", (sid,))
     db.commit()
 
-def create_message(session_id: str, role: str, content: str, sources: str = "[]", token_count: int = 0) -> dict:
+def create_message(session_id: str, role: str, content: str, sources: str = "[]", token_count: int = 0, thinking: str = "") -> dict:
     db = get_knora_db()
     mid = f"msg-{uuid.uuid4().hex[:8]}"
     db.execute(
-        "INSERT INTO messages (id, session_id, role, content, sources, token_count) VALUES (?, ?, ?, ?, ?, ?)",
-        (mid, session_id, role, content, sources, token_count)
+        "INSERT INTO messages (id, session_id, role, content, sources, token_count, thinking) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (mid, session_id, role, content, sources, token_count, thinking)
     )
     db.commit()
-    return {"id": mid, "session_id": session_id, "role": role, "content": content, "sources": sources, "token_count": token_count}
+    return {"id": mid, "session_id": session_id, "role": role, "content": content, "sources": sources, "token_count": token_count, "thinking": thinking}
 
 def get_messages(session_id: str) -> list[dict]:
     db = get_knora_db()
     rows = db.execute(
-        "SELECT id, session_id, role, content, sources, token_count, created_at FROM messages WHERE session_id = ? ORDER BY created_at",
+        "SELECT id, session_id, role, content, sources, token_count, thinking, created_at FROM messages WHERE session_id = ? ORDER BY created_at",
         (session_id,)
     ).fetchall()
-    return [{"id": r[0], "session_id": r[1], "role": r[2], "content": r[3], "sources": r[4], "token_count": r[5], "created_at": r[6]} for r in rows]
+    return [{"id": r[0], "session_id": r[1], "role": r[2], "content": r[3], "sources": r[4], "token_count": r[5], "thinking": r[6] or "", "created_at": r[7]} for r in rows]

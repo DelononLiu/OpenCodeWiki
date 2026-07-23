@@ -53,9 +53,15 @@ CREATE TABLE IF NOT EXISTS messages (
     content       TEXT NOT NULL,
     sources       TEXT DEFAULT '[]',
     token_count   INTEGER DEFAULT 0,
+    thinking      TEXT DEFAULT '',
     created_at    TEXT DEFAULT (datetime('now'))
 );
 """
+
+# Add thinking column for existing databases (safe to run multiple times)
+_MIGRATIONS = [
+    "ALTER TABLE messages ADD COLUMN thinking TEXT DEFAULT ''",
+]
 
 VECTORS_SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS vector_chunks USING vec0(
@@ -85,6 +91,12 @@ def init_databases(cfg: Config) -> None:
     _knora_conn.execute("PRAGMA journal_mode=WAL")
     _knora_conn.execute("PRAGMA foreign_keys=ON")
     _knora_conn.executescript(KNORA_SCHEMA)
+    # Run migrations (safe to re-run)
+    for migration in _MIGRATIONS:
+        try:
+            _knora_conn.execute(migration)
+        except Exception:
+            pass  # column already exists
     _knora_conn.commit()
 
     vectors_path = _db_path(cfg, "vectors.db")

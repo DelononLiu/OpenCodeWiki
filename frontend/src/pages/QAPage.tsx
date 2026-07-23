@@ -53,6 +53,7 @@ export function QAPage() {
             role: m.role as 'user' | 'assistant',
             content: m.content,
             sources: m.sources ? JSON.parse(m.sources) : undefined,
+            thinking: m.thinking || undefined,
           })))
         }
         if (session.kb_id) {

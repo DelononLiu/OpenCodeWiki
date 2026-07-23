@@ -467,25 +467,30 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
 
             full_answer = ""
+            full_thinking = ""
             async for sse_chunk in chat_plugin.stream(event):
                 yield sse_chunk
-                if "event: token" in sse_chunk:
-                    # Extract token text
-                    try:
-                        lines = sse_chunk.strip().split("\n")
-                        for line in lines:
-                            if line.startswith("data: "):
-                                data = json.loads(line[6:])
-                                if "text" in data:
+                try:
+                    lines = sse_chunk.strip().split("\n")
+                    event_name = ""
+                    for line in lines:
+                        if line.startswith("event: "):
+                            event_name = line[7:].strip()
+                        elif line.startswith("data: ") and event_name in ("token", "think"):
+                            data = json.loads(line[6:])
+                            if "text" in data:
+                                if event_name == "token":
                                     full_answer += data["text"]
-                    except Exception:
-                        pass
-                elif "event: done" in sse_chunk or "event: error" in sse_chunk:
+                                elif event_name == "think":
+                                    full_thinking += data["text"]
+                except Exception:
+                    pass
+                if "event: done" in sse_chunk or "event: error" in sse_chunk:
                     # Save assistant message if session exists
                     if session_id:
                         sources_json = json.dumps([s.model_dump() for s in event.sources]) if event.sources else "[]"
                         token_count = len(full_answer.split())
-                        create_message(session_id, "assistant", full_answer, sources_json, token_count)
+                        create_message(session_id, "assistant", full_answer, sources_json, token_count, thinking=full_thinking)
 
         return StreamingResponse(
             event_stream(),

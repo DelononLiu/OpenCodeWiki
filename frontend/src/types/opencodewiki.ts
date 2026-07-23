@@ -38,6 +38,7 @@ export interface Message {
   content: string
   sources: string
   token_count: number
+  thinking?: string
   created_at: string
 }
 
