@@ -17,7 +17,7 @@ def create_kb(name: str, description: str = "", embedding_model: str = "",
     db.commit()
     return {"id": kb_id, "name": name, "description": description, "embedding_model": embedding_model}
 
-_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, created_at"
+_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, created_at"
 
 def list_kbs() -> list[dict]:
     db = get_knora_db()
@@ -61,14 +61,15 @@ def ensure_default_kb(embedding_model: str = "") -> dict:
     return create_kb(DEFAULT_KB_NAME, "系统默认知识库，存放自述文档和 Wiki 沉淀", embedding_model)
 
 def _row_to_dict(row) -> dict:
-    # columns: id, name, desc, em, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, created_at
+    # columns: id, name, desc, em, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, created_at
     d = {
         "id": row[0], "name": row[1], "description": row[2],
         "embedding_model": row[3], "chunk_config": row[4],
         "doc_count": row[5] or 0, "chunk_count": row[6] or 0,
         "repo_url": row[7] or "", "repo_type": row[8] or "",
         "repo_branch": row[9] or "", "content_type": row[10] or "docs",
-        "created_at": row[11],
+        "repo_version": row[11] or "",
+        "created_at": row[12],
     }
     d["is_default"] = d["name"] == DEFAULT_KB_NAME
     return d

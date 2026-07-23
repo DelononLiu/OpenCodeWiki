@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     repo_type     TEXT DEFAULT '',
     repo_branch   TEXT DEFAULT '',
     content_type  TEXT DEFAULT 'docs',
+    repo_version  TEXT DEFAULT '',
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
@@ -90,6 +91,7 @@ _MIGRATIONS = [
     "ALTER TABLE knowledge_bases ADD COLUMN repo_type TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN repo_branch TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN content_type TEXT DEFAULT 'docs'",
+    "ALTER TABLE knowledge_bases ADD COLUMN repo_version TEXT DEFAULT ''",
 ]
 
 # ── Triggers: auto-maintain KB doc_count / chunk_count ──

@@ -212,6 +212,9 @@ export function SourcesPage() {
                           {kb.is_default && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1 py-0 rounded flex-shrink-0">默认</span>
                           )}
+                          {(kb.chunk_count || 0) > 0 && !kb.is_default && (
+                            <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0 rounded-full flex-shrink-0">可用</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -225,6 +228,12 @@ export function SourcesPage() {
                     )}
                   </div>
                   <p className="text-xs text-gray-400 line-clamp-2">{kb.description || '暂无描述'}</p>
+                  {kb.repo_url && kb.repo_type && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-mono">{kb.repo_type.toUpperCase()}</span>
+                      {kb.repo_version && <span className="text-[10px] text-gray-400 font-mono">{kb.repo_version.slice(0, 7)}</span>}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 pt-1 flex-wrap">
                     {runningTasks[kb.id] ? (
                       <span className="flex items-center gap-1 text-amber-600">

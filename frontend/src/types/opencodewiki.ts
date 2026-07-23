@@ -8,6 +8,11 @@ export interface KB {
   doc_count?: number
   chunk_count?: number
   is_default?: boolean
+  repo_url?: string
+  repo_type?: string
+  repo_branch?: string
+  content_type?: string
+  repo_version?: string
 }
 
 export interface Document {

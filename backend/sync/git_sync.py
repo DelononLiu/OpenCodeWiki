@@ -33,6 +33,15 @@ async def pull(dest: str) -> list[str]:
     return [f.strip() for f in output.split("\n") if f.strip()]
 
 
+async def get_head_commit(repo_path: str) -> str:
+    """Return the short hash (7 chars) of HEAD."""
+    try:
+        out = await _run_cmd(["git", "rev-parse", "--short", "HEAD"], cwd=repo_path)
+        return out.strip()
+    except Exception:
+        return ""
+
+
 async def list_files(repo_path: str) -> dict[str, str]:
     """Walk repo path and return {relative_path: sha256} for supported files."""
     supported = {".md", ".txt", ".pdf", ".docx"}

@@ -137,7 +137,17 @@ class SyncRepoPlugin(TaskPlugin):
             update_task_status(event.task_id, "running", progress=min(90, pct),
                                progress_msg=f"已移除 {rel_path}")
 
-        # 7. Update KB repo sync status (via task progress_msg)
+        # 7. Save repo version (git commit hash)
+        from backend.database import get_knora_db
+        try:
+            ver = await git_sync.get_head_commit(local_path)
+            if ver:
+                db = get_knora_db()
+                db.execute("UPDATE knowledge_bases SET repo_version = ? WHERE id = ?", (ver, kb_id))
+                db.commit()
+        except Exception:
+            pass
+
         update_task_status(event.task_id, "running", progress=100,
                            progress_msg="同步完成")
         return event
