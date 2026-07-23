@@ -331,7 +331,6 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return get_kb(kb_id)
 
     @app.delete("/api/kb/{kb_id}")
-    @app.delete("/api/kb/{kb_id}")
     async def api_delete_kb(kb_id: str):
         kb = get_kb(kb_id)
         if not kb:
@@ -341,6 +340,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         from backend.knowledge.vector_store import delete_by_kb_id
         delete_by_kb_id(kb_id)
         delete_kb(kb_id)
+        # Remove knowledge directory on disk
+        kb_dir = os.path.join(os.path.expanduser(cfg.database.path), "knowledge", kb["name"])
+        if os.path.isdir(kb_dir):
+            import shutil
+            shutil.rmtree(kb_dir)
         return {"deleted": True}
 
     # ── Documents ──
