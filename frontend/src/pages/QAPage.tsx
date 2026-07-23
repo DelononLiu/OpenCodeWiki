@@ -306,46 +306,56 @@ export function QAPage() {
   const hasContent = messages.length > 0 || streaming || historyLoading
 
   // ── Shared input bar ──
-  const renderInputBar = (compact = false) => (
-    <div className={`flex gap-2.5 items-center ${compact ? '' : 'w-full'}`}>
-      {/* New chat button */}
-      {!compact && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl px-3 py-2.5 shrink-0 border-gray-200 text-gray-500 hover:bg-gray-100 hover:border-gray-300"
-          onClick={startNewChat}
-          title="新对话"
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
-      )}
+  const renderInputBar = (compact = false) => {
+    // Unified input card — matches homepage search bar style
+    const cardContent = (
+      <>
+        {!compact && (
+          <button onClick={startNewChat} title="新对话"
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <Plus className="w-4 h-4" />
+          </button>
+        )}
 
-      {/* Input */}
-      <div className="flex-1 relative">
         <input
           ref={!hasContent ? centerInputRef : undefined}
           type="text"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full bg-gray-50 border border-gray-200/80 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyber-blue/15 focus:border-cyber-blue/30 transition-all"
-          style={{ padding: compact ? '10px 14px' : '10px 14px' }}
+          className="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1.5"
           placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
           disabled={streaming}
         />
-      </div>
 
-      {/* Send */}
-      <button
-        onClick={() => handleSubmit()}
-        disabled={streaming || !input.trim()}
-        className="rounded-xl px-3.5 py-2.5 shrink-0 bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-      </button>
-    </div>
-  )
+        <button
+          onClick={() => handleSubmit()}
+          disabled={streaming || !input.trim()}
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </button>
+      </>
+    )
+
+    if (compact) {
+      // Centered: card is the input itself
+      return (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-2.5 flex items-center gap-3 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
+          {cardContent}
+        </div>
+      )
+    }
+
+    // Bottom bar: inline in the bar
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex-1 bg-white border border-gray-200/80 rounded-xl shadow-sm p-2 flex items-center gap-2 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:ring-2 focus-within:ring-cyber-blue/10">
+          {cardContent}
+        </div>
+      </div>
+    )
+  }
 
   const isAssistant = (m: Message) => m.role === 'assistant'
 
@@ -373,11 +383,9 @@ export function QAPage() {
               ))}
             </div>
 
-            {/* Centered input box */}
+            {/* Centered input card */}
             <div className="w-full max-w-2xl">
-              <div className="bg-white border border-gray-200/80 rounded-2xl shadow-lg shadow-gray-200/50 p-2.5 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:shadow-xl focus-within:shadow-cyber-blue/5">
-                {renderInputBar(true)}
-              </div>
+              {renderInputBar(true)}
             </div>
           </div>
         ) : (
