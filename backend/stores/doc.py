@@ -41,7 +41,7 @@ def update_document_status(doc_id: str, status: str, error_message: str | None =
 
 def update_document_chunks_count(doc_id: str, count: int) -> None:
     db = get_knora_db()
-    db.execute("UPDATE documents SET chunks_count = ?, status = 'completed' WHERE id = ?", (count, doc_id))
+    db.execute("UPDATE documents SET chunks_count = ?, status = 'completed', error_message = NULL WHERE id = ?", (count, doc_id))
     db.commit()
 
 def delete_document(doc_id: str) -> None:

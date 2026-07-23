@@ -2,7 +2,7 @@ from openai import AsyncOpenAI
 
 
 class Embedder:
-    def __init__(self, client: AsyncOpenAI, model: str, dimensions: int, batch_size: int = 32):
+    def __init__(self, client: AsyncOpenAI, model: str, dimensions: int, batch_size: int = 5):
         self.client = client
         self.model = model
         self.dimensions = dimensions

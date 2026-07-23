@@ -28,6 +28,7 @@ from backend.pipeline.plugins.chat_complete import ChatCompletePlugin
 from backend.task_worker.worker import TaskWorker
 from backend.task_worker.plugins.rebuild import RebuildPlugin
 from backend.task_worker.plugins.sync_repo import SyncRepoPlugin
+from backend.sync import git_sync
 
 
 def _load_prompt(cfg: Config, name: str) -> str:
@@ -42,6 +43,19 @@ def _load_prompt(cfg: Config, name: str) -> str:
         if templates:
             return templates[0].get("content", "")
     return ""
+
+
+async def _fetch_commit_and_update(kb_id: str, repo_url: str, branch: str) -> None:
+    """Fetch remote commit hash and update KB card immediately."""
+    try:
+        from backend.database import get_knora_db
+        ver = await git_sync.get_remote_head_commit(repo_url, branch)
+        if ver:
+            db = get_knora_db()
+            db.execute("UPDATE knowledge_bases SET repo_version = ? WHERE id = ?", (ver, kb_id))
+            db.commit()
+    except Exception:
+        pass  # non-critical; version will appear after first sync
 
 
 def create_app(cfg: Config | None = None) -> FastAPI:
@@ -282,9 +296,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
-        return create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
-                         repo_url=req.repo_url, repo_type=req.repo_type,
-                         repo_branch=req.repo_branch, content_type=req.content_type)
+        kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
+                        repo_url=req.repo_url, repo_type=req.repo_type,
+                        repo_branch=req.repo_branch, content_type=req.content_type)
+        # Fetch remote commit hash in background so card shows version immediately
+        if req.repo_url and req.repo_type == "git":
+            asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "main"))
+        return kb
 
     @app.get("/api/kb")
     async def api_list_kbs():

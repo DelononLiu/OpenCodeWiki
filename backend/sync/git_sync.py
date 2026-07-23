@@ -33,6 +33,17 @@ async def pull(dest: str) -> list[str]:
     return [f.strip() for f in output.split("\n") if f.strip()]
 
 
+async def get_remote_head_commit(url: str, branch: str = "main") -> str:
+    """Fetch the latest commit hash from a remote git URL without cloning."""
+    try:
+        out = await _run_cmd(["git", "ls-remote", url, branch])
+        if out:
+            return out.split()[0][:7]  # first 7 chars of the hash
+    except Exception:
+        pass
+    return ""
+
+
 async def get_head_commit(repo_path: str) -> str:
     """Return the short hash (7 chars) of HEAD."""
     try:

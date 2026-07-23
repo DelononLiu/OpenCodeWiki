@@ -7,7 +7,7 @@ import yaml
 @dataclass
 class ServerConfig:
     host: str = "0.0.0.0"
-    port: int = 8765
+    port: int = 8100
 
 
 @dataclass

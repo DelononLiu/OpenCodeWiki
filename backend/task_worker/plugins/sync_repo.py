@@ -47,21 +47,22 @@ class SyncRepoPlugin(TaskPlugin):
         if _cancelled():
             raise TaskCancelledError()
 
-        # 2. For code repos: run openwiki to generate docs from source
+        # 2. For code repos: use existing openwiki/ or generate it
+        scan_dir = local_path
         if kb.get("content_type") == "code":
-            update_task_status(event.task_id, "running", progress=20,
-                               progress_msg="正在从代码生成文档...")
-            proc = await asyncio.create_subprocess_exec(
-                "openwiki", local_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.wait()
-
-            scan_dir = os.path.join(local_path, "openwiki")
-            if not os.path.isdir(scan_dir):
-                cwd_ow = os.path.join(os.getcwd(), "openwiki")
-                scan_dir = cwd_ow if os.path.isdir(cwd_ow) else local_path
+            ow_dir = os.path.join(local_path, "openwiki")
+            if os.path.isdir(ow_dir):
+                scan_dir = ow_dir  # already has openwiki
+            else:
+                update_task_status(event.task_id, "running", progress=20,
+                                   progress_msg="正在从代码生成文档...")
+                proc = await asyncio.create_subprocess_exec(
+                    "openwiki", local_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.wait()
+                scan_dir = ow_dir if os.path.isdir(ow_dir) else local_path
         else:
             scan_dir = local_path
 

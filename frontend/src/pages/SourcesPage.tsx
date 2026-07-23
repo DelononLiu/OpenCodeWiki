@@ -77,8 +77,8 @@ export function SourcesPage() {
         const tasks = await fetch('/api/tasks?status=running').then(r => r.json())
         const map: Record<string, {progress: number; msg: string}> = {}
         for (const t of Array.isArray(tasks) ? tasks : []) {
-          if (t.type === 'rebuild' && t.kb_id) {
-            map[t.kb_id] = { progress: t.progress || 0, msg: t.progress_msg || '重建中...' }
+          if (t.kb_id && (t.type === 'rebuild' || t.type === 'sync_repo')) {
+            map[t.kb_id] = { progress: t.progress || 0, msg: t.progress_msg || '同步中...' }
           }
         }
         setRunningTasks(map)
@@ -96,7 +96,7 @@ export function SourcesPage() {
 
     try {
       const name = repoName.trim()
-      const desc = `[${repoType.toUpperCase()}] ${addUrl.trim()}`
+      const desc = addUrl.trim()
 
       if (addMode === 'online') {
         // 1. Create KB with repo info, then trigger sync
@@ -212,8 +212,8 @@ export function SourcesPage() {
                           {kb.is_default && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1 py-0 rounded flex-shrink-0">默认</span>
                           )}
-                          {(kb.chunk_count || 0) > 0 && !kb.is_default && (
-                            <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0 rounded-full flex-shrink-0">可用</span>
+                          {(kb.chunk_count || 0) > 0 && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block shrink-0" />
                           )}
                         </div>
                       </div>
@@ -227,7 +227,9 @@ export function SourcesPage() {
                       </button>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 line-clamp-2">{kb.description || '暂无描述'}</p>
+                  <p className="text-xs text-gray-400 line-clamp-2">
+                    {kb.repo_url ? kb.repo_url : (kb.description || '暂无描述')}
+                  </p>
                   {kb.repo_url && kb.repo_type && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-mono">{kb.repo_type.toUpperCase()}</span>
