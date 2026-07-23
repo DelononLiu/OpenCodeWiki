@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Sparkles, FileText, ChevronDown, ChevronRight } from 'lucide-react'
 import type { QASource } from '@/types/opencodewiki'
 
@@ -14,6 +14,13 @@ export default function ProcessPanel({
 }: ProcessPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [thinkExpanded, setThinkExpanded] = useState(true)
+
+  // Auto-fold entire panel when answer completes
+  useEffect(() => {
+    if (thinkingDone && thinking) {
+      setCollapsed(true)
+    }
+  }, [thinkingDone, thinking])
   const [sourceExpanded, setSourceExpanded] = useState(false)
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set())
 

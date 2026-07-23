@@ -139,16 +139,12 @@ export function QAPage() {
                 setThinkingText(localThinking)
                 break
               case 'token':
-                // First content token → thinking done
-                if (thinkStartRef.current && !localThinking) {
-                  // no-op: thinking might have been empty
-                }
-                fullAnswer += data.text || ''
-                setStreamingText(fullAnswer)
-                // Mark thinking done on first answer token
+                // 第一个 token 到达 → 思考结束
                 if (!fullAnswer) {
                   setThinkingDone(true)
                 }
+                fullAnswer += data.text || ''
+                setStreamingText(fullAnswer)
                 break
               case 'sources':
                 sources = data
