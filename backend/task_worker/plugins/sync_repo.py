@@ -9,6 +9,19 @@ from backend.sync import git_sync
 from backend.task_worker.plugins.base import TaskPlugin, TaskEvent, TaskCancelledError
 
 
+def _extract_title(filepath: str) -> str:
+    """Read first # heading from markdown file as title."""
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("# ") and not line.startswith("##"):
+                    return line[2:].strip()
+    except Exception:
+        pass
+    return ""
+
+
 class SyncRepoPlugin(TaskPlugin):
     task_type = "sync_repo"
 
@@ -151,15 +164,22 @@ class SyncRepoPlugin(TaskPlugin):
 
         # 8. Refresh wiki module cache so pages show immediately
         import json
-        # Use openwiki/ files for the KB wiki listing (code repos)
-        wiki_files = scan_dir if kb.get("content_type") == "code" else local_path
-        files = sorted(f.replace(".md", "") for f in os.listdir(wiki_files) if f.endswith(".md"))
+        wiki_root = scan_dir if kb.get("content_type") == "code" else local_path
+        # Recursively collect all .md files, extract first # heading as title
+        entries = []
+        for root, _dirs, names in os.walk(wiki_root):
+            for n in sorted(names):
+                if n.endswith(".md"):
+                    rel = os.path.relpath(os.path.join(root, n), wiki_root)
+                    slug = rel.replace(".md", "").replace(os.sep, "/")
+                    title = _extract_title(os.path.join(root, n)) or slug
+                    entries.append({"slug": slug, "title": title})
         # Write to both root (where wiki API reads) and openwiki/ subdir
         for d in (local_path, scan_dir):
             try:
                 if os.path.isdir(d):
                     with open(os.path.join(d, ".wiki_modules.json"), "w") as f:
-                        json.dump(files, f)
+                        json.dump(entries, f)
             except Exception:
                 pass
 

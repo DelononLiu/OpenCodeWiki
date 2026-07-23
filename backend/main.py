@@ -139,23 +139,30 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 continue
             if valid_kb_names and kb_name not in valid_kb_names:
                 continue  # skip legacy dirs
-            kb_files = []
+            entries = []
             for f in sorted(os.listdir(kb_dir)):
                 if f.endswith(".md"):
-                    file_slug = f.replace(".md", "")
-                    kb_files.append(file_slug)
+                    slug = f.replace(".md", "")
+                    fp = os.path.join(kb_dir, f)
+                    title = slug
+                    try:
+                        with open(fp, encoding="utf-8") as mdf:
+                            for line in mdf:
+                                line = line.strip()
+                                if line.startswith("# ") and not line.startswith("##"):
+                                    title = line[2:].strip()
+                                    break
+                    except Exception:
+                        pass
+                    entries.append({"slug": slug, "title": title})
                     modules.append({
-                        "slug": file_slug,
-                        "name": f"{kb_name} / {file_slug}",
-                        "type": "source",
-                        "title": file_slug,
-                        "kb_name": kb_name,
+                        "slug": slug, "name": f"{kb_name} / {title}",
+                        "type": "source", "title": title, "kb_name": kb_name,
                     })
-            # Write per-KB cache
             cache_path = os.path.join(kb_dir, ".wiki_modules.json")
             try:
                 with open(cache_path, "w") as f:
-                    json.dump(kb_files, f)
+                    json.dump(entries, f)
             except Exception:
                 pass
         return modules
@@ -203,13 +210,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 continue
             try:
                 with open(cache_path) as f:
-                    files = json.load(f)
-                for file_slug in files:
+                    data = json.load(f)
+                for entry in data:
+                    slug = entry["slug"] if isinstance(entry, dict) else entry
+                    title = entry.get("title", slug) if isinstance(entry, dict) else slug
                     modules.append({
-                        "slug": file_slug,
-                        "name": f"{kb_name} / {file_slug}",
+                        "slug": slug,
+                        "name": f"{kb_name} / {title}",
                         "type": "source",
-                        "title": file_slug,
+                        "title": title,
                         "kb_name": kb_name,
                     })
             except Exception:
@@ -240,11 +249,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return {"ok": True, "data": modules}
 
     @app.get("/api/wiki/{slug:path}")
-    async def api_wiki_page(slug: str):
-        """Get wiki page content by slug (just the filename)."""
-        # First try: scan knowledge/ subdirs for {kb_name}/{slug}.md
+    async def api_wiki_page(slug: str, kb: str = ""):
+        """Get wiki page content by slug (just the filename).
+        Pass ?kb=KB名称 to scope lookup to a specific knowledge base."""
         if os.path.isdir(KNOWLEDGE_ROOT):
             for kb_name in os.listdir(KNOWLEDGE_ROOT):
+                if kb and kb_name != kb:
+                    continue
                 for sub in ("", "openwiki/"):
                     path = os.path.join(KNOWLEDGE_ROOT, kb_name, sub, slug + ".md")
                     if os.path.isfile(path):

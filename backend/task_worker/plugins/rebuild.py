@@ -8,6 +8,18 @@ from backend.task_worker.plugins.base import TaskPlugin, TaskEvent, TaskCancelle
 from backend.stores.doc import delete_chunks_by_kb
 
 
+def _extract_title(filepath: str) -> str:
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("# ") and not line.startswith("##"):
+                    return line[2:].strip()
+    except Exception:
+        pass
+    return ""
+
+
 class RebuildPlugin(TaskPlugin):
     task_type = "rebuild"
 
@@ -59,7 +71,7 @@ class RebuildPlugin(TaskPlugin):
 
             done += 1
 
-        # Refresh wiki module cache
+        # Refresh wiki module cache (recursive for nested dirs like docs/)
         import json, os
         for kb_id in kb_ids:
             kb = get_kb(kb_id)
@@ -67,10 +79,17 @@ class RebuildPlugin(TaskPlugin):
                 continue
             kb_dir = os.path.join(os.path.expanduser(self.cfg.database.path), "knowledge", kb["name"])
             if os.path.isdir(kb_dir):
-                files = sorted(f.replace(".md", "") for f in os.listdir(kb_dir) if f.endswith(".md"))
+                entries = []
+                for root, _dirs, names in os.walk(kb_dir):
+                    for n in sorted(names):
+                        if n.endswith(".md"):
+                            rel = os.path.relpath(os.path.join(root, n), kb_dir)
+                            slug = rel.replace(".md", "").replace(os.sep, "/")
+                            title = _extract_title(os.path.join(root, n)) or slug
+                            entries.append({"slug": slug, "title": title})
                 try:
                     with open(os.path.join(kb_dir, ".wiki_modules.json"), "w") as f:
-                        json.dump(files, f)
+                        json.dump(entries, f)
                 except Exception:
                     pass
 

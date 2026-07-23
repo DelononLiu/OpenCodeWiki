@@ -83,7 +83,7 @@ export function WikiGlobalPage() {
     if (!slug) return
     if (!initial) setLoading(true)
     try {
-      const data = await fetchWikiPage(slug)
+      const data = await fetchWikiPage(slug, selectedKb)
       setWikiData(data)
       setRawContent(data.content || '')
       setPageType(data.type as 'wiki' | 'topic')

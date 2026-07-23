@@ -40,10 +40,11 @@ export function calibrateQaEntry(qid: number, answer: string, calibrator = 'admi
 
 // ── Wiki ──
 
-export function fetchWikiPage(slug: string): Promise<WikiPageResponse> {
+export function fetchWikiPage(slug: string, kb?: string): Promise<WikiPageResponse> {
   // 保留路径中的 / 分隔符，只编码各段
   const encoded = slug.split('/').map(encodeURIComponent).join('/')
-  return request(`/wiki/${encoded}`)
+  const qs = kb ? `?kb=${encodeURIComponent(kb)}` : ''
+  return request(`/wiki/${encoded}${qs}`)
 }
 
 // ── Wiki Modules ──
