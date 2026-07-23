@@ -70,14 +70,14 @@ export function HomePage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#F8F9FA]">
-      <main className="flex-1 overflow-y-auto no-scrollbar">
+    <div className="h-full flex flex-col">
+      <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto space-y-10 py-10 px-6">
 
           {/* Hero Search */}
           <div className="text-center space-y-5 py-6">
             <div className="flex items-center justify-center gap-2.5">
-              <div className="w-9 h-9 bg-cyber-blue rounded-xl flex items-center justify-center text-white font-black text-lg font-mono shadow-md shadow-cyber-blue/20">W</div>
+              <div className="w-9 h-9 bg-gradient-to-br from-cyber-blue to-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md shadow-cyber-blue/20">W</div>
               <h1 className="text-3xl font-bold tracking-tight text-gray-900">OpenCodeWiki</h1>
             </div>
             <p className="text-gray-400 text-sm max-w-xl mx-auto">围绕知识库提问，Agent 基于源码回答，高质量答案自动沉淀为 Wiki</p>

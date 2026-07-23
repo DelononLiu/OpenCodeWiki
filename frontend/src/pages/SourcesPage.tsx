@@ -162,7 +162,7 @@ export function SourcesPage() {
     status === 'completed' ? 'text-green-600' : status === 'failed' ? 'text-red-600' : 'text-yellow-600'
 
   return (
-    <div className="h-full flex flex-col bg-[#F8F9FA]">
+    <div className="h-full flex flex-col">
       {/* Toast */}
       {success && (
         <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">

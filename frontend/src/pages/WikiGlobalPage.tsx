@@ -104,11 +104,11 @@ export function WikiGlobalPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#F8FAFC]">
+    <div className="h-full flex flex-col">
       <div className="flex-1 flex overflow-hidden">
         {/* 主内容区 */}
-        <div className="flex-1 flex flex-col relative bg-[#FBFBFC]">
-          <main className="flex-1 overflow-y-auto no-scrollbar">
+        <div className="flex-1 flex flex-col relative">
+          <main className="flex-1 overflow-y-auto">
             <div className="flex justify-center py-6 px-6">
               <div className="w-full max-w-4xl">
                 {loading ? (
