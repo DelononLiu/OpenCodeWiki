@@ -245,11 +245,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         # First try: scan knowledge/ subdirs for {kb_name}/{slug}.md
         if os.path.isdir(KNOWLEDGE_ROOT):
             for kb_name in os.listdir(KNOWLEDGE_ROOT):
-                path = os.path.join(KNOWLEDGE_ROOT, kb_name, slug + ".md")
-                if os.path.isfile(path):
-                    with open(path, encoding="utf-8") as f:
-                        content = f.read()
-                    return {"ok": True, "data": {"slug": slug, "content": content, "title": slug}}
+                for sub in ("", "openwiki/"):
+                    path = os.path.join(KNOWLEDGE_ROOT, kb_name, sub, slug + ".md")
+                    if os.path.isfile(path):
+                        with open(path, encoding="utf-8") as f:
+                            content = f.read()
+                        return {"ok": True, "data": {"slug": slug, "content": content, "title": slug}}
         # Second try: pages/ (legacy with path prefix)
         if slug.startswith("pages/"):
             path = os.path.join(PAGES_ROOT, slug[6:] + ".md")

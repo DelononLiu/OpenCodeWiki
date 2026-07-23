@@ -151,14 +151,17 @@ class SyncRepoPlugin(TaskPlugin):
 
         # 8. Refresh wiki module cache so pages show immediately
         import json
-        for d in (scan_dir, local_path):
-            if os.path.isdir(d):
-                files = sorted(f.replace(".md", "") for f in os.listdir(d) if f.endswith(".md"))
-                try:
+        # Use openwiki/ files for the KB wiki listing (code repos)
+        wiki_files = scan_dir if kb.get("content_type") == "code" else local_path
+        files = sorted(f.replace(".md", "") for f in os.listdir(wiki_files) if f.endswith(".md"))
+        # Write to both root (where wiki API reads) and openwiki/ subdir
+        for d in (local_path, scan_dir):
+            try:
+                if os.path.isdir(d):
                     with open(os.path.join(d, ".wiki_modules.json"), "w") as f:
                         json.dump(files, f)
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
         update_task_status(event.task_id, "running", progress=100,
                            progress_msg="同步完成")
