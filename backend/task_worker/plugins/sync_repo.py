@@ -71,9 +71,20 @@ class SyncRepoPlugin(TaskPlugin):
                                    progress_msg="正在从代码生成文档...")
                 proc = await asyncio.create_subprocess_exec(
                     "openwiki", local_path,
+                    cwd=local_path,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
                 )
+                # Stream output line by line for live progress
+                step = 0
+                while proc.stdout and not proc.stdout.at_eof():
+                    line = await proc.stdout.readline()
+                    text = line.decode().strip()
+                    if text:
+                        step += 1
+                        update_task_status(event.task_id, "running",
+                                           progress=min(20 + step, 50),
+                                           progress_msg=text[:60])
                 await proc.wait()
                 scan_dir = ow_dir if os.path.isdir(ow_dir) else local_path
         else:
