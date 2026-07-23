@@ -74,7 +74,15 @@ class ChatCompletePlugin(BasePlugin):
 
             async for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
-                if delta and delta.content:
+                if not delta:
+                    continue
+
+                # Reasoning / thinking content (DeepSeek reasoning_content field)
+                reasoning = getattr(delta, 'reasoning_content', None)
+                if reasoning:
+                    yield f"event: think\ndata: {json.dumps({'text': reasoning})}\n\n"
+
+                if delta.content:
                     full_answer += delta.content
                     event_id += 1
                     event_text = json.dumps({"text": delta.content, "event_id": event_id})

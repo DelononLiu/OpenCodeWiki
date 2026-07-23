@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { fetchKBs, fetchSession, askQuestion } from '@/api/opencodewiki'
 import type { KB, QASource } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
+import ThinkingCard from '@/components/ThinkingCard'
+import SourcesSummary from '@/components/SourcesSummary'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Send, FileText, Database, Plus } from 'lucide-react'
@@ -11,6 +13,8 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: QASource[]
+  thinking?: string
+  thinkingDuration?: number
 }
 
 export function QAPage() {
@@ -25,9 +29,12 @@ export function QAPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [streaming, setStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState('')
+  const [thinkingText, setThinkingText] = useState('')
+  const [thinkingDone, setThinkingDone] = useState(false)
   const [streamingSources, setStreamingSources] = useState<QASource[]>([])
   const [error, setError] = useState<string | null>(null)
   const messageAreaRef = useRef<HTMLDivElement>(null)
+  const thinkStartRef = useRef(0)
 
   // ── Init: fetch KBs, then load session or restore KB ──
   useEffect(() => {
@@ -84,7 +91,10 @@ export function QAPage() {
     setMessages(prev => [...prev, { role: 'user', content: question }])
     setStreaming(true)
     setStreamingText('')
+    setThinkingText('')
+    setThinkingDone(false)
     setStreamingSources([])
+    thinkStartRef.current = 0
 
     try {
       const response = await askQuestion(kbId, question, activeSessionId)
@@ -98,6 +108,7 @@ export function QAPage() {
       let fullAnswer = ''
       let sources: QASource[] = []
       let eventType = ''
+      let localThinking = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -121,15 +132,31 @@ export function QAPage() {
                   }
                 }
                 break
+              case 'think':
+                if (!thinkStartRef.current) {
+                  thinkStartRef.current = Date.now()
+                }
+                localThinking += data.text || ''
+                setThinkingText(localThinking)
+                break
               case 'token':
+                // First content token → thinking done
+                if (thinkStartRef.current && !localThinking) {
+                  // no-op: thinking might have been empty
+                }
                 fullAnswer += data.text || ''
                 setStreamingText(fullAnswer)
+                // Mark thinking done on first answer token
+                if (!fullAnswer) {
+                  setThinkingDone(true)
+                }
                 break
               case 'sources':
                 sources = data
                 setStreamingSources(data)
                 break
               case 'done':
+                setThinkingDone(true)
                 break
               case 'error':
                 setError(data.message)
@@ -141,7 +168,16 @@ export function QAPage() {
       }
 
       if (fullAnswer) {
-        setMessages(prev => [...prev, { role: 'assistant', content: fullAnswer, sources }])
+        const thinkSec = thinkStartRef.current
+          ? Math.floor((Date.now() - thinkStartRef.current) / 1000)
+          : 0
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: fullAnswer,
+          sources,
+          thinking: localThinking,
+          thinkingDuration: thinkSec,
+        }])
       }
     } catch (e: any) {
       if (e.name !== 'AbortError') {
@@ -204,29 +240,39 @@ export function QAPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
+                    {/* Completed thinking */}
+                    {m.thinking && (
+                      <ThinkingCard
+                        content={m.thinking}
+                        done={true}
+                        duration={m.thinkingDuration || 0}
+                      />
+                    )}
+                    {/* Answer content */}
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     </div>
+                    {/* Completed sources */}
                     {m.sources && m.sources.length > 0 && (
-                      <div className="border-t border-gray-100 pt-2 space-y-1">
-                        {m.sources.map((s, j) => (
-                          <div key={j} className="flex items-start gap-2 text-xs text-gray-500">
-                            <FileText className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                            <span className="font-medium flex-shrink-0">{s.doc_title}</span>
-                            <span className="text-gray-400 truncate">{s.content.slice(0, 100)}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <SourcesSummary sources={m.sources} />
                     )}
                   </div>
                 )}
               </div>
             ))}
 
-            {/* Streaming */}
+            {/* Streaming card */}
             {streaming && (
               <>
+                {/* Thinking card during streaming */}
+                {(thinkingText || !thinkingDone) && (
+                  <ThinkingCard
+                    content={thinkingText}
+                    done={thinkingDone}
+                    duration={thinkStartRef.current ? Math.floor((Date.now() - thinkStartRef.current) / 1000) : 0}
+                  />
+                )}
                 {streamingText ? (
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
@@ -239,14 +285,7 @@ export function QAPage() {
                   </div>
                 )}
                 {streamingSources.length > 0 && (
-                  <div className="border-t border-gray-100 pt-2 space-y-1">
-                    {streamingSources.map((s, j) => (
-                      <div key={j} className="flex items-start gap-2 text-xs text-gray-500">
-                        <FileText className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                        <span className="font-medium flex-shrink-0">{s.doc_title}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <SourcesSummary sources={streamingSources} />
                 )}
               </>
             )}
