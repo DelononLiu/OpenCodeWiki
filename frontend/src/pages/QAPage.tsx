@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Send, FileText, Database, Plus } from 'lucide-react'
+import { Loader2, Send, Database, Plus, ChevronDown } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -247,28 +247,51 @@ export function QAPage() {
     }
   }
 
+  const currentKbLabel = kbs.find(kb => kb.id === selectedKB)?.name || '全部知识库'
+  const [kbSelectOpen, setKbSelectOpen] = useState(false)
+
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col">
       {/* Message area */}
-      <div ref={messageAreaRef} className="flex-1 overflow-y-auto">
+      <div ref={messageAreaRef} className="flex-1 overflow-y-auto px-4 md:px-8">
         {messages.length === 0 && !streaming ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
-            <Database className="w-10 h-10 text-gray-300" />
-            <h2 className="text-lg font-bold text-gray-500">知识库问答</h2>
-            <p className="text-sm">选择知识库，在下方输入问题</p>
+          /* ── Empty state ── */
+          <div className="flex flex-col items-center justify-center h-full text-center select-none">
+            <div className="w-16 h-16 rounded-2xl bg-cyber-blue/10 flex items-center justify-center mb-5">
+              <Database className="w-8 h-8 text-cyber-blue/60" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-700 mb-1.5">知识库问答</h2>
+            <p className="text-sm text-gray-400 mb-8">选择知识库，输入问题开始对话</p>
+
+            {/* KB quick pick cards */}
+            {kbs.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                {kbs.slice(0, 6).map(kb => (
+                  <button key={kb.id} onClick={() => handleKBChange(kb.id)}
+                    className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      selectedKB === kb.id
+                        ? 'bg-cyber-blue/15 text-cyber-blue border border-cyber-blue/20'
+                        : 'bg-gray-100 text-gray-600 border border-gray-200/60 hover:bg-gray-200/60 hover:text-gray-800'
+                    }`}>
+                    {kb.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto px-8 py-6 space-y-6">
+          /* ── Messages ── */
+          <div className="max-w-3xl mx-auto py-6 space-y-5">
             {messages.map((m, i) => (
               <div key={i}>
                 {m.role === 'user' ? (
                   <div className="flex justify-end">
-                    <div className="bg-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-br-md max-w-[80%]">
-                      <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                    <div className="bg-cyber-blue text-white px-4 py-2.5 rounded-2xl rounded-br-md max-w-[75%] shadow-sm">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {/* Process panel: thinking + sources in one foldable */}
                     <ProcessPanel
                       thinking={m.thinking || ''}
@@ -280,7 +303,7 @@ export function QAPage() {
                       summary={m.summary}
                     />
                     {/* Answer content */}
-                    <div className="prose prose-sm max-w-none">
+                    <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-gray-800 prose-strong:text-gray-800 prose-code:text-cyber-blue prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     </div>
                   </div>
@@ -302,7 +325,7 @@ export function QAPage() {
                   summary={processSummary}
                 />
                 {streamingText ? (
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm max-w-none prose-p:leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
                   </div>
                 ) : (
@@ -325,44 +348,70 @@ export function QAPage() {
         )}
       </div>
 
-      {/* Bottom input */}
-      <div className="flex-shrink-0 border-t border-gray-100 bg-white">
-        <div className="max-w-3xl mx-auto px-8 py-4 flex gap-2 items-center">
+      {/* ── Bottom input ── */}
+      <div className="flex-shrink-0 border-t border-gray-200/70 bg-white/80 backdrop-blur-sm">
+        <div className="max-w-3xl mx-auto px-4 md:px-8 py-3.5 flex gap-2.5 items-center">
+          {/* New chat button */}
           <Button
             size="sm"
             variant="outline"
-            className="text-xs rounded-lg px-2 py-2 shrink-0"
+            className="rounded-xl px-3 py-2 shrink-0 border-gray-200 text-gray-500 hover:bg-gray-100 hover:border-gray-300"
             onClick={startNewChat}
             title="新对话"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
           </Button>
-          <select
-            value={isNewChat ? selectedKB : (selectedKB || '')}
-            onChange={e => handleKBChange(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 w-36"
-          >
-            <option value="">全部知识库</option>
-            {kbs.map(kb => (
-              <option key={kb.id} value={kb.id}>{kb.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 py-2 px-3"
-            placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
-            disabled={streaming}
-          />
+
+          {/* KB selector */}
+          <div className="relative shrink-0">
+            <button onClick={() => setKbSelectOpen(o => !o)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200/70 border border-gray-200/60 rounded-lg px-2.5 py-2 transition-colors min-w-[90px]">
+              <Database className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate max-w-[80px]">{currentKbLabel}</span>
+              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${kbSelectOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {kbSelectOpen && (
+              <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg shadow-black/5 py-1 z-40 min-w-[140px]"
+                onMouseLeave={() => setKbSelectOpen(false)}>
+                <button onClick={() => { handleKBChange(''); setKbSelectOpen(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                    selectedKB === '' ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  全部知识库
+                </button>
+                {kbs.map(kb => (
+                  <button key={kb.id} onClick={() => { handleKBChange(kb.id); setKbSelectOpen(false) }}
+                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                      selectedKB === kb.id ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {kb.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-gray-50 border border-gray-200/80 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyber-blue/15 focus:border-cyber-blue/30 py-2.5 px-3.5 transition-all"
+              placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
+              disabled={streaming}
+            />
+          </div>
+
+          {/* Send button */}
           <Button
             size="sm"
-            className="bg-cyber-blue text-white rounded-lg px-3 py-2 text-xs font-semibold shrink-0"
+            className="rounded-xl px-3.5 py-2.5 shrink-0 bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40"
             onClick={() => handleSubmit()}
             disabled={streaming || !input.trim()}
           >
-            {streaming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
       </div>
