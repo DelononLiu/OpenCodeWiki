@@ -361,23 +361,7 @@ export function QAPage() {
               <Database className="w-8 h-8 text-cyber-blue/60" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-1.5">知识库问答</h2>
-            <p className="text-sm text-gray-400 mb-6">选择知识库，输入问题开始对话</p>
-
-            {/* KB quick pick chips */}
-            {kbs.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 max-w-md mb-8">
-                {kbs.slice(0, 6).map(kb => (
-                  <button key={kb.id} onClick={() => handleKBChange(kb.id)}
-                    className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
-                      selectedKB === kb.id
-                        ? 'bg-cyber-blue/15 text-cyber-blue border border-cyber-blue/20'
-                        : 'bg-gray-100 text-gray-600 border border-gray-200/60 hover:bg-gray-200/60 hover:text-gray-800'
-                    }`}>
-                    {kb.name}
-                  </button>
-                ))}
-              </div>
-            )}
+            <p className="text-sm text-gray-400 mb-8">输入问题开始对话，在侧栏选择知识库</p>
 
             {/* Suggested questions */}
             <div className="flex flex-wrap justify-center gap-2 max-w-lg mb-8">
