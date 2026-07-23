@@ -247,9 +247,6 @@ export function AppSidebar() {
                   </div>
                 )}
               </div>
-            ) : location.pathname === '/' ? (
-              /* Homepage — empty */
-              <div />
             ) : (
               /* QA / Admin / Other pages — session history */
               <div>
