@@ -23,6 +23,9 @@ class PipelineEvent(BaseModel):
     kb_ids: list[str]
     session_id: str | None = None
 
+    # Multi-turn conversation history (OpenAI-format messages from previous turns)
+    history: list[dict] = []
+
     # QueryUnderstand
     intent: str = "kb_search"  # greeting | kb_search | general
     rewritten_queries: list[str] = []

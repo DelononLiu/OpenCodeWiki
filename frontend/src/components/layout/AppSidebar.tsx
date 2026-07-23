@@ -30,7 +30,7 @@ export function AppSidebar() {
   const [kbList, setKbList] = useState<{name: string}[]>([])
 
   // Session history for QA page
-  const [sessionList, setSessionList] = useState<{session_id: string; root_qid: number; root_question: string; created_at: string}[]>([])
+  const [sessionList, setSessionList] = useState<{id: string; title: string; created_at: string}[]>([])
   const [sessionsExpanded, setSessionsExpanded] = useState(true)
 
   // useParams doesn't work outside <Routes> — use useMatch instead
@@ -50,8 +50,8 @@ export function AppSidebar() {
 
   // Fetch sessions on mount and every navigation
   const fetchSessions = useCallback(() => {
-    fetch('/api/sessions').then(r => r.json()).then(d => {
-      if (d.ok && d.data?.sessions) setSessionList(d.data.sessions)
+    fetch('/api/sessions').then(r => r.json()).then(list => {
+      if (Array.isArray(list)) setSessionList(list)
     }).catch(e => console.warn('Session fetch failed:', e))
   }, [])
 
@@ -256,13 +256,13 @@ export function AppSidebar() {
                   历史问答
                 </button>
                 {sessionsExpanded && (
-                  sessionList.length > 0 ? sessionList.map((s: any) => (
-                    <button key={s.session_id}
-                      onClick={() => navigate(`/qa/q${s.root_qid}`)}
+                  sessionList.length > 0 ? sessionList.map(s => (
+                    <button key={s.id}
+                      onClick={() => navigate(`/qa/${s.id}`)}
                       className={`block w-full text-left px-2.5 py-1.5 rounded text-[12px] leading-snug hover:bg-white/10 transition truncate ${
-                        location.pathname === `/qa/q${s.root_qid}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
+                        location.pathname === `/qa/${s.id}` ? 'text-sidebar-active bg-white/10' : 'text-sidebar-text'
                       }`}>
-                      {s.root_question || '新对话'}
+                      {s.title || '新对话'}
                     </button>
                   )) : (
                     <div className="text-[12px] text-slate-600 px-2.5 py-4 text-center">暂无问答记录</div>

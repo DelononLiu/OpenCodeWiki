@@ -51,10 +51,10 @@ export function deleteSession(id: string): Promise<{ deleted: boolean }> {
 export function fetchConfig(): Promise<Config> { return request('/api/config') }
 
 // QA (SSE)
-export function askQuestion(kbId: string, question: string): Promise<Response> {
+export function askQuestion(kbId: string, question: string, sessionId?: string): Promise<Response> {
   return fetch(`${BASE}/api/qa`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kb_id: kbId, question }),
+    body: JSON.stringify({ kb_id: kbId, question, session_id: sessionId || '' }),
   })
 }

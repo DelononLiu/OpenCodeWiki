@@ -380,6 +380,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     class QARequest(BaseModel):
         kb_id: str = ""
         question: str
+        session_id: str = ""
 
     @app.post("/api/qa")
     async def api_qa(req: QARequest):
@@ -419,23 +420,52 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         )
         pipeline.on(EventNames.CHAT_COMPLETE, chat_plugin)
 
-        # Run pipeline through CONTEXT_BUILD, then stream ChatComplete separately
         # No KB selected → search all KBs
         if req.kb_id:
             kb_ids = [req.kb_id]
         else:
             all_kbs = list_kbs()
             kb_ids = [kb["id"] for kb in all_kbs]
-        event = PipelineEvent(question=req.question, kb_ids=kb_ids)
+
+        # ── Multi-turn session management ──
+        session_id = None
+        history = []
+
+        if req.kb_id:
+            if req.session_id:
+                # Reuse existing session
+                ses = get_session(req.session_id)
+                if ses:
+                    session_id = req.session_id
+                    # Load history from DB (past turns only, before saving current user message)
+                    msgs = get_messages(session_id)
+                    history = [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in msgs[-10:]
+                    ]
+                else:
+                    # session_id invalid, create new
+                    ses = create_session(req.kb_id, req.question[:50])
+                    session_id = ses["id"]
+            else:
+                # First turn — create session
+                ses = create_session(req.kb_id, req.question[:50])
+                session_id = ses["id"]
+
+            # Save current user message to DB
+            create_message(session_id, "user", req.question, "[]", 0)
+
+        event = PipelineEvent(
+            question=req.question, kb_ids=kb_ids,
+            session_id=session_id, history=history,
+        )
         event = await pipeline.run(event, until=EventNames.CONTEXT_BUILD)
 
-        # Create session for record (skip if no KB selected)
-        if req.kb_id:
-            ses = create_session(req.kb_id, req.question[:50])
-            create_message(ses["id"], "user", req.question, "[]", 0)
-            event.session_id = ses["id"]
-
         async def event_stream():
+            # Emit session_id immediately so frontend can update URL
+            if session_id:
+                yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
+
             full_answer = ""
             async for sse_chunk in chat_plugin.stream(event):
                 yield sse_chunk
@@ -452,10 +482,10 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                         pass
                 elif "event: done" in sse_chunk or "event: error" in sse_chunk:
                     # Save assistant message if session exists
-                    if req.kb_id:
+                    if session_id:
                         sources_json = json.dumps([s.model_dump() for s in event.sources]) if event.sources else "[]"
                         token_count = len(full_answer.split())
-                        create_message(ses["id"], "assistant", full_answer, sources_json, token_count)
+                        create_message(session_id, "assistant", full_answer, sources_json, token_count)
 
         return StreamingResponse(
             event_stream(),

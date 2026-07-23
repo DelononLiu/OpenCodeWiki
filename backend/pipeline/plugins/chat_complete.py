@@ -14,6 +14,7 @@ class ChatCompletePlugin(BasePlugin):
     async def process(self, event: PipelineEvent) -> PipelineEvent:
         messages = [
             {"role": "system", "content": event.system_prompt},
+            *event.history,
             {"role": "user", "content": event.context_text},
         ]
 
@@ -55,6 +56,7 @@ class ChatCompletePlugin(BasePlugin):
         """Async generator that yields SSE event strings."""
         messages = [
             {"role": "system", "content": event.system_prompt},
+            *event.history,
             {"role": "user", "content": event.context_text},
         ]
 
