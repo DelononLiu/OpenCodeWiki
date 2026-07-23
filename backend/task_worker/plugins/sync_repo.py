@@ -1,16 +1,12 @@
+import asyncio
 import os
 from backend.config import Config
-from backend.stores.repo import get_repo, update_sync_status
+from backend.stores.kb import get_kb
 from backend.stores.doc import create_document, list_documents
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.importer import import_document, compute_hash
 from backend.sync import git_sync
 from backend.task_worker.plugins.base import TaskPlugin, TaskEvent, TaskCancelledError
-
-
-def _is_cancelled(task_id: str) -> bool:
-    t = get_task(task_id)
-    return t is None or t["status"] == "cancelled"
 
 
 class SyncRepoPlugin(TaskPlugin):
@@ -20,40 +16,69 @@ class SyncRepoPlugin(TaskPlugin):
         self.cfg = cfg
 
     async def process(self, event: TaskEvent) -> TaskEvent:
-        repo_id = event.params.get("repo_id")
-        if not repo_id:
-            raise ValueError("Missing repo_id in params")
+        kb_id = event.params.get("kb_id")
+        if not kb_id:
+            raise ValueError("Missing kb_id in params")
 
-        repo = get_repo(repo_id)
-        if not repo:
-            raise ValueError(f"Repo not found: {repo_id}")
+        kb = get_kb(kb_id)
+        if not kb:
+            raise ValueError(f"Knowledge base not found: {kb_id}")
+        if not kb.get("repo_url"):
+            raise ValueError(f"Knowledge base '{kb['name']}' has no remote repo")
+
+        local_path = os.path.join(os.path.expanduser(self.cfg.database.path), "knowledge", kb["name"])
+        repo_url = kb["repo_url"]
+        repo_branch = kb.get("repo_branch") or "main"
 
         update_task_status(event.task_id, "running", progress=5,
-                           progress_msg=f"正在同步 {repo['url']}")
+                           progress_msg=f"正在同步 {repo_url}")
 
         # 1. Clone or pull
-        if os.path.isdir(repo["local_path"]):
-            changed = await git_sync.pull(repo["local_path"])
+        if os.path.isdir(local_path):
+            await git_sync.pull(local_path)
         else:
-            await git_sync.clone(repo["url"], repo["local_path"], repo["branch"])
-            changed = []  # all files are new
+            os.makedirs(local_path, exist_ok=True)
+            await git_sync.clone(repo_url, local_path, repo_branch)
 
-        if _is_cancelled(event.task_id):
+        def _cancelled():
+            t = get_task(event.task_id)
+            return t is None or t["status"] == "cancelled"
+
+        if _cancelled():
             raise TaskCancelledError()
 
-        update_task_status(event.task_id, "running", progress=20,
+        # 2. For code repos: run openwiki to generate docs from source
+        if kb.get("content_type") == "code":
+            update_task_status(event.task_id, "running", progress=20,
+                               progress_msg="正在从代码生成文档...")
+            proc = await asyncio.create_subprocess_exec(
+                "openwiki", local_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.wait()
+
+            scan_dir = os.path.join(local_path, "openwiki")
+            if not os.path.isdir(scan_dir):
+                cwd_ow = os.path.join(os.getcwd(), "openwiki")
+                scan_dir = cwd_ow if os.path.isdir(cwd_ow) else local_path
+        else:
+            scan_dir = local_path
+
+        if _cancelled():
+            raise TaskCancelledError()
+
+        update_task_status(event.task_id, "running", progress=30,
                            progress_msg="正在扫描文件变化")
 
-        # 2. Scan local files and compare with DB
-        local_files = await git_sync.list_files(repo["local_path"])
-        existing = list_documents(repo["kb_id"])
+        # 3. Scan files
+        local_files = await git_sync.list_files(scan_dir)
+        existing = list_documents(kb_id)
         existing_by_path: dict[str, dict] = {}
         for doc in existing:
-            # Store the relative path in metadata for comparison
-            rel_path = doc.get("title", "")
-            existing_by_path[rel_path] = doc
+            existing_by_path[doc["title"]] = doc
 
-        # 3. Diff: new / changed / deleted
+        # 4. Diff
         new_or_changed = []
         for rel_path, sha in local_files.items():
             if rel_path in existing_by_path:
@@ -61,7 +86,6 @@ class SyncRepoPlugin(TaskPlugin):
                     new_or_changed.append(rel_path)
             else:
                 new_or_changed.append(rel_path)
-
         deleted = [p for p in existing_by_path if p not in local_files]
 
         total = len(new_or_changed) + len(deleted)
@@ -69,30 +93,29 @@ class SyncRepoPlugin(TaskPlugin):
 
         async def on_progress(pct: int, msg: str):
             update_task_status(event.task_id, "running",
-                               progress=max(20, min(90, 20 + int(pct * 0.7))),
+                               progress=max(30, min(90, 30 + int(pct * 0.6))),
                                progress_msg=msg)
 
-        # 4. Import new/changed files
+        # 5. Import new/changed files
         for rel_path in new_or_changed:
-            if _is_cancelled(event.task_id):
+            if _cancelled():
                 raise TaskCancelledError()
 
-            full_path = os.path.join(repo["local_path"], rel_path)
+            full_path = os.path.join(scan_dir, rel_path)
             file_hash = compute_hash(full_path)
             ext = os.path.splitext(rel_path)[1].lstrip(".").lower()
 
-            # Delete existing doc first if re-importing
             if rel_path in existing_by_path:
                 from backend.stores.doc import delete_document
                 delete_document(existing_by_path[rel_path]["id"])
                 from backend.knowledge.vector_store import delete_by_doc_id
                 delete_by_doc_id(existing_by_path[rel_path]["id"])
 
-            doc = create_document(repo["kb_id"], rel_path, full_path, file_hash, ext)
+            doc = create_document(kb_id, rel_path, full_path, file_hash, ext)
             await import_document(
-                doc["id"], full_path, repo["kb_id"], self.cfg,
+                doc["id"], full_path, kb_id, self.cfg,
                 progress_callback=on_progress,
-                cancel_check=lambda: _is_cancelled(event.task_id),
+                cancel_check=_cancelled,
             )
 
             done += 1
@@ -100,9 +123,9 @@ class SyncRepoPlugin(TaskPlugin):
             update_task_status(event.task_id, "running", progress=min(90, pct),
                                progress_msg=f"已导入 {rel_path}")
 
-        # 5. Handle deleted files
+        # 6. Handle deleted files
         for rel_path in deleted:
-            if _is_cancelled(event.task_id):
+            if _cancelled():
                 raise TaskCancelledError()
             doc = existing_by_path[rel_path]
             from backend.stores.doc import delete_document
@@ -114,7 +137,7 @@ class SyncRepoPlugin(TaskPlugin):
             update_task_status(event.task_id, "running", progress=min(90, pct),
                                progress_msg=f"已移除 {rel_path}")
 
-        # 6. Update repo last sync time
-        update_sync_status(repo_id, "success")
-
+        # 7. Update KB repo sync status (via task progress_msg)
+        update_task_status(event.task_id, "running", progress=100,
+                           progress_msg="同步完成")
         return event

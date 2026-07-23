@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     chunk_config  TEXT DEFAULT '{"size":512,"overlap":50}',
     doc_count     INTEGER DEFAULT 0,
     chunk_count   INTEGER DEFAULT 0,
+    repo_url      TEXT DEFAULT '',
+    repo_type     TEXT DEFAULT '',
+    repo_branch   TEXT DEFAULT '',
+    content_type  TEXT DEFAULT 'docs',
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
@@ -75,18 +79,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at  TEXT
 );
 
-CREATE TABLE IF NOT EXISTS remote_repos (
-    id            TEXT PRIMARY KEY,
-    type          TEXT NOT NULL CHECK(type IN ('git', 'svn')),
-    url           TEXT NOT NULL,
-    branch        TEXT DEFAULT 'main',
-    local_path    TEXT NOT NULL,
-    kb_id         TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
-    schedule      TEXT DEFAULT '',
-    last_sync_at  TEXT,
-    last_status   TEXT DEFAULT 'pending',
-    created_at    TEXT DEFAULT (datetime('now'))
-);
 """
 
 # Add columns for existing databases (safe to run multiple times)
@@ -94,6 +86,10 @@ _MIGRATIONS = [
     "ALTER TABLE messages ADD COLUMN thinking TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN doc_count INTEGER DEFAULT 0",
     "ALTER TABLE knowledge_bases ADD COLUMN chunk_count INTEGER DEFAULT 0",
+    "ALTER TABLE knowledge_bases ADD COLUMN repo_url TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN repo_type TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN repo_branch TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN content_type TEXT DEFAULT 'docs'",
 ]
 
 # ── Triggers: auto-maintain KB doc_count / chunk_count ──

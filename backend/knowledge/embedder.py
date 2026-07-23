@@ -16,6 +16,7 @@ class Embedder:
             response = await self.client.embeddings.create(
                 model=self.model,
                 input=batch,
+                dimensions=self.dimensions,
             )
             all_vectors.extend([d.embedding for d in response.data])
         return all_vectors

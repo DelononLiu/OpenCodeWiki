@@ -15,7 +15,6 @@ from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, ensure_def
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
 from backend.stores.task import create_task, get_task, list_tasks, cancel_task
-from backend.stores.repo import create_repo, get_repo, list_repos, delete_repo, update_repo
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
 from backend.pipeline.events import PipelineEvent, EventNames
@@ -276,10 +275,16 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     class CreateKBRequest(BaseModel):
         name: str
         description: str = ""
+        repo_url: str = ""
+        repo_type: str = ""
+        repo_branch: str = ""
+        content_type: str = "docs"
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
-        return create_kb(req.name, req.description, embedding_model=cfg.embedding.model)
+        return create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
+                         repo_url=req.repo_url, repo_type=req.repo_type,
+                         repo_branch=req.repo_branch, content_type=req.content_type)
 
     @app.get("/api/kb")
     async def api_list_kbs():
@@ -432,39 +437,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         task = create_task("rebuild")
         return task
 
-    # ── Remote Repos ──
-    class CreateRepoRequest(BaseModel):
-        type: str
-        url: str
-        branch: str = "main"
-        local_path: str
-        kb_id: str
-        schedule: str = ""
-
-    @app.get("/api/repos")
-    async def api_list_repos(kb_id: str | None = None):
-        return list_repos(kb_id)
-
-    @app.post("/api/repos")
-    async def api_create_repo(req: CreateRepoRequest):
-        return create_repo(req.type, req.url, req.branch, req.local_path, req.kb_id, req.schedule)
-
-    @app.put("/api/repos/{repo_id}")
-    async def api_update_repo(repo_id: str, data: dict):
-        update_repo(repo_id, **data)
-        return get_repo(repo_id)
-
-    @app.delete("/api/repos/{repo_id}")
-    async def api_delete_repo(repo_id: str):
-        delete_repo(repo_id)
-        return {"deleted": True}
-
-    @app.post("/api/repos/{repo_id}/sync")
-    async def api_sync_repo(repo_id: str):
-        repo = get_repo(repo_id)
-        if not repo:
-            raise HTTPException(404, "Remote repo not found")
-        task = create_task("sync_repo", repo_id=repo_id, params={"repo_id": repo_id})
+    # ── Sync ──
+    @app.post("/api/kb/{kb_id}/sync")
+    async def api_sync_kb(kb_id: str):
+        kb = get_kb(kb_id)
+        if not kb:
+            raise HTTPException(404, "Knowledge base not found")
+        if not kb.get("repo_url"):
+            raise HTTPException(400, "知识库没有关联远程仓库")
+        task = create_task("sync_repo", kb_id=kb_id, params={"kb_id": kb_id})
         return task
 
     # ── QA (SSE) ──

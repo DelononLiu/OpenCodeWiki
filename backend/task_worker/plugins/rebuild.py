@@ -40,6 +40,7 @@ class RebuildPlugin(TaskPlugin):
             delete_chunks_by_kb(kb_id)
 
             docs = list_documents(kb_id)
+            doc_total = len(docs)
             for j, doc in enumerate(docs):
                 if is_cancelled():
                     raise TaskCancelledError()
@@ -52,9 +53,9 @@ class RebuildPlugin(TaskPlugin):
                     cancel_check=is_cancelled,
                 )
 
-                pct = int(((done * len(docs)) + (j + 1)) / (total * len(docs) or 1) * 100)
+                pct = int(((done * doc_total) + (j + 1)) / (total * doc_total or 1) * 100)
                 update_task_status(event.task_id, "running", progress=min(pct, 99),
-                                   progress_msg=f"已完成 {doc['title']}")
+                                   progress_msg=f"{j + 1}/{doc_total} {doc['title']}")
 
             done += 1
 

@@ -37,7 +37,7 @@ export function AppSidebar() {
   const wikiMatch = useMatch('/wiki/:name')
   const repoMatch = useMatch('/:repo')
   // Avoid matching well-known paths as repo names
-  const isRepoRoute = repoMatch && !['qa', 'admin', 'sources', 'settings', 'wiki'].includes(repoMatch.params.repo || '')
+  const isRepoRoute = repoMatch && !['qa', 'admin', 'sources', 'settings', 'wiki', 'repos'].includes(repoMatch.params.repo || '')
   const currentKB = wikiMatch?.params.name || (isRepoRoute ? repoMatch?.params.repo : '') || kbList[0]?.name || ''
 
   useEffect(() => {
@@ -60,9 +60,9 @@ export function AppSidebar() {
   const toggleSidebar = () => setSidebarOpen(o => !o)
 
   const isActive = (path: string) => {
-    if (path === '/qa') return location.pathname === '/qa'
+    if (path === '/qa') return location.pathname === '/qa' || location.pathname.startsWith('/qa/')
     if (path === '/wiki') return location.pathname.startsWith('/wiki') || !!isRepoRoute
-    return location.pathname.startsWith(path)
+    return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
   const handleTabClick = (tab: TabType, path: string) => {

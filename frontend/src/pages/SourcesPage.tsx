@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument } from '@/api/opencodewiki'
+import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB } from '@/api/opencodewiki'
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
@@ -25,6 +25,25 @@ export function SourcesPage() {
   const [addFiles, setAddFiles] = useState<FileList | null>(null)
   const [addSubmitting, setAddSubmitting] = useState(false)
 
+  // Online repo fields (auto-detected + editable)
+  const [repoName, setRepoName] = useState('')
+  const [repoType, setRepoType] = useState<'git' | 'svn'>('git')
+  const [contentType, setContentType] = useState<'code' | 'docs'>('docs')
+  const [repoBranch, setRepoBranch] = useState('main')
+
+  // URL → auto-detect
+  useEffect(() => {
+    if (addMode !== 'online' || !addUrl.trim()) return
+    const t = addUrl.trim()
+    const detected = /^svn:\/\//i.test(t) || /svn\./i.test(t) ? 'svn' : 'git'
+    setRepoType(detected)
+    setRepoBranch(detected === 'git' ? 'main' : 'trunk')
+    const sshM = t.match(/:([^\/]+)\/([^\/]+?)(\.git)?\/?$/)
+    const httpM = t.match(/\/([^\/]+?)(\.git)?\/?$/)
+    const name = sshM ? sshM[2] : (httpM ? httpM[1] : '')
+    if (name) setRepoName(name)
+  }, [addUrl, addMode])
+
   // Toast
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -42,40 +61,68 @@ export function SourcesPage() {
     setDocsLoading(false)
   }, [])
 
+  // Track running rebuild tasks
+  const [runningTasks, setRunningTasks] = useState<Record<string, {progress: number; msg: string}>>({})
+
   useEffect(() => { loadKBs() }, [loadKBs])
 
   useEffect(() => {
     if (selectedKB) loadDocuments(selectedKB.id)
   }, [selectedKB, loadDocuments])
 
+  // Poll running tasks for rebuild status
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const tasks = await fetch('/api/tasks?status=running').then(r => r.json())
+        const map: Record<string, {progress: number; msg: string}> = {}
+        for (const t of Array.isArray(tasks) ? tasks : []) {
+          if (t.type === 'rebuild' && t.kb_id) {
+            map[t.kb_id] = { progress: t.progress || 0, msg: t.progress_msg || '重建中...' }
+          }
+        }
+        setRunningTasks(map)
+      } catch {}
+    }
+    poll()
+    const timer = setInterval(poll, 3000)
+    return () => clearInterval(timer)
+  }, [])
+
   const handleAddSubmit = async () => {
-    if (!addName.trim()) return
+    if (addMode === 'online' ? !repoName.trim() : !addName.trim()) return
     setAddSubmitting(true)
     setShowAddModal(false)
 
     try {
-      // Build description — append URL for online repos
-      const desc = addMode === 'online' && addUrl.trim()
-        ? `${addDesc}\n[来源: ${addUrl.trim()}]`.trim()
-        : addDesc.trim()
+      const name = repoName.trim()
+      const desc = `[${repoType.toUpperCase()}] ${addUrl.trim()}`
 
-      // 1. Create KB
-      const kb = await createKB(addName.trim(), desc)
-      // 2. Upload files if in upload mode
-      if (addMode === 'upload' && addFiles && addFiles.length > 0) {
+      if (addMode === 'online') {
+        // 1. Create KB with repo info, then trigger sync
+        const kb = await createKB(name, desc, {
+          repo_url: addUrl.trim(), repo_type: repoType,
+          repo_branch: repoBranch, content_type: contentType,
+        })
+        await syncKB(kb.id)
+        showSuccess(`仓库「${name}」已添加，首轮同步已启动`)
+      } else if (addMode === 'upload' && addFiles && addFiles.length > 0) {
+        const kb = await createKB(name, desc)
+        // 2. Upload files
         let ok = 0
         for (const file of Array.from(addFiles)) {
           try { await uploadDocument(kb.id, file); ok++ } catch {}
         }
-        showSuccess(`知识库「${addName}」已创建，上传 ${ok}/${addFiles.length} 个文档`)
+        showSuccess(`知识库「${name}」已创建，上传 ${ok}/${addFiles.length} 个文档`)
       } else {
-        showSuccess(`知识库「${addName}」已创建`)
+        showSuccess(`知识库「${name}」已创建`)
       }
       await loadKBs()
     } catch (e: any) {
       showError(`创建失败: ${e.message || '未知错误'}`)
     } finally {
       setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setAddSubmitting(false)
+      setRepoName(''); setRepoType('git'); setRepoBranch('main')
     }
   }
 
@@ -105,25 +152,10 @@ export function SourcesPage() {
   const handleRebuildIndex = async () => {
     if (!selectedKB) return
     try {
-      const docs = await fetchDocuments(selectedKB.id)
-      for (const doc of docs) {
-        await deleteDocument(selectedKB.id, doc.id)
-      }
-      for (const doc of docs) {
-        if (doc.status === 'completed') {
-          // Re-upload each document
-          const resp = await fetch(doc.file_path)
-          if (resp.ok) {
-            const blob = await resp.blob()
-            const file = new File([blob], doc.title)
-            await uploadDocument(selectedKB.id, file)
-          }
-        }
-      }
-      showSuccess(`「${selectedKB.name}」索引重建完成`)
-      await loadDocuments(selectedKB.id)
-      await loadKBs()
-    } catch (e: any) { showError(`重建失败: ${e.message}`) }
+      const resp = await fetch(`/api/kb/${selectedKB.id}/rebuild`, { method: 'POST' })
+      if (!resp.ok) throw new Error((await resp.json()).detail)
+      showSuccess(`重建任务已提交，卡片会显示进度`)
+    } catch (e: any) { showError(`重建失败: ${e.message || '未知错误'}`) }
   }
 
   const statusColor = (status: string) =>
@@ -194,21 +226,25 @@ export function SourcesPage() {
                   </div>
                   <p className="text-xs text-gray-400 line-clamp-2">{kb.description || '暂无描述'}</p>
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 pt-1 flex-wrap">
-                    <span className="bg-gray-100 px-1.5 py-0.5 rounded">{kb.embedding_model}</span>
-                    {kb.doc_count !== undefined && (
-                      <span>{kb.doc_count} 文档</span>
+                    {runningTasks[kb.id] ? (
+                      <span className="flex items-center gap-1 text-amber-600">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        重建中 {runningTasks[kb.id].msg}
+                      </span>
+                    ) : (
+                      <>
+                        {kb.doc_count !== undefined && <span>{kb.doc_count} 文档</span>}
+                        {kb.chunk_count !== undefined && <span>{kb.chunk_count} 分片</span>}
+                        {kb.created_at && <span>· {kb.created_at.slice(0, 10)}</span>}
+                      </>
                     )}
-                    {kb.chunk_count !== undefined && (
-                      <span>{kb.chunk_count} 片段</span>
-                    )}
-                    {kb.created_at && <span>{kb.created_at.slice(0, 10)}</span>}
                   </div>
                 </div>
               ))}
 
               {/* Plus-box — 新建知识库 */}
               <button
-                onClick={() => { setAddName(''); setAddDesc(''); setAddFiles(null); setShowAddModal(true) }}
+                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[160px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -286,74 +322,119 @@ export function SourcesPage() {
             {/* Tabs */}
             <div className="flex border-b border-gray-200 mb-4">
               <button
-                onClick={() => { setAddMode('upload'); setAddUrl('') }}
+                onClick={() => { setAddMode('upload'); setAddUrl(''); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main') }}
                 className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'upload' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
               >
                 <Upload className="w-3.5 h-3.5 inline mr-1" />上传本地文件
               </button>
               <button
-                onClick={() => { setAddMode('online'); setAddFiles(null) }}
+                onClick={() => { setAddMode('online'); setAddFiles(null); setAddName('') }}
                 className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'online' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
               >
                 <Globe className="w-3.5 h-3.5 inline mr-1" />添加在线仓库
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">知识库名称</label>
-                <input value={addName} onChange={e => setAddName(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                  placeholder="输入名称" />
-              </div>
-
-              {addMode === 'online' ? (
+            {addMode === 'online' ? (
+              <div className="space-y-4">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">仓库地址</label>
                   <input value={addUrl} onChange={e => setAddUrl(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 font-mono"
-                    placeholder="https://github.com/user/repo.git" />
-                  <p className="text-[10px] text-gray-400 mt-1">Git/SVN 仓库地址，Phase 2 支持自动导入</p>
+                    placeholder="https://github.com/user/repo" />
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">描述（可选）</label>
-                    <input value={addDesc} onChange={e => setAddDesc(e.target.value)}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                      placeholder="简单描述知识库内容" />
-                  </div>
-                  {/* File upload zone */}
-                  <label className="cursor-pointer block">
-                    <div className={`border-2 border-dashed rounded-xl p-6 text-center transition ${addFiles && addFiles.length > 0 ? 'border-cyber-blue bg-cyber-blue/5' : 'border-gray-300 hover:border-cyber-blue hover:bg-gray-50'}`}>
-                      <Upload className={`w-8 h-8 mx-auto mb-1 ${addFiles && addFiles.length > 0 ? 'text-cyber-blue' : 'text-gray-300'}`} />
-                      {addFiles && addFiles.length > 0 ? (
-                        <div>
-                          <p className="text-sm font-bold text-cyber-blue mb-1">已选 {addFiles.length} 个文件</p>
-                          <p className="text-[10px] text-gray-400">点击重新选择</p>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 mb-1">上传初始文档（可选）</p>
-                          <p className="text-[10px] text-gray-400">支持 .md .txt .pdf .docx，可多选</p>
-                        </div>
-                      )}
+
+                {addUrl.trim() && (
+                  <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10 shrink-0">名称</span>
+                      <input value={repoName} onChange={e => setRepoName(e.target.value)}
+                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white" />
                     </div>
-                    <input type="file" multiple accept=".md,.txt,.pdf,.docx"
-                      onChange={e => setAddFiles(e.target.files)}
-                      className="hidden" />
-                  </label>
-                </>
-              )}
-            </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10 shrink-0">类型</span>
+                      <div className="flex gap-1">
+                        {(['code', 'docs'] as const).map(t => (
+                          <button key={t} onClick={() => setContentType(t)}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg border transition ${
+                              contentType === t
+                                ? 'bg-white border-cyber-blue text-cyber-blue shadow-sm'
+                                : 'bg-white/60 border-gray-200 text-gray-400 hover:border-gray-300'
+                            }`}>
+                            {t === 'code' ? '代码' : '文档'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10 shrink-0">协议</span>
+                      <div className="flex gap-1">
+                        {(['git', 'svn'] as const).map(t => (
+                          <button key={t} onClick={() => { setRepoType(t); setRepoBranch(t === 'svn' ? 'trunk' : 'main') }}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg border transition ${
+                              repoType === t
+                                ? 'bg-white border-cyber-blue text-cyber-blue shadow-sm'
+                                : 'bg-white/60 border-gray-200 text-gray-400 hover:border-gray-300'
+                            }`}>
+                            {t.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {repoType === 'git' && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400 w-10 shrink-0">分支</span>
+                        <input value={repoBranch} onChange={e => setRepoBranch(e.target.value)}
+                          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono" />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">知识库名称</label>
+                  <input value={addName} onChange={e => setAddName(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
+                    placeholder="输入名称" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">描述（可选）</label>
+                  <input value={addDesc} onChange={e => setAddDesc(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
+                    placeholder="简单描述知识库内容" />
+                </div>
+                {/* File upload zone */}
+                <label className="cursor-pointer block">
+                  <div className={`border-2 border-dashed rounded-xl p-6 text-center transition ${addFiles && addFiles.length > 0 ? 'border-cyber-blue bg-cyber-blue/5' : 'border-gray-300 hover:border-cyber-blue hover:bg-gray-50'}`}>
+                    <Upload className={`w-8 h-8 mx-auto mb-1 ${addFiles && addFiles.length > 0 ? 'text-cyber-blue' : 'text-gray-300'}`} />
+                    {addFiles && addFiles.length > 0 ? (
+                      <div>
+                        <p className="text-sm font-bold text-cyber-blue mb-1">已选 {addFiles.length} 个文件</p>
+                        <p className="text-[10px] text-gray-400">点击重新选择</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-bold text-gray-600 mb-1">上传初始文档（可选）</p>
+                        <p className="text-[10px] text-gray-400">支持 .md .txt .pdf .docx，可多选</p>
+                      </div>
+                    )}
+                  </div>
+                  <input type="file" multiple accept=".md,.txt,.pdf,.docx"
+                    onChange={e => setAddFiles(e.target.files)}
+                    className="hidden" />
+                </label>
+              </div>
+            )}
 
             <div className="flex gap-2 justify-end pt-4">
               <button onClick={() => setShowAddModal(false)}
                 className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
-              <button onClick={handleAddSubmit} disabled={!addName.trim() || addSubmitting}
+              <button onClick={handleAddSubmit} disabled={addSubmitting || (addMode === 'online' ? !repoName.trim() || !addUrl.trim() : !addName.trim())}
                 className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
                 {addSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                {addSubmitting ? '创建中...' : '创建'}
+                {addSubmitting ? '创建中...' : addMode === 'online' ? '添加并同步' : '创建'}
               </button>
             </div>
           </div>

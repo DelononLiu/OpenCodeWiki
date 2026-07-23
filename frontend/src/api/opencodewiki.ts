@@ -17,11 +17,16 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 // KB
 export function fetchKBs(): Promise<KB[]> { return request('/api/kb') }
 export function fetchKB(id: string): Promise<KB> { return request(`/api/kb/${id}`) }
-export function createKB(name: string, description?: string): Promise<KB> {
-  return request('/api/kb', { method: 'POST', body: JSON.stringify({ name, description }) })
+export function createKB(name: string, description?: string, repoOpts?: {
+  repo_url?: string; repo_type?: string; repo_branch?: string; content_type?: string;
+}): Promise<KB> {
+  return request('/api/kb', { method: 'POST', body: JSON.stringify({ name, description, ...repoOpts }) })
 }
 export function deleteKB(id: string): Promise<{ deleted: boolean }> {
   return request(`/api/kb/${id}`, { method: 'DELETE' })
+}
+export function syncKB(id: string): Promise<any> {
+  return request(`/api/kb/${id}/sync`, { method: 'POST' })
 }
 
 // Documents
@@ -57,4 +62,10 @@ export function askQuestion(kbId: string, question: string, sessionId?: string):
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kb_id: kbId, question, session_id: sessionId || '' }),
   })
+}
+
+// Tasks
+export function fetchTasks(status?: string): Promise<any[]> {
+  const qs = status ? `?status=${status}` : ''
+  return request(`/api/tasks${qs}`)
 }
