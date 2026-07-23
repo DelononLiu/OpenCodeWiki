@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { fetchKBs, fetchSession, askQuestion } from '@/api/opencodewiki'
 import type { KB, QASource } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
-import ThinkingCard from '@/components/ThinkingCard'
-import SourcesSummary from '@/components/SourcesSummary'
+import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Send, FileText, Database, Plus } from 'lucide-react'
@@ -241,22 +240,17 @@ export function QAPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {/* Completed thinking */}
-                    {m.thinking && (
-                      <ThinkingCard
-                        content={m.thinking}
-                        done={true}
-                        duration={m.thinkingDuration || 0}
-                      />
-                    )}
+                    {/* Process panel: thinking + sources in one foldable */}
+                    <ProcessPanel
+                      thinking={m.thinking || ''}
+                      thinkingDone={true}
+                      thinkingDuration={m.thinkingDuration || 0}
+                      sources={m.sources || []}
+                    />
                     {/* Answer content */}
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     </div>
-                    {/* Completed sources */}
-                    {m.sources && m.sources.length > 0 && (
-                      <SourcesSummary sources={m.sources} />
-                    )}
                   </div>
                 )}
               </div>
@@ -265,14 +259,13 @@ export function QAPage() {
             {/* Streaming card */}
             {streaming && (
               <>
-                {/* Thinking card during streaming */}
-                {(thinkingText || !thinkingDone) && (
-                  <ThinkingCard
-                    content={thinkingText}
-                    done={thinkingDone}
-                    duration={thinkStartRef.current ? Math.floor((Date.now() - thinkStartRef.current) / 1000) : 0}
-                  />
-                )}
+                {/* Process panel during streaming */}
+                <ProcessPanel
+                  thinking={thinkingText}
+                  thinkingDone={thinkingDone}
+                  thinkingDuration={thinkStartRef.current ? Math.floor((Date.now() - thinkStartRef.current) / 1000) : 0}
+                  sources={streamingSources}
+                />
                 {streamingText ? (
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
@@ -283,9 +276,6 @@ export function QAPage() {
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
-                )}
-                {streamingSources.length > 0 && (
-                  <SourcesSummary sources={streamingSources} />
                 )}
               </>
             )}
