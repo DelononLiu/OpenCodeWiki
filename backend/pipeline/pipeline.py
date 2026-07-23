@@ -20,10 +20,11 @@ Usage:
     result = await pipeline.run(event, until=EventNames.CONTEXT_BUILD)
 """
 
+import asyncio
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Awaitable
 from dataclasses import dataclass
-import asyncio
 from backend.pipeline.events import PipelineEvent, EventNames
 
 
@@ -126,6 +127,7 @@ class Pipeline:
         self._entries: dict[str, list[_PluginEntry]] = {
             name: [] for name in EventNames.ORDER
         }
+        self.timings: dict[str, float] = {}  # stage_name → duration_ms
 
     def on(self, event_name: str, plugin: BasePlugin,
            *, parallel: bool = False) -> "Pipeline":
@@ -152,7 +154,14 @@ class Pipeline:
             entries = self._entries.get(stage_name, [])
 
             if not entries:
+                if until and stage_name == until:
+                    break
+                # Record zero timing for empty stages so callers see the stage existed
+                if stage_name not in self.timings:
+                    self.timings[stage_name] = 0
                 continue
+
+            t0 = time.monotonic()
 
             # Split into sequential and parallel groups
             seq_entries = [e for e in entries if not e.parallel]
@@ -174,6 +183,8 @@ class Pipeline:
                     if isinstance(result, PipelineEvent):
                         event = result
                         break
+
+            self.timings[stage_name] = (time.monotonic() - t0) * 1000
 
             if until and stage_name == until:
                 break

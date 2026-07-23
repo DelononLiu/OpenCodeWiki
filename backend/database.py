@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 import sqlite_vec
 from backend.config import Config
@@ -63,18 +64,42 @@ _MIGRATIONS = [
     "ALTER TABLE messages ADD COLUMN thinking TEXT DEFAULT ''",
 ]
 
-VECTORS_SCHEMA = """
-CREATE VIRTUAL TABLE IF NOT EXISTS vector_chunks USING vec0(
-    vector FLOAT[1536],
-    chunk_id TEXT
-);
+def _ensure_vectors_schema(conn: sqlite3.Connection, dimensions: int) -> None:
+    """Create or migrate vector tables to match configured dimensions."""
+    # FTS5 table is independent of dimensions — always ensure it exists
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+            chunk_id UNINDEXED,
+            text,
+            keywords
+        )
+    """)
 
-CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
-    chunk_id UNINDEXED,
-    text,
-    keywords
-);
-"""
+    # Check if vec0 table already exists with the right dimensions
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vector_chunks'"
+    ).fetchone()
+
+    if row:
+        m = re.search(r'FLOAT\[(\d+)\]', row[0])
+        current_dim = int(m.group(1)) if m else 0
+        if current_dim != dimensions:
+            print(f"[db] Vector dimension changed: {current_dim} -> {dimensions}, recreating table…")
+            conn.execute("DROP TABLE IF EXISTS vector_chunks")
+            conn.execute(f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS vector_chunks USING vec0(
+                    vector FLOAT[{dimensions}],
+                    chunk_id TEXT
+                )
+            """)
+    else:
+        conn.execute(f"""
+            CREATE VIRTUAL TABLE IF NOT EXISTS vector_chunks USING vec0(
+                vector FLOAT[{dimensions}],
+                chunk_id TEXT
+            )
+        """)
+    conn.commit()
 
 
 def _db_path(cfg: Config, db_name: str) -> str:
@@ -105,8 +130,7 @@ def init_databases(cfg: Config) -> None:
     sqlite_vec.load(_vectors_conn)
     _vectors_conn.enable_load_extension(False)
     _vectors_conn.execute("PRAGMA journal_mode=WAL")
-    _vectors_conn.executescript(VECTORS_SCHEMA)
-    _vectors_conn.commit()
+    _ensure_vectors_schema(_vectors_conn, cfg.embedding.dimensions)
 
 
 def get_knora_db() -> sqlite3.Connection:

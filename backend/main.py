@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 import yaml
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -461,13 +462,43 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         )
         event = await pipeline.run(event, until=EventNames.CONTEXT_BUILD)
 
+        # ── Build stage progress info for frontend ──
+        _STAGE_LABELS = {
+            EventNames.QUERY_UNDERSTAND: "意图理解",
+            EventNames.SEARCH: "检索",
+            EventNames.RERANK: "排序",
+            EventNames.CONTEXT_BUILD: "上下文构建",
+        }
+        completed_stages = []
+        for sn in [EventNames.QUERY_UNDERSTAND, EventNames.SEARCH, EventNames.RERANK, EventNames.CONTEXT_BUILD]:
+            info = {"name": _STAGE_LABELS.get(sn, sn), "status": "completed", "duration_ms": int(pipeline.timings.get(sn, 0))}
+            if sn == EventNames.QUERY_UNDERSTAND:
+                info["detail"] = f"{len(event.keywords)} 关键词 · {len(event.rewritten_queries)} 改写"
+            elif sn == EventNames.SEARCH:
+                info["detail"] = f"{len(event.search_results)} 个结果"
+            elif sn == EventNames.RERANK:
+                info["detail"] = f"top {len(event.reranked_results)}"
+            elif sn == EventNames.CONTEXT_BUILD:
+                info["detail"] = f"{len(event.context_text)} 字符"
+            completed_stages.append(info)
+        unique_docs = len(set(s.doc_title for s in event.search_results))
+        stage_payload = json.dumps({
+            "stages": completed_stages,
+            "summary": {"queries": len(event.rewritten_queries), "docs": unique_docs, "chunks": len(event.search_results)},
+        })
+
         async def event_stream():
+            # Emit stages info before anything else
+            yield f"event: stages\ndata: {stage_payload}\n\n"
+
             # Emit session_id immediately so frontend can update URL
             if session_id:
                 yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
 
             full_answer = ""
             full_thinking = ""
+            llm_start = time.monotonic()
+            yield f"event: stage_start\ndata: {json.dumps({'name': 'LLM推理'})}\n\n"
             async for sse_chunk in chat_plugin.stream(event):
                 yield sse_chunk
                 try:
@@ -486,6 +517,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 except Exception:
                     pass
                 if "event: done" in sse_chunk or "event: error" in sse_chunk:
+                    llm_dur = int((time.monotonic() - llm_start) * 1000)
+                    stage_end = {"name": "LLM推理", "status": "completed" if "done" in sse_chunk else "failed", "duration_ms": llm_dur, "detail": cfg.llm.model}
+                    yield f"event: stage_end\ndata: {json.dumps(stage_end)}\n\n"
                     # Save assistant message if session exists
                     if session_id:
                         sources_json = json.dumps([s.model_dump() for s in event.sources]) if event.sources else "[]"

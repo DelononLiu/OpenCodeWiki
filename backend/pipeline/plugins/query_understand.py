@@ -18,10 +18,10 @@ class QueryUnderstandPlugin(BasePlugin):
         except Exception:
             event.keywords = []
         if not event.keywords:
-            # Fallback: extract words from raw question
+            # Fallback: extract words from raw question (supports Chinese)
             import re
-            words = re.findall(r'[a-zA-Z0-9]+', event.question)
-            event.keywords = list(set(words))[:5]
+            words = re.findall(r'[a-zA-Z0-9一-鿿]+', event.question)
+            event.keywords = list(set(words))[:10]
 
         # Step 2: Rewrite query + classify intent (with fallback)
         try:
@@ -51,7 +51,7 @@ class QueryUnderstandPlugin(BasePlugin):
         )
         text = response.choices[0].message.content.strip()
         keywords = [kw.strip() for kw in text.split(",") if kw.strip()]
-        return keywords[:5]
+        return keywords[:10]
 
     async def _rewrite(self, question: str) -> tuple[list[str], str]:
         """Returns (queries, intent). Intent defaults to 'kb_search'."""

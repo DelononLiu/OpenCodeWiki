@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchKBs, fetchSession, askQuestion } from '@/api/opencodewiki'
-import type { KB, QASource } from '@/types/opencodewiki'
+import type { KB, QASource, StageInfo, ProcessSummary } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
@@ -14,6 +14,9 @@ interface Message {
   sources?: QASource[]
   thinking?: string
   thinkingDuration?: number
+  totalTime?: number
+  stages?: StageInfo[]
+  summary?: ProcessSummary
 }
 
 export function QAPage() {
@@ -31,9 +34,12 @@ export function QAPage() {
   const [thinkingText, setThinkingText] = useState('')
   const [thinkingDone, setThinkingDone] = useState(false)
   const [streamingSources, setStreamingSources] = useState<QASource[]>([])
+  const [pipelineStages, setPipelineStages] = useState<StageInfo[]>([])
+  const [processSummary, setProcessSummary] = useState<ProcessSummary | undefined>()
   const [error, setError] = useState<string | null>(null)
   const messageAreaRef = useRef<HTMLDivElement>(null)
   const thinkStartRef = useRef(0)
+  const submitTimeRef = useRef(0)
 
   // ── Init: fetch KBs, then load session or restore KB ──
   useEffect(() => {
@@ -67,8 +73,8 @@ export function QAPage() {
       const storedKbId = localStorage.getItem('ocw_last_kb')
       if (storedKbId && loadedKbs.some(kb => kb.id === storedKbId)) {
         setSelectedKB(storedKbId)
-      } else if (loadedKbs.length > 0) {
-        setSelectedKB(loadedKbs[0].id)
+      } else {
+        setSelectedKB('')
       }
     }
   }
@@ -95,6 +101,7 @@ export function QAPage() {
     setThinkingDone(false)
     setStreamingSources([])
     thinkStartRef.current = 0
+    submitTimeRef.current = Date.now()
 
     try {
       const response = await askQuestion(kbId, question, activeSessionId)
@@ -122,6 +129,24 @@ export function QAPage() {
           } else if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6))
             switch (eventType) {
+              case 'stages':
+                // Pipeline stages 1-4 completed (before LLM)
+                if (data.stages) {
+                  setPipelineStages(data.stages)
+                }
+                if (data.summary) {
+                  setProcessSummary(data.summary)
+                }
+                break
+              case 'stage_start':
+                // A new stage begins (e.g. LLM推理)
+                setPipelineStages(prev => [...prev.filter(s => s.status !== 'running'), { name: data.name, status: 'running' }])
+                break
+              case 'stage_end':
+                setPipelineStages(prev => prev.map(s =>
+                  s.name === data.name ? { ...s, status: data.status || 'completed', duration_ms: data.duration_ms, detail: data.detail } : s
+                ))
+                break
               case 'session':
                 // 收到 session_id 立即更新 URL，不等回答流完
                 if (data.session_id) {
@@ -164,8 +189,12 @@ export function QAPage() {
       }
 
       if (fullAnswer) {
+        const now = Date.now()
         const thinkSec = thinkStartRef.current
-          ? Math.floor((Date.now() - thinkStartRef.current) / 1000)
+          ? Math.floor((now - thinkStartRef.current) / 1000)
+          : 0
+        const totalSec = submitTimeRef.current
+          ? Math.floor((now - submitTimeRef.current) / 1000)
           : 0
         setMessages(prev => [...prev, {
           role: 'assistant',
@@ -173,6 +202,9 @@ export function QAPage() {
           sources,
           thinking: localThinking,
           thinkingDuration: thinkSec,
+          totalTime: totalSec,
+          stages: pipelineStages,
+          summary: processSummary,
         }])
       }
     } catch (e: any) {
@@ -242,7 +274,10 @@ export function QAPage() {
                       thinking={m.thinking || ''}
                       thinkingDone={true}
                       thinkingDuration={m.thinkingDuration || 0}
+                      totalTime={m.totalTime || 0}
                       sources={m.sources || []}
+                      stages={m.stages || []}
+                      summary={m.summary}
                     />
                     {/* Answer content */}
                     <div className="prose prose-sm max-w-none">
@@ -261,7 +296,10 @@ export function QAPage() {
                   thinking={thinkingText}
                   thinkingDone={thinkingDone}
                   thinkingDuration={thinkStartRef.current ? Math.floor((Date.now() - thinkStartRef.current) / 1000) : 0}
+                  totalTime={submitTimeRef.current ? Math.floor((Date.now() - submitTimeRef.current) / 1000) : 0}
                   sources={streamingSources}
+                  stages={pipelineStages}
+                  summary={processSummary}
                 />
                 {streamingText ? (
                   <div className="prose prose-sm max-w-none">

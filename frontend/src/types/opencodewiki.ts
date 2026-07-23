@@ -49,6 +49,19 @@ export interface QASource {
   score: number
 }
 
+export interface StageInfo {
+  name: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  duration_ms?: number
+  detail?: string
+}
+
+export interface ProcessSummary {
+  queries: number
+  docs: number
+  chunks: number
+}
+
 export interface SSEEvent {
   type: 'token' | 'sources' | 'done' | 'error'
   data: TokenData | QASource[] | DoneData | ErrorData
