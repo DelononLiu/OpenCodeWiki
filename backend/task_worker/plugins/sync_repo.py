@@ -149,6 +149,16 @@ class SyncRepoPlugin(TaskPlugin):
         except Exception:
             pass
 
+        # 8. Refresh wiki module cache so pages show immediately
+        if os.path.isdir(scan_dir):
+            import json
+            files = sorted(f.replace(".md", "") for f in os.listdir(scan_dir) if f.endswith(".md"))
+            try:
+                with open(os.path.join(scan_dir, ".wiki_modules.json"), "w") as f:
+                    json.dump(files, f)
+            except Exception:
+                pass
+
         update_task_status(event.task_id, "running", progress=100,
                            progress_msg="同步完成")
         return event
