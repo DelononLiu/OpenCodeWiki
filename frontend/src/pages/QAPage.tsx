@@ -40,6 +40,7 @@ export function QAPage() {
   const messageAreaRef = useRef<HTMLDivElement>(null)
   const thinkStartRef = useRef(0)
   const submitTimeRef = useRef(0)
+  const centerInputRef = useRef<HTMLInputElement>(null)
 
   // ── Init: fetch KBs, then load session or restore KB ──
   useEffect(() => {
@@ -73,8 +74,6 @@ export function QAPage() {
       const storedKbId = localStorage.getItem('ocw_last_kb')
       if (storedKbId && loadedKbs.some(kb => kb.id === storedKbId)) {
         setSelectedKB(storedKbId)
-      } else {
-        setSelectedKB('')
       }
     }
   }
@@ -130,16 +129,10 @@ export function QAPage() {
             const data = JSON.parse(line.slice(6))
             switch (eventType) {
               case 'stages':
-                // Pipeline stages 1-4 completed (before LLM)
-                if (data.stages) {
-                  setPipelineStages(data.stages)
-                }
-                if (data.summary) {
-                  setProcessSummary(data.summary)
-                }
+                if (data.stages) setPipelineStages(data.stages)
+                if (data.summary) setProcessSummary(data.summary)
                 break
               case 'stage_start':
-                // A new stage begins (e.g. LLM推理)
                 setPipelineStages(prev => [...prev.filter(s => s.status !== 'running'), { name: data.name, status: 'running' }])
                 break
               case 'stage_end':
@@ -148,27 +141,19 @@ export function QAPage() {
                 ))
                 break
               case 'session':
-                // 收到 session_id 立即更新 URL，不等回答流完
                 if (data.session_id) {
                   setActiveSessionId(data.session_id)
                   window.history.replaceState(null, '', `/qa/${data.session_id}`)
-                  if (kbId) {
-                    localStorage.setItem('ocw_last_kb', kbId)
-                  }
+                  if (kbId) localStorage.setItem('ocw_last_kb', kbId)
                 }
                 break
               case 'think':
-                if (!thinkStartRef.current) {
-                  thinkStartRef.current = Date.now()
-                }
+                if (!thinkStartRef.current) thinkStartRef.current = Date.now()
                 localThinking += data.text || ''
                 setThinkingText(localThinking)
                 break
               case 'token':
-                // 第一个 token 到达 → 思考结束
-                if (!fullAnswer) {
-                  setThinkingDone(true)
-                }
+                if (!fullAnswer) setThinkingDone(true)
                 fullAnswer += data.text || ''
                 setStreamingText(fullAnswer)
                 break
@@ -191,11 +176,9 @@ export function QAPage() {
       if (fullAnswer) {
         const now = Date.now()
         const thinkSec = thinkStartRef.current
-          ? Math.floor((now - thinkStartRef.current) / 1000)
-          : 0
+          ? Math.floor((now - thinkStartRef.current) / 1000) : 0
         const totalSec = submitTimeRef.current
-          ? Math.floor((now - submitTimeRef.current) / 1000)
-          : 0
+          ? Math.floor((now - submitTimeRef.current) / 1000) : 0
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: fullAnswer,
@@ -208,9 +191,7 @@ export function QAPage() {
         }])
       }
     } catch (e: any) {
-      if (e.name !== 'AbortError') {
-        setError(e.message || '请求失败')
-      }
+      if (e.name !== 'AbortError') setError(e.message || '请求失败')
     } finally {
       setStreaming(false)
       setStreamingText('')
@@ -231,41 +212,111 @@ export function QAPage() {
 
   const handleKBChange = (kbId: string) => {
     if (!isNewChat) {
-      // On existing session: start a new chat with this KB
-      if (kbId) {
-        localStorage.setItem('ocw_last_kb', kbId)
-      }
+      if (kbId) localStorage.setItem('ocw_last_kb', kbId)
       navigate('/qa', { replace: true })
       return
     }
-    // On new chat page: switch KB directly
     setSelectedKB(kbId)
     setMessages([])
     setError(null)
-    if (kbId) {
-      localStorage.setItem('ocw_last_kb', kbId)
-    }
+    if (kbId) localStorage.setItem('ocw_last_kb', kbId)
   }
 
   const currentKbLabel = kbs.find(kb => kb.id === selectedKB)?.name || '全部知识库'
   const [kbSelectOpen, setKbSelectOpen] = useState(false)
+  const [kbSelectCenterOpen, setKbSelectCenterOpen] = useState(false)
+
+  const hasContent = messages.length > 0 || streaming
+
+  // ── Shared input bar (used both in center and bottom) ──
+  const renderInputBar = (compact = false) => (
+    <div className={`flex gap-2.5 items-center ${compact ? '' : 'w-full'}`}>
+      {/* New chat button — only on bottom bar when there's history */}
+      {!compact && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="rounded-xl px-3 py-2.5 shrink-0 border-gray-200 text-gray-500 hover:bg-gray-100 hover:border-gray-300"
+          onClick={startNewChat}
+          title="新对话"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+      )}
+
+      {/* KB selector */}
+      <div className="relative shrink-0">
+        <button onClick={() => { compact ? setKbSelectCenterOpen(o => !o) : setKbSelectOpen(o => !o) }}
+          className={`flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200/70 border border-gray-200/60 rounded-lg transition-colors ${
+            compact ? 'px-3 py-2.5' : 'px-2.5 py-2'
+          }`}>
+          <Database className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate max-w-[80px]">{currentKbLabel}</span>
+          <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${(compact ? kbSelectCenterOpen : kbSelectOpen) ? 'rotate-180' : ''}`} />
+        </button>
+        {(compact ? kbSelectCenterOpen : kbSelectOpen) && (
+          <div className={`absolute ${compact ? 'top-full mt-1' : 'bottom-full mb-1'} left-0 bg-white border border-gray-200 rounded-xl shadow-lg shadow-black/5 py-1 z-40 min-w-[140px]`}
+            onMouseLeave={() => { compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}>
+            <button onClick={() => { handleKBChange(''); compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}
+              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                selectedKB === '' ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
+              }`}>
+              全部知识库
+            </button>
+            {kbs.map(kb => (
+              <button key={kb.id} onClick={() => { handleKBChange(kb.id); compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}
+                className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                  selectedKB === kb.id ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                }`}>
+                {kb.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="flex-1 relative">
+        <input
+          ref={!hasContent ? centerInputRef : undefined}
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="w-full bg-gray-50 border border-gray-200/80 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyber-blue/15 focus:border-cyber-blue/30 transition-all"
+          style={{ padding: compact ? '10px 14px' : '10px 14px' }}
+          placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
+          disabled={streaming}
+        />
+      </div>
+
+      {/* Send */}
+      <button
+        onClick={() => handleSubmit()}
+        disabled={streaming || !input.trim()}
+        className="rounded-xl px-3.5 py-2.5 shrink-0 bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+      </button>
+    </div>
+  )
 
   return (
     <div className="h-full flex flex-col">
-      {/* Message area */}
-      <div ref={messageAreaRef} className="flex-1 overflow-y-auto px-4 md:px-8">
-        {messages.length === 0 && !streaming ? (
-          /* ── Empty state ── */
-          <div className="flex flex-col items-center justify-center h-full text-center select-none">
+      {/* ── Empty / Messages area ── */}
+      <div ref={messageAreaRef} className={`flex-1 overflow-y-auto px-4 md:px-8 ${hasContent ? '' : 'flex flex-col'}`}>
+        {!hasContent ? (
+          /* ═══════════════ Centered new-chat layout ═══════════════ */
+          <div className="flex-1 flex flex-col items-center justify-center text-center select-none px-4">
             <div className="w-16 h-16 rounded-2xl bg-cyber-blue/10 flex items-center justify-center mb-5">
               <Database className="w-8 h-8 text-cyber-blue/60" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-1.5">知识库问答</h2>
-            <p className="text-sm text-gray-400 mb-8">选择知识库，输入问题开始对话</p>
+            <p className="text-sm text-gray-400 mb-6">选择知识库，输入问题开始对话</p>
 
-            {/* KB quick pick cards */}
+            {/* KB quick pick chips */}
             {kbs.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 max-w-md">
+              <div className="flex flex-wrap justify-center gap-2 max-w-md mb-8">
                 {kbs.slice(0, 6).map(kb => (
                   <button key={kb.id} onClick={() => handleKBChange(kb.id)}
                     className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
@@ -278,9 +329,16 @@ export function QAPage() {
                 ))}
               </div>
             )}
+
+            {/* Centered input box */}
+            <div className="w-full max-w-2xl">
+              <div className="bg-white border border-gray-200/80 rounded-2xl shadow-lg shadow-gray-200/50 p-2.5 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:shadow-xl focus-within:shadow-cyber-blue/5">
+                {renderInputBar(true)}
+              </div>
+            </div>
           </div>
         ) : (
-          /* ── Messages ── */
+          /* ═══════════════ Messages ═══════════════ */
           <div className="max-w-3xl mx-auto py-6 space-y-5">
             {messages.map((m, i) => (
               <div key={i}>
@@ -292,7 +350,6 @@ export function QAPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* Process panel: thinking + sources in one foldable */}
                     <ProcessPanel
                       thinking={m.thinking || ''}
                       thinkingDone={true}
@@ -302,7 +359,6 @@ export function QAPage() {
                       stages={m.stages || []}
                       summary={m.summary}
                     />
-                    {/* Answer content */}
                     <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-gray-800 prose-strong:text-gray-800 prose-code:text-cyber-blue prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     </div>
@@ -311,10 +367,8 @@ export function QAPage() {
               </div>
             ))}
 
-            {/* Streaming card */}
             {streaming && (
               <>
-                {/* Process panel during streaming */}
                 <ProcessPanel
                   thinking={thinkingText}
                   thinkingDone={thinkingDone}
@@ -338,7 +392,6 @@ export function QAPage() {
               </>
             )}
 
-            {/* Error */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
@@ -348,73 +401,14 @@ export function QAPage() {
         )}
       </div>
 
-      {/* ── Bottom input ── */}
-      <div className="flex-shrink-0 border-t border-gray-200/70 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto px-4 md:px-8 py-3.5 flex gap-2.5 items-center">
-          {/* New chat button */}
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl px-3 py-2 shrink-0 border-gray-200 text-gray-500 hover:bg-gray-100 hover:border-gray-300"
-            onClick={startNewChat}
-            title="新对话"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-
-          {/* KB selector */}
-          <div className="relative shrink-0">
-            <button onClick={() => setKbSelectOpen(o => !o)}
-              className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200/70 border border-gray-200/60 rounded-lg px-2.5 py-2 transition-colors min-w-[90px]">
-              <Database className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate max-w-[80px]">{currentKbLabel}</span>
-              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${kbSelectOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {kbSelectOpen && (
-              <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg shadow-black/5 py-1 z-40 min-w-[140px]"
-                onMouseLeave={() => setKbSelectOpen(false)}>
-                <button onClick={() => { handleKBChange(''); setKbSelectOpen(false) }}
-                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                    selectedKB === '' ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                  }`}>
-                  全部知识库
-                </button>
-                {kbs.map(kb => (
-                  <button key={kb.id} onClick={() => { handleKBChange(kb.id); setKbSelectOpen(false) }}
-                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                      selectedKB === kb.id ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                    }`}>
-                    {kb.name}
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* ── Bottom input bar (only when there are messages or streaming) ── */}
+      {hasContent && (
+        <div className="flex-shrink-0 border-t border-gray-200/70 bg-white/80 backdrop-blur-sm">
+          <div className="max-w-3xl mx-auto px-4 md:px-8 py-3.5">
+            {renderInputBar(false)}
           </div>
-
-          {/* Input */}
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-gray-50 border border-gray-200/80 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyber-blue/15 focus:border-cyber-blue/30 py-2.5 px-3.5 transition-all"
-              placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
-              disabled={streaming}
-            />
-          </div>
-
-          {/* Send button */}
-          <Button
-            size="sm"
-            className="rounded-xl px-3.5 py-2.5 shrink-0 bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40"
-            onClick={() => handleSubmit()}
-            disabled={streaming || !input.trim()}
-          >
-            {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
         </div>
-      </div>
+      )}
     </div>
   )
 }
