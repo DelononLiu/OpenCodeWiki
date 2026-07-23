@@ -396,6 +396,24 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             _refresh_kb_cache(kb["name"])
         return {"deleted": True}
 
+    @app.post("/api/kb/{kb_id}/documents/{doc_id}/rebuild")
+    async def api_rebuild_document(kb_id: str, doc_id: str):
+        doc = get_document(doc_id)
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        kb = get_kb(kb_id)
+        if not kb:
+            raise HTTPException(404, "Knowledge base not found")
+
+        # Clear old data and re-import
+        from backend.knowledge.vector_store import delete_by_doc_id
+        delete_by_doc_id(doc_id)
+        delete_document(doc_id)
+
+        new_doc = create_document(kb_id, doc["title"], doc["file_path"], doc["file_hash"], doc["file_type"])
+        asyncio.create_task(import_document(new_doc["id"], doc["file_path"], kb_id, cfg))
+        return {"rebuilt": True, "doc_id": new_doc["id"]}
+
     # ── Sessions ──
     @app.get("/api/sessions")
     async def api_list_sessions(kb_id: str | None = None):

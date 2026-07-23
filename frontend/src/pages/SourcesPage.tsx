@@ -3,7 +3,7 @@ import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDoc
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
-  Upload, Database, Loader2, FileText, Plus, Check, X, Trash2, Globe, RefreshCw,
+  Upload, Database, Loader2, FileText, Plus, Check, X, Trash2, Globe, RefreshCw, RotateCw, ArrowDownToLine,
 } from 'lucide-react'
 
 export function SourcesPage() {
@@ -279,6 +279,12 @@ export function SourcesPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {selectedKB.repo_url && (
+                    <button onClick={() => syncKB(selectedKB.id).then(() => showSuccess('同步任务已提交')).catch(e => showError(`同步失败: ${e.message}`))}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+                      <ArrowDownToLine className="w-3.5 h-3.5" /> 同步远程
+                    </button>
+                  )}
                   <button onClick={handleRebuildIndex}
                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">
                     <RefreshCw className="w-3.5 h-3.5" /> 重建索引
@@ -295,25 +301,62 @@ export function SourcesPage() {
               {documents.length === 0 ? (
                 <p className="text-sm text-gray-400 py-8 text-center">暂无文档，点击上方按钮上传。</p>
               ) : (
-                <div className="space-y-1.5">
-                  {documents.map(doc => (
-                    <div key={doc.id} className="bg-white border border-gray-100 rounded-lg px-4 py-2.5 flex items-center justify-between hover:border-gray-200 transition">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="w-4 h-4 flex-shrink-0 text-gray-400" />
-                        <span className="text-sm truncate">{doc.title}</span>
-                        <span className={`text-xs flex-shrink-0 ${statusColor(doc.status)}`}>· {doc.status}</span>
-                        {doc.status === 'completed' && (
-                          <span className="text-xs text-gray-400 flex-shrink-0">· {doc.chunks_count} 切片</span>
-                        )}
-                        {doc.error_message && (
-                          <span className="text-xs text-red-400 truncate">{doc.error_message}</span>
-                        )}
-                      </div>
-                      <button onClick={() => handleDeleteDoc(doc.id)} className="text-gray-300 hover:text-red-500">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50">
+                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 w-10">#</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-gray-500">文件名</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 w-20">状态</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 w-16">切片</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-gray-500 w-20">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {documents.map((doc, idx) => (
+                        <tr key={doc.id} className="hover:bg-gray-50 transition">
+                          <td className="px-4 py-2.5 text-gray-400 tabular-nums">{idx + 1}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 shrink-0 text-gray-400" />
+                              <span className="text-gray-700 truncate max-w-[300px]">{doc.title}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className={statusColor(doc.status)}>
+                              {doc.status === 'completed' ? '已完成' : doc.status === 'failed' ? '失败' : '处理中'}
+                            </span>
+                            {doc.error_message && (
+                              <span className="block text-red-400 truncate max-w-[120px]" title={doc.error_message}>{doc.error_message}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-500">
+                            {doc.status === 'completed' ? doc.chunks_count : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => {
+                                if (!selectedKB) return;
+                                fetch(`/api/kb/${selectedKB.id}/documents/${doc.id}/rebuild`, {method:'POST'})
+                                  .then(r => r.ok ? showSuccess(`「${doc.title}」重建已提交`) : Promise.reject())
+                                  .then(() => setTimeout(() => loadDocuments(selectedKB.id), 1000))
+                                  .catch(() => showError(`重建失败`));
+                              }}
+                                className="text-gray-300 hover:text-cyber-blue p-1 rounded hover:bg-cyber-blue/5 transition"
+                                title="重建">
+                                <RotateCw className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteDoc(doc.id)}
+                                className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition"
+                                title="删除">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
