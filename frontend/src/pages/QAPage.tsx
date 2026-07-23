@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchKBs, fetchSession, askQuestion } from '@/api/opencodewiki'
 import type { KB, QASource, StageInfo, ProcessSummary } from '@/types/opencodewiki'
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Send, Database, Plus, ChevronDown } from 'lucide-react'
+import { Loader2, Send, Database, Plus, ChevronDown, ArrowDown } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -17,6 +17,59 @@ interface Message {
   totalTime?: number
   stages?: StageInfo[]
   summary?: ProcessSummary
+}
+
+/* ── Suggested Questions (empty-state cards) ── */
+const SUGGESTED_QUESTIONS = [
+  '这个项目是做什么的？',
+  '代码架构是怎样的？',
+  '如何快速上手开发？',
+  '核心模块有哪些？',
+]
+
+/* ── Follow-up Suggestions (per answer) ── */
+function FollowUpSuggestions({ suggestions, onSelect, loading }: {
+  suggestions: string[]
+  onSelect: (q: string) => void
+  loading?: boolean
+}) {
+  if (!suggestions.length) return null
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {loading && (
+        <div className="w-full h-4 bg-gray-100 rounded animate-pulse" />
+      )}
+      {suggestions.map((q, i) => (
+        <button key={i} onClick={() => onSelect(q)}
+          className="text-xs text-gray-500 bg-gray-50 border border-gray-200/60 rounded-full px-3 py-1.5 hover:bg-gray-100 hover:text-gray-700 hover:border-gray-300 transition-colors whitespace-nowrap">
+          {q}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ── Skeleton loading for messages ── */
+function MessageSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse px-1">
+      <div className="flex justify-end">
+        <div className="bg-gray-100 rounded-2xl rounded-br-md px-20 py-3 h-9 w-[45%]" />
+      </div>
+      <div className="space-y-2">
+        <div className="bg-gray-100 rounded-lg h-4 w-[80%]" />
+        <div className="bg-gray-100 rounded-lg h-4 w-full" />
+        <div className="bg-gray-100 rounded-lg h-4 w-[60%]" />
+      </div>
+      <div className="flex justify-end mt-6">
+        <div className="bg-gray-100 rounded-2xl rounded-br-md px-16 py-3 h-9 w-[35%]" />
+      </div>
+      <div className="space-y-2">
+        <div className="bg-gray-100 rounded-lg h-4 w-[70%]" />
+        <div className="bg-gray-100 rounded-lg h-4 w-[90%]" />
+      </div>
+    </div>
+  )
 }
 
 export function QAPage() {
@@ -37,12 +90,15 @@ export function QAPage() {
   const [pipelineStages, setPipelineStages] = useState<StageInfo[]>([])
   const [processSummary, setProcessSummary] = useState<ProcessSummary | undefined>()
   const [error, setError] = useState<string | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [userScrolledUp, setUserScrolledUp] = useState(false)
   const messageAreaRef = useRef<HTMLDivElement>(null)
   const thinkStartRef = useRef(0)
   const submitTimeRef = useRef(0)
   const centerInputRef = useRef<HTMLInputElement>(null)
+  const lastScrollTop = useRef(0)
 
-  // ── Init: fetch KBs, then load session or restore KB ──
+  // ── Init ──
   useEffect(() => {
     fetchKBs().then(kbs => {
       setKbs(kbs)
@@ -53,6 +109,7 @@ export function QAPage() {
 
   const initSession = async (loadedKbs: KB[]) => {
     if (urlSessionId) {
+      setHistoryLoading(true)
       try {
         const session = await fetchSession(urlSessionId)
         if (session.messages?.length) {
@@ -63,12 +120,11 @@ export function QAPage() {
             thinking: m.thinking || undefined,
           })))
         }
-        if (session.kb_id) {
-          setSelectedKB(session.kb_id)
-        }
+        if (session.kb_id) setSelectedKB(session.kb_id)
       } catch {
-        // Invalid session — redirect to new chat
         navigate('/qa', { replace: true })
+      } finally {
+        setHistoryLoading(false)
       }
     } else {
       const storedKbId = localStorage.getItem('ocw_last_kb')
@@ -78,12 +134,29 @@ export function QAPage() {
     }
   }
 
-  // ── Auto-scroll ──
-  useEffect(() => {
+  // ── Track scroll ──
+  const handleScroll = useCallback(() => {
+    const el = messageAreaRef.current
+    if (!el) return
+    const { scrollTop, scrollHeight, clientHeight } = el
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 80
+    setUserScrolledUp(!isNearBottom)
+    lastScrollTop.current = scrollTop
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
     if (messageAreaRef.current) {
       messageAreaRef.current.scrollTop = messageAreaRef.current.scrollHeight
     }
-  }, [messages, streamingText])
+    setUserScrolledUp(false)
+  }, [])
+
+  // ── Auto-scroll on new content ──
+  useEffect(() => {
+    if (!userScrolledUp && messageAreaRef.current) {
+      messageAreaRef.current.scrollTop = messageAreaRef.current.scrollHeight
+    }
+  }, [messages, streamingText, userScrolledUp])
 
   // ── Send question ──
   const handleSubmit = async (text?: string, overrideKB?: string) => {
@@ -101,6 +174,7 @@ export function QAPage() {
     setStreamingSources([])
     thinkStartRef.current = 0
     submitTimeRef.current = Date.now()
+    setUserScrolledUp(false)
 
     try {
       const response = await askQuestion(kbId, question, activeSessionId)
@@ -206,6 +280,13 @@ export function QAPage() {
     }
   }
 
+  // Follow-up suggestion click → send as new question
+  const handleFollowUp = (q: string) => {
+    setInput(q)
+    // Auto-submit after a tick so the input state settles
+    setTimeout(() => handleSubmit(q), 0)
+  }
+
   const startNewChat = () => {
     navigate('/qa', { replace: true })
   }
@@ -222,16 +303,12 @@ export function QAPage() {
     if (kbId) localStorage.setItem('ocw_last_kb', kbId)
   }
 
-  const currentKbLabel = kbs.find(kb => kb.id === selectedKB)?.name || '全部知识库'
-  const [kbSelectOpen, setKbSelectOpen] = useState(false)
-  const [kbSelectCenterOpen, setKbSelectCenterOpen] = useState(false)
+  const hasContent = messages.length > 0 || streaming || historyLoading
 
-  const hasContent = messages.length > 0 || streaming
-
-  // ── Shared input bar (used both in center and bottom) ──
+  // ── Shared input bar ──
   const renderInputBar = (compact = false) => (
     <div className={`flex gap-2.5 items-center ${compact ? '' : 'w-full'}`}>
-      {/* New chat button — only on bottom bar when there's history */}
+      {/* New chat button */}
       {!compact && (
         <Button
           size="sm"
@@ -243,37 +320,6 @@ export function QAPage() {
           <Plus className="w-4 h-4" />
         </Button>
       )}
-
-      {/* KB selector */}
-      <div className="relative shrink-0">
-        <button onClick={() => { compact ? setKbSelectCenterOpen(o => !o) : setKbSelectOpen(o => !o) }}
-          className={`flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200/70 border border-gray-200/60 rounded-lg transition-colors ${
-            compact ? 'px-3 py-2.5' : 'px-2.5 py-2'
-          }`}>
-          <Database className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate max-w-[80px]">{currentKbLabel}</span>
-          <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${(compact ? kbSelectCenterOpen : kbSelectOpen) ? 'rotate-180' : ''}`} />
-        </button>
-        {(compact ? kbSelectCenterOpen : kbSelectOpen) && (
-          <div className={`absolute ${compact ? 'top-full mt-1' : 'bottom-full mb-1'} left-0 bg-white border border-gray-200 rounded-xl shadow-lg shadow-black/5 py-1 z-40 min-w-[140px]`}
-            onMouseLeave={() => { compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}>
-            <button onClick={() => { handleKBChange(''); compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                selectedKB === '' ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
-              }`}>
-              全部知识库
-            </button>
-            {kbs.map(kb => (
-              <button key={kb.id} onClick={() => { handleKBChange(kb.id); compact ? setKbSelectCenterOpen(false) : setKbSelectOpen(false) }}
-                className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                  selectedKB === kb.id ? 'text-cyber-blue bg-cyber-blue/5 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                }`}>
-                {kb.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Input */}
       <div className="flex-1 relative">
@@ -301,10 +347,13 @@ export function QAPage() {
     </div>
   )
 
+  const isAssistant = (m: Message) => m.role === 'assistant'
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       {/* ── Empty / Messages area ── */}
-      <div ref={messageAreaRef} className={`flex-1 overflow-y-auto px-4 md:px-8 ${hasContent ? '' : 'flex flex-col'}`}>
+      <div ref={messageAreaRef} onScroll={handleScroll}
+        className={`flex-1 overflow-y-auto px-4 md:px-8 ${hasContent ? '' : 'flex flex-col'}`}>
         {!hasContent ? (
           /* ═══════════════ Centered new-chat layout ═══════════════ */
           <div className="flex-1 flex flex-col items-center justify-center text-center select-none px-4">
@@ -330,6 +379,16 @@ export function QAPage() {
               </div>
             )}
 
+            {/* Suggested questions */}
+            <div className="flex flex-wrap justify-center gap-2 max-w-lg mb-8">
+              {SUGGESTED_QUESTIONS.map((q, i) => (
+                <button key={i} onClick={() => handleSubmit(q)}
+                  className="px-4 py-2 rounded-xl text-sm text-gray-500 bg-white border border-gray-200/70 shadow-sm hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition-colors">
+                  {q}
+                </button>
+              ))}
+            </div>
+
             {/* Centered input box */}
             <div className="w-full max-w-2xl">
               <div className="bg-white border border-gray-200/80 rounded-2xl shadow-lg shadow-gray-200/50 p-2.5 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:shadow-xl focus-within:shadow-cyber-blue/5">
@@ -340,32 +399,49 @@ export function QAPage() {
         ) : (
           /* ═══════════════ Messages ═══════════════ */
           <div className="max-w-3xl mx-auto py-6 space-y-5">
-            {messages.map((m, i) => (
-              <div key={i}>
-                {m.role === 'user' ? (
-                  <div className="flex justify-end">
-                    <div className="bg-cyber-blue text-white px-4 py-2.5 rounded-2xl rounded-br-md max-w-[75%] shadow-sm">
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
-                    </div>
+            {historyLoading ? (
+              <MessageSkeleton />
+            ) : (
+              <>
+                {messages.map((m, i) => (
+                  <div key={i}>
+                    {m.role === 'user' ? (
+                      <div className="flex justify-end">
+                        <div className="bg-cyber-blue text-white px-4 py-2.5 rounded-2xl rounded-br-md max-w-[75%] shadow-sm">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <ProcessPanel
+                          thinking={m.thinking || ''}
+                          thinkingDone={true}
+                          thinkingDuration={m.thinkingDuration || 0}
+                          totalTime={m.totalTime || 0}
+                          sources={m.sources || []}
+                          stages={m.stages || []}
+                          summary={m.summary}
+                        />
+                        <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-gray-800 prose-strong:text-gray-800 prose-code:text-cyber-blue prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
+                        {/* Follow-up suggestions on last message */}
+                        {i === messages.length - 1 && isAssistant(m) && (
+                          <FollowUpSuggestions
+                            suggestions={[
+                              '能详细解释一下关键部分吗？',
+                              '这和竞品方案有什么区别？',
+                              '有没有相关的代码示例？',
+                            ]}
+                            onSelect={handleFollowUp}
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <ProcessPanel
-                      thinking={m.thinking || ''}
-                      thinkingDone={true}
-                      thinkingDuration={m.thinkingDuration || 0}
-                      totalTime={m.totalTime || 0}
-                      sources={m.sources || []}
-                      stages={m.stages || []}
-                      summary={m.summary}
-                    />
-                    <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-gray-800 prose-strong:text-gray-800 prose-code:text-cyber-blue prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                ))}
+              </>
+            )}
 
             {streaming && (
               <>
@@ -383,10 +459,11 @@ export function QAPage() {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-gray-400 py-2">
+                  <div className="flex items-center gap-1.5 text-gray-400 py-2 pl-1">
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="text-xs text-gray-400 ml-1">思考中...</span>
                   </div>
                 )}
               </>
@@ -401,7 +478,17 @@ export function QAPage() {
         )}
       </div>
 
-      {/* ── Bottom input bar (only when there are messages or streaming) ── */}
+      {/* ── Scroll-to-bottom button ── */}
+      {hasContent && userScrolledUp && !streaming && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ bottom: '100px' }}>
+          <button onClick={scrollToBottom}
+            className="w-9 h-9 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-gray-700 hover:shadow-lg transition-all hover:-translate-y-0.5">
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Bottom input bar ── */}
       {hasContent && (
         <div className="flex-shrink-0 border-t border-gray-200/70 bg-white/80 backdrop-blur-sm">
           <div className="max-w-3xl mx-auto px-4 md:px-8 py-3.5">
