@@ -150,14 +150,15 @@ class SyncRepoPlugin(TaskPlugin):
             pass
 
         # 8. Refresh wiki module cache so pages show immediately
-        if os.path.isdir(scan_dir):
-            import json
-            files = sorted(f.replace(".md", "") for f in os.listdir(scan_dir) if f.endswith(".md"))
-            try:
-                with open(os.path.join(scan_dir, ".wiki_modules.json"), "w") as f:
-                    json.dump(files, f)
-            except Exception:
-                pass
+        import json
+        for d in (scan_dir, local_path):
+            if os.path.isdir(d):
+                files = sorted(f.replace(".md", "") for f in os.listdir(d) if f.endswith(".md"))
+                try:
+                    with open(os.path.join(d, ".wiki_modules.json"), "w") as f:
+                        json.dump(files, f)
+                except Exception:
+                    pass
 
         update_task_status(event.task_id, "running", progress=100,
                            progress_msg="同步完成")

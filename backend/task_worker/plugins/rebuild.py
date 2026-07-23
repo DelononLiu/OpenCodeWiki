@@ -1,5 +1,5 @@
 from backend.config import Config
-from backend.stores.kb import list_kbs
+from backend.stores.kb import list_kbs, get_kb
 from backend.stores.doc import list_documents, update_document_status
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.vector_store import delete_by_kb_id
@@ -58,5 +58,20 @@ class RebuildPlugin(TaskPlugin):
                                    progress_msg=f"{j + 1}/{doc_total} {doc['title']}")
 
             done += 1
+
+        # Refresh wiki module cache
+        import json, os
+        for kb_id in kb_ids:
+            kb = get_kb(kb_id)
+            if not kb:
+                continue
+            kb_dir = os.path.join(os.path.expanduser(self.cfg.database.path), "knowledge", kb["name"])
+            if os.path.isdir(kb_dir):
+                files = sorted(f.replace(".md", "") for f in os.listdir(kb_dir) if f.endswith(".md"))
+                try:
+                    with open(os.path.join(kb_dir, ".wiki_modules.json"), "w") as f:
+                        json.dump(files, f)
+                except Exception:
+                    pass
 
         return event
