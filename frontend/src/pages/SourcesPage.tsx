@@ -88,6 +88,7 @@ export function SourcesPage() {
         const [runningTasks_, pendingTasks_] = await Promise.all([
           fetch('/api/tasks?status=running').then(r => r.json()),
           fetch('/api/tasks?status=pending').then(r => r.json()),
+          fetch('/api/tasks?status=cancelled').then(r => r.json()),
         ])
         const tasks = [
           ...(Array.isArray(runningTasks_) ? runningTasks_ : []),
@@ -104,7 +105,8 @@ export function SourcesPage() {
         for (const t of Array.isArray(tasks) ? tasks : []) {
           if (t.params?.auth_required && t.kb_id && !dismissedTaskIdsRef.current.has(t.id)) {
             const kb = kbsRef.current.find((k: KB) => k.id === t.kb_id)
-            if (kb && kb.repo_type === 'svn') {
+            // Only prompt if KB still needs sync (no documents imported yet)
+            if (kb && kb.repo_type === 'svn' && (kb.doc_count || 0) === 0) {
               setShowAuthDialog({ kbId: t.kb_id, kbName: kb.name || '' })
             }
           }
