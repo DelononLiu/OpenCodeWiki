@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchKBs, fetchSession, askQuestion } from '@/api/opencodewiki'
+import { fetchKBs, fetchSession, askQuestion, createSession } from '@/api/opencodewiki'
 import type { KB, QASource, StageInfo, ProcessSummary } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
@@ -129,10 +129,7 @@ export function QAPage() {
         setHistoryLoading(false)
       }
     } else {
-      const storedKbId = localStorage.getItem('ocw_last_kb')
-      if (storedKbId && loadedKbs.some(kb => kb.id === storedKbId)) {
-        setSelectedKB(storedKbId)
-      }
+      setSelectedKB(ALL_KB)
     }
   }
 
@@ -190,7 +187,17 @@ export function QAPage() {
     setUserScrolledUp(false)
 
     try {
-      const response = await askQuestion(kbId, question, activeSessionId)
+      // Standard two-step flow: create session first, then ask question
+      let sessionId = activeSessionId
+      if (!sessionId) {
+        const ses = await createSession(kbId, question.slice(0, 50))
+        sessionId = ses.id
+        setActiveSessionId(sessionId)
+        window.history.replaceState(null, '', `/qa/${sessionId}`)
+        window.dispatchEvent(new CustomEvent('session-created', { detail: sessionId }))
+      }
+
+      const response = await askQuestion(kbId, question, sessionId)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
       const reader = response.body?.getReader()
@@ -216,22 +223,26 @@ export function QAPage() {
             const data = JSON.parse(line.slice(6))
             switch (eventType) {
               case 'stages':
+                console.log('[QA] event: stages', data.stages?.length, 'stages')
                 if (data.stages) setPipelineStages(data.stages)
                 if (data.summary) setProcessSummary(data.summary)
                 break
               case 'stage_start':
+                console.log('[QA] event: stage_start', data.name)
                 setPipelineStages(prev => [...prev.filter(s => s.status !== 'running'), { name: data.name, status: 'running' }])
                 break
               case 'stage_end':
+                console.log('[QA] event: stage_end', data.name, data.status)
                 setPipelineStages(prev => prev.map(s =>
                   s.name === data.name ? { ...s, status: data.status || 'completed', duration_ms: data.duration_ms, detail: data.detail } : s
                 ))
                 break
               case 'session':
+                console.log('[QA] ✅ session event received:', data.session_id)
                 if (data.session_id) {
                   setActiveSessionId(data.session_id)
                   window.history.replaceState(null, '', `/qa/${data.session_id}`)
-                  if (kbId) localStorage.setItem('ocw_last_kb', kbId)
+                  console.log('[QA] URL now:', window.location.href)
                 }
                 break
               case 'think':
@@ -250,6 +261,10 @@ export function QAPage() {
                 break
               case 'done':
                 setThinkingDone(true)
+                if (data.session_id) {
+                  setActiveSessionId(data.session_id)
+                  window.history.replaceState(null, '', `/qa/${data.session_id}`)
+                }
                 break
               case 'error':
                 setError(data.message)
@@ -306,14 +321,12 @@ export function QAPage() {
 
   const handleKBChange = (kbId: string) => {
     if (!isNewChat) {
-      if (kbId) localStorage.setItem('ocw_last_kb', kbId)
       navigate('/qa', { replace: true })
       return
     }
     setSelectedKB(kbId)
     setMessages([])
     setError(null)
-    if (kbId) localStorage.setItem('ocw_last_kb', kbId)
   }
 
   const hasContent = messages.length > 0 || streaming || historyLoading

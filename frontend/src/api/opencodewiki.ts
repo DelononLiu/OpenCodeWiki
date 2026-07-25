@@ -50,6 +50,9 @@ export function deleteDocument(kbId: string, docId: string): Promise<{ deleted: 
 }
 
 // Sessions
+export function createSession(kbId: string, title?: string): Promise<Session> {
+  return request('/api/sessions', { method: 'POST', body: JSON.stringify({ kb_id: kbId, title: title || '' }) })
+}
 export function fetchSessions(kbId?: string): Promise<Session[]> {
   const qs = kbId ? `?kb_id=${encodeURIComponent(kbId)}` : ''
   return request(`/api/sessions${qs}`)

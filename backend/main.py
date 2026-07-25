@@ -537,6 +537,14 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return {"rebuilt": True, "doc_id": new_doc["id"]}
 
     # ── Sessions ──
+    class CreateSessionRequest(BaseModel):
+        kb_id: str = ""
+        title: str = ""
+
+    @app.post("/api/sessions")
+    async def api_create_session(req: CreateSessionRequest):
+        return create_session(req.kb_id, req.title)
+
     @app.get("/api/sessions")
     async def api_list_sessions(kb_id: str | None = None):
         return list_sessions(kb_id)
@@ -767,6 +775,14 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             llm_start = time.monotonic()
             yield f"event: stage_start\ndata: {json.dumps({'name': 'LLM推理'})}\n\n"
             async for sse_chunk in chat_plugin.stream(event):
+                # Patch session_id into done event (event.session_id is somehow empty)
+                if session_id and sse_chunk.startswith("event: done"):
+                    try:
+                        _, data_part = sse_chunk.split("\n", 1)
+                        orig = json.loads(data_part.replace("data: ", ""))
+                    except Exception:
+                        orig = {}
+                    sse_chunk = f"event: done\ndata: {json.dumps({'session_id': session_id, 'tokens': orig.get('tokens', 0)})}\n\n"
                 yield sse_chunk
                 try:
                     lines = sse_chunk.strip().split("\n")

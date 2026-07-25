@@ -57,10 +57,17 @@ export function AppSidebar() {
 
   useEffect(() => { fetchSessions() }, [fetchSessions, location.pathname])
 
+  // Refresh session list when a new session is created
+  useEffect(() => {
+    const handler = () => fetchSessions()
+    window.addEventListener('session-created', handler)
+    return () => window.removeEventListener('session-created', handler)
+  }, [fetchSessions])
+
   const toggleSidebar = () => setSidebarOpen(o => !o)
 
   const isActive = (path: string) => {
-    if (path === '/qa') return location.pathname === '/qa' || location.pathname.startsWith('/qa/')
+    if (path === '/qa') return window.location.pathname === '/qa'
     if (path === '/wiki') return location.pathname.startsWith('/wiki') || !!isRepoRoute
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
@@ -262,7 +269,7 @@ export function AppSidebar() {
                     <button key={s.id}
                       onClick={() => navigate(`/qa/${s.id}`)}
                       className={`block w-full text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
-                        location.pathname === `/qa/${s.id}` ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
+                        (location.pathname === `/qa/${s.id}` || window.location.pathname === `/qa/${s.id}`) ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
                       }`}>
                       {s.title || '新对话'}
                     </button>
