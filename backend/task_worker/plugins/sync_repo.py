@@ -1,7 +1,7 @@
 import asyncio
 import os
 from backend.config import Config
-from backend.stores.kb import get_kb_with_credentials
+from backend.stores.kb import get_kb_with_credentials, set_kb_vector_state
 from backend.stores.doc import create_document, list_documents
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.importer import import_document, compute_hash
@@ -170,6 +170,7 @@ class SyncRepoPlugin(TaskPlugin):
                 doc["id"], full_path, kb_id, self.cfg,
                 progress_callback=on_progress,
                 cancel_check=_cancelled,
+                set_ready=False,
             )
 
             done += 1
@@ -226,6 +227,7 @@ class SyncRepoPlugin(TaskPlugin):
             except Exception:
                 pass
 
+        set_kb_vector_state(kb_id, "ready")
         update_task_status(event.task_id, "running", progress=100,
                            progress_msg="同步完成")
         return event

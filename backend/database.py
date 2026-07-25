@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     repo_branch   TEXT DEFAULT '',
     content_type  TEXT DEFAULT 'docs',
     repo_version  TEXT DEFAULT '',
+    vector_state  TEXT DEFAULT 'pending',
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
@@ -94,6 +95,7 @@ _MIGRATIONS = [
     "ALTER TABLE knowledge_bases ADD COLUMN repo_version TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN svn_username TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN svn_password TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN vector_state TEXT DEFAULT 'pending'",
 ]
 
 # ── Triggers: auto-maintain KB doc_count / chunk_count ──

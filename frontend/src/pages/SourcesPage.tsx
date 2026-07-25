@@ -323,9 +323,9 @@ export function SourcesPage() {
                           {kb.is_default && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1 py-0 rounded flex-shrink-0">默认</span>
                           )}
-                          {(kb.chunk_count || 0) > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block shrink-0" />
-                          )}
+                          {kb.vector_state === 'ready' && <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block shrink-0" title="搜索就绪" />}
+                          {kb.vector_state === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0" title="待索引" />}
+                          {kb.vector_state === 'rebuilding' && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block shrink-0" title="索引中" />}
                         </div>
                       </div>
                     </div>

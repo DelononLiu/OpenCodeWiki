@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchKBs, fetchSession, askQuestion, createSession } from '@/api/opencodewiki'
+import { fetchKBs, fetchSession, createSession } from '@/api/opencodewiki'
 import type { KB, QASource, StageInfo, ProcessSummary } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
@@ -100,6 +100,7 @@ export function QAPage() {
   const submitTimeRef = useRef(0)
   const centerInputRef = useRef<HTMLInputElement>(null)
   const lastScrollTop = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   // ── Init ──
   useEffect(() => {
@@ -109,6 +110,10 @@ export function QAPage() {
     }).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Abort SSE stream on unmount (prevents stale state updates)
+  useEffect(() => () => abortRef.current?.abort(), [])
+
 
   const initSession = async (loadedKbs: KB[]) => {
     if (urlSessionId) {
@@ -175,6 +180,11 @@ export function QAPage() {
     const kbId = overrideKB || selectedKB
     if (!question || streaming) return
 
+    // Cancel any previous SSE stream to avoid event cross-talk
+    if (abortRef.current) abortRef.current.abort()
+    const abortController = new AbortController()
+    abortRef.current = abortController
+
     setError(null)
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: question }])
@@ -198,7 +208,12 @@ export function QAPage() {
         window.dispatchEvent(new CustomEvent('session-created', { detail: sessionId }))
       }
 
-      const response = await askQuestion(kbId, question, sessionId)
+      const response = await fetch('/api/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kb_id: kbId, question, session_id: sessionId || '' }),
+        signal: abortController.signal,
+      })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
       const reader = response.body?.getReader()
@@ -224,7 +239,6 @@ export function QAPage() {
             const data = JSON.parse(line.slice(6))
             switch (eventType) {
               case 'stages':
-                console.log('[QA] event: stages', data.stages?.length, 'stages')
                 if (data.stages) setPipelineStages(data.stages)
                 if (data.summary) setProcessSummary(data.summary)
                 break
@@ -296,6 +310,7 @@ export function QAPage() {
     } catch (e: any) {
       if (e.name !== 'AbortError') setError(e.message || '请求失败')
     } finally {
+      if (abortRef.current === abortController) abortRef.current = null
       setStreaming(false)
       setStreamingText('')
       setStreamingSources([])

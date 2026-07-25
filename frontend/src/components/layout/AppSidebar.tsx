@@ -75,11 +75,7 @@ export function AppSidebar() {
   const handleTabClick = (tab: TabType, path: string) => {
     setActiveTab(tab)
     // QA tab: 已在 /qa 时不动，其他情况都跳转
-    if (tab === 'qa') {
-      if (window.location.pathname === '/qa') return
-      window.location.href = '/qa'
-      return
-    }
+    if (tab === 'qa' && window.location.pathname === '/qa') return
     navigate(path)
   }
 

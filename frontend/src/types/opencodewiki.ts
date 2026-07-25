@@ -13,6 +13,7 @@ export interface KB {
   repo_branch?: string
   content_type?: string
   repo_version?: string
+  vector_state?: string
 }
 
 export interface Document {

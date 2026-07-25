@@ -1,5 +1,5 @@
 from backend.config import Config
-from backend.stores.kb import list_kbs, get_kb
+from backend.stores.kb import list_kbs, get_kb, set_kb_vector_state
 from backend.stores.doc import list_documents, update_document_status
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.vector_store import delete_by_kb_id
@@ -47,6 +47,8 @@ class RebuildPlugin(TaskPlugin):
             if is_cancelled():
                 raise TaskCancelledError()
 
+            set_kb_vector_state(kb_id, "rebuilding")
+
             # Clear existing vectors and chunks for this KB
             delete_by_kb_id(kb_id)
             delete_chunks_by_kb(kb_id)
@@ -63,12 +65,14 @@ class RebuildPlugin(TaskPlugin):
                     doc["id"], doc["file_path"], kb_id, self.cfg,
                     progress_callback=on_progress,
                     cancel_check=is_cancelled,
+                    set_ready=False,
                 )
 
                 pct = int(((done * doc_total) + (j + 1)) / (total * doc_total or 1) * 100)
                 update_task_status(event.task_id, "running", progress=min(pct, 99),
                                    progress_msg=f"{j + 1}/{doc_total} {doc['title']}")
 
+            set_kb_vector_state(kb_id, "ready")
             done += 1
 
         # Refresh wiki module cache (recursive for nested dirs like docs/)

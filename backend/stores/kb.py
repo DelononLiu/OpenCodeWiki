@@ -26,7 +26,7 @@ def create_kb(name: str, description: str = "", embedding_model: str = "",
     db.commit()
     return {"id": kb_id, "name": name, "description": description, "embedding_model": embedding_model}
 
-_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, svn_username, svn_password, created_at"
+_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, vector_state, svn_username, svn_password, created_at"
 
 def list_kbs() -> list[dict]:
     db = get_knora_db()
@@ -89,12 +89,18 @@ def _row_to_dict(row) -> dict:
         "repo_url": row[7] or "", "repo_type": row[8] or "",
         "repo_branch": row[9] or "", "content_type": row[10] or "docs",
         "repo_version": row[11] or "",
+        "vector_state": row[12] or "pending",
         # NOTE: svn_username/svn_password intentionally omitted — use get_kb_with_credentials()
-        "created_at": row[14],
+        "created_at": row[15],
     }
     d["is_default"] = d["name"] == DEFAULT_KB_NAME
     return d
 
+
+def set_kb_vector_state(kb_id: str, state: str) -> None:
+    db = get_knora_db()
+    db.execute("UPDATE knowledge_bases SET vector_state = ? WHERE id = ?", (state, kb_id))
+    db.commit()
 
 def update_kb_credentials(kb_id: str, username: str, password: str) -> None:
     """Update SVN credentials for a knowledge base."""

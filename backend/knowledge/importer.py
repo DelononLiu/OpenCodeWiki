@@ -5,6 +5,7 @@ from backend.config import Config
 from backend.knowledge.chunker import Chunker
 from backend.knowledge.embedder import Embedder
 from backend.knowledge.vector_store import insert_vectors, _insert_fts5_only
+from backend.stores.kb import set_kb_vector_state
 from backend.stores.doc import (
     create_chunks_batch, get_chunks_by_doc,
     update_document_status, update_document_chunks_count,
@@ -60,6 +61,7 @@ async def import_document(
     cfg: Config,
     progress_callback=None,
     cancel_check=None,
+    set_ready: bool = True,
 ) -> None:
     """Import a document: parse → chunk → embed → index.
 
@@ -139,6 +141,8 @@ async def import_document(
 
         # 6. Mark complete
         update_document_chunks_count(doc_id, len(chunk_texts))
+        if set_ready:
+            set_kb_vector_state(kb_id, "ready")
         await _report(100, "完成")
 
     except Exception as e:

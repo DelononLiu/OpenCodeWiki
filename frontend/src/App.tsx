@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { LayoutProvider } from '@/contexts/LayoutContext'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { WikiGlobalPage } from '@/pages/WikiGlobalPage'
@@ -11,7 +11,9 @@ import { SourcesPage } from '@/pages/SourcesPage'
  *  creates a new component instance for each unique session path. */
 function QAPageRoute() {
   const { sessionId } = useParams()
-  return <QAPage key={sessionId || 'new'} />
+  const loc = useLocation()
+  const navKey = `${sessionId || 'new'}-${loc.key}`
+  return <QAPage key={navKey} />
 }
 
 export default function App() {

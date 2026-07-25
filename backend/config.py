@@ -14,8 +14,8 @@ class ServerConfig:
 class LLMConfig:
     provider: str = "openai"
     api_key: str = ""
-    base_url: str = "https://api.openai.com/v1"
-    model: str = "gpt-4o-mini"
+    base_url: str = "https://api.example.com/v1"
+    model: str = "deepseek-v4-flash"
     max_tokens: int = 4096
     temperature: float = 0.1
 
@@ -24,9 +24,9 @@ class LLMConfig:
 class EmbeddingConfig:
     provider: str = "openai"
     api_key: str = ""
-    base_url: str = "https://api.openai.com/v1"
-    model: str = "text-embedding-3-small"
-    dimensions: int = 1536
+    base_url: str = "https://api.example.com/v1"
+    model: str = "qwen3-embedding-4b"
+    dimensions: int = 2048
 
 
 @dataclass
