@@ -403,18 +403,24 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
-        kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
-                        repo_url=req.repo_url, repo_type=req.repo_type,
-                        repo_branch=req.repo_branch, content_type=req.content_type,
-                        svn_username=req.svn_username, svn_password=req.svn_password)
-        # Fetch remote commit/revision hash in background so card shows version immediately
-        if req.repo_url and req.repo_type == "git":
-            asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "main"))
-        elif req.repo_url and req.repo_type == "svn":
-            asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "trunk",
-                                                          repo_type="svn", svn_username=req.svn_username,
-                                                          svn_password=req.svn_password))
-        return kb
+        try:
+            kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
+                            repo_url=req.repo_url, repo_type=req.repo_type,
+                            repo_branch=req.repo_branch, content_type=req.content_type,
+                            svn_username=req.svn_username, svn_password=req.svn_password)
+            # Fetch remote commit/revision hash in background so card shows version immediately
+            if req.repo_url and req.repo_type == "git":
+                asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "main"))
+            elif req.repo_url and req.repo_type == "svn":
+                asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "trunk",
+                                                              repo_type="svn", svn_username=req.svn_username,
+                                                              svn_password=req.svn_password))
+            return kb
+        except ValueError as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/api/kb")
 
     @app.get("/api/kb")
     async def api_list_kbs():

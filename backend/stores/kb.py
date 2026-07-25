@@ -8,6 +8,10 @@ def create_kb(name: str, description: str = "", embedding_model: str = "",
               content_type: str = "docs",
               svn_username: str = "", svn_password: str = "") -> dict:
     db = get_knora_db()
+    # 检查名称是否重复
+    existing = db.execute("SELECT id FROM knowledge_bases WHERE name = ?", (name,)).fetchone()
+    if existing:
+        raise ValueError(f"知识库名称 '{name}' 已存在")
     kb_id = f"kb-{uuid.uuid4().hex[:8]}"
     db.execute(
         "INSERT INTO knowledge_bases (id, name, description, embedding_model, repo_url, repo_type, repo_branch, content_type, svn_username, svn_password) "

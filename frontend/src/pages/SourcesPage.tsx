@@ -31,6 +31,7 @@ export function SourcesPage() {
   const [contentType, setContentType] = useState<'code' | 'docs'>('docs')
   const [repoBranch, setRepoBranch] = useState('main')
   const [branchError, setBranchError] = useState('')
+  const [formError, setFormError] = useState('')
   const [svnUsername, setSvnUsername] = useState('')
   const [svnPassword, setSvnPassword] = useState('')
   const [svnSaveCreds, setSvnSaveCreds] = useState(true)
@@ -185,7 +186,13 @@ export function SourcesPage() {
       }
       await loadKBs()
     } catch (e: any) {
-      showError(`创建失败: ${e.message || '未知错误'}`)
+      const msg = e.message || '未知错误'
+      if (msg.includes('已存在')) {
+        setFormError(msg)
+        setAddSubmitting(false)
+        return  // 不关闭窗口，不重置表单
+      }
+      showError(`创建失败: ${msg}`)
     } finally {
       setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setAddSubmitting(false)
       setRepoName(''); setRepoType('git'); setRepoBranch('main')
@@ -351,7 +358,7 @@ export function SourcesPage() {
 
               {/* Plus-box — 新建知识库 */}
               <button
-                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setBranchError(''); setShowAddModal(true) }}
+                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setBranchError(''); setFormError(''); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[160px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -485,6 +492,11 @@ export function SourcesPage() {
               </button>
             </div>
 
+            {formError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-700 mb-4">
+                {formError}
+              </div>
+            )}
             {addMode === 'online' ? (
               <div className="space-y-4">
                 <div>
