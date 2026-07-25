@@ -78,7 +78,8 @@ export function QAPage() {
   const isNewChat = !urlSessionId
 
   const [kbs, setKbs] = useState<KB[]>([])
-  const [selectedKB, setSelectedKB] = useState<string>('')
+  const ALL_KB = '__all__'
+  const [selectedKB, setSelectedKB] = useState<string>(ALL_KB)
   const [activeSessionId, setActiveSessionId] = useState(urlSessionId || '')
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -332,7 +333,6 @@ export function QAPage() {
   const hasContent = messages.length > 0 || streaming || historyLoading
 
   // ── KB selector dropdown ──
-  const ALL_KB = '__all__'
   const currentKb = selectedKB ? kbs.find(kb => kb.id === selectedKB) : null
   const kbSelector = (
     <div className="relative shrink-0" ref={kbDropdownRef}>
