@@ -582,32 +582,19 @@ export function SourcesPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">知识库名称</label>
-                  <input value={addName} onChange={e => { setNameError(''); setAddName(e.target.value) }}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 ${nameError ? 'border-red-400' : 'border-gray-200'}`}
-                    placeholder="输入名称" />
-                  {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">描述（可选）</label>
-                  <input value={addDesc} onChange={e => setAddDesc(e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
-                    placeholder="简单描述知识库内容" />
-                </div>
                 {/* File upload zone */}
                 <label className="cursor-pointer block">
-                  <div className={`border-2 border-dashed rounded-xl p-6 text-center transition ${addFiles && addFiles.length > 0 ? 'border-cyber-blue bg-cyber-blue/5' : 'border-gray-300 hover:border-cyber-blue hover:bg-gray-50'}`}>
-                    <Upload className={`w-8 h-8 mx-auto mb-1 ${addFiles && addFiles.length > 0 ? 'text-cyber-blue' : 'text-gray-300'}`} />
+                  <div className={`border-2 border-dashed rounded-xl px-4 py-2 text-center transition flex items-center gap-3 ${addFiles && addFiles.length > 0 ? 'border-cyber-blue bg-cyber-blue/5' : 'border-gray-300 hover:border-cyber-blue hover:bg-gray-50'}`}>
+                    <Upload className={`w-5 h-5 shrink-0 ${addFiles && addFiles.length > 0 ? 'text-cyber-blue' : 'text-gray-300'}`} />
                     {addFiles && addFiles.length > 0 ? (
-                      <div>
-                        <p className="text-sm font-bold text-cyber-blue mb-1">已选 {addFiles.length} 个文件</p>
-                        <p className="text-[10px] text-gray-400">点击重新选择</p>
+                      <div className="text-left leading-tight">
+                        <p className="text-sm font-bold text-cyber-blue">已选 {addFiles.length} 个文件</p>
+                        <p className="text-xs text-gray-400">点击重新选择</p>
                       </div>
                     ) : (
-                      <div>
-                        <p className="text-sm font-bold text-gray-600 mb-1">上传初始文档（可选）</p>
-                        <p className="text-[10px] text-gray-400">支持 .md .txt .pdf .docx，可多选</p>
+                      <div className="text-left leading-tight">
+                        <p className="text-sm font-bold text-gray-600">选择文件上传</p>
+                        <p className="text-xs text-gray-400">.md .txt .pdf .docx</p>
                       </div>
                     )}
                   </div>
