@@ -68,8 +68,6 @@ def delete_kb(kb_id: str) -> None:
     kb = get_kb(kb_id)
     if kb and kb["name"] == DEFAULT_KB_NAME:
         raise ValueError("Cannot delete default knowledge base")
-    db.execute("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE kb_id = ?)", (kb_id,))
-    db.execute("DELETE FROM sessions WHERE kb_id = ?", (kb_id,))
     db.execute("DELETE FROM chunks WHERE kb_id = ?", (kb_id,))
     db.execute("DELETE FROM documents WHERE kb_id = ?", (kb_id,))
     db.execute("DELETE FROM knowledge_bases WHERE id = ?", (kb_id,))

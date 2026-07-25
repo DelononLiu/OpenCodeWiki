@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id            TEXT PRIMARY KEY,
-    kb_id         TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+    kb_id         TEXT NOT NULL DEFAULT '',
     title         TEXT DEFAULT '',
     created_at    TEXT DEFAULT (datetime('now'))
 );
@@ -171,7 +171,26 @@ def init_databases(cfg: Config) -> None:
     _knora_conn.execute("PRAGMA journal_mode=WAL")
     _knora_conn.execute("PRAGMA foreign_keys=ON")
     _knora_conn.executescript(KNORA_SCHEMA)
-    # Run migrations (safe to re-run)
+
+    # Migration: recreate sessions table without FK constraint (safe to re-run)
+    _knora_conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        _knora_conn.executescript("""
+            CREATE TABLE IF NOT EXISTS sessions_v2 (
+                id            TEXT PRIMARY KEY,
+                kb_id         TEXT NOT NULL DEFAULT '',
+                title         TEXT DEFAULT '',
+                created_at    TEXT DEFAULT (datetime('now'))
+            );
+            INSERT OR IGNORE INTO sessions_v2 SELECT * FROM sessions;
+            DROP TABLE IF EXISTS sessions;
+            ALTER TABLE sessions_v2 RENAME TO sessions;
+        """)
+    except Exception:
+        pass
+    _knora_conn.execute("PRAGMA foreign_keys=ON")
+
+    # Run column migrations (safe to re-run)
     for migration in _MIGRATIONS:
         try:
             _knora_conn.execute(migration)

@@ -688,8 +688,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         )
         pipeline.on(EventNames.CHAT_COMPLETE, chat_plugin)
 
-        # No KB selected → search all KBs
-        if req.kb_id:
+        ALL_KB = '__all__'
+        if req.kb_id and req.kb_id != ALL_KB:
             kb_ids = [req.kb_id]
         else:
             all_kbs = list_kbs()

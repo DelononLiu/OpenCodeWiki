@@ -319,7 +319,7 @@ export function QAPage() {
   const hasContent = messages.length > 0 || streaming || historyLoading
 
   // ── KB selector dropdown ──
-  const ALL_KB = '' // empty = search all KBs
+  const ALL_KB = '__all__'
   const currentKb = selectedKB ? kbs.find(kb => kb.id === selectedKB) : null
   const kbSelector = (
     <div className="relative shrink-0" ref={kbDropdownRef}>
