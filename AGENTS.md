@@ -99,8 +99,7 @@ echo "后端 http://localhost:8100  前端 http://localhost:5180"
 ## 开发铁律
 
 1. **每个 bugfix 必须带测试。** 找到根因 → 修代码 → 加回归测试 → 跑全量 → commit。没有例外。
-2. **测试只测有意义的。** 不测 LLM 调用（mock 无意义），不测薄 wrapper。测：数据正确性、边界条件、SQL/查询逻辑。
-3. **修 bug 前先复现。** `curl` 能重现才修，修完 `curl` 验证。
+2. **修复完成后必须给出总结。** 格式：**问题** → **根因** → **解决**。不超过 5 行。
 
 ## 运行测试
 
@@ -130,7 +129,6 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 1. **使用中文** — 代码注释、commit 消息、变量命名优先中文
 2. **Git commit 消息使用中文** — 清晰描述改动内容，不加英文前缀
-3. **Python 后端** — 使用 FastAPI + sqlite3 标准库
 4. **前端** — shadcn/ui + Tailwind CSS，不使用自定义 CSS 文件
 5. **Topic 生命周期** — QA → Topic(pool) → Draft → approved → Wiki(published)
 6. **自进化闭环** — 增长循环是核心业务流程，修改时注意保持闭环完整性
@@ -141,7 +139,6 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 1. **不要自动 push** — 所有提交后等待用户确认
 2. **不要修改 `docs/superpowers/`** — 那是开发过程归档，详细设计记录，不修改
-3. **不要直接写入 `~/.opencodewiki/`** — 通过 API/Store 层操作数据
 4. **不要修改 `frontend/dist/`** — 构建产物，由 `npm run build` 生成
 5. **不要删除数据库文件** — `qa.db` / `knowledge.db` 在 `~/.opencodewiki/`
 
@@ -154,7 +151,6 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 ```
 1. 写一个失败测试      → Red
 2. 写最少代码让测试通过  → Green
-3. 运行全量测试确认无回归 → 验证
 4. 提交代码
 ```
 
@@ -196,7 +192,6 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 1. **「这个测试能抓到什么 bug？」** —— 必须能说出至少一种具体的失败场景
 2. **「断言的值是固定的还是推导的？」** —— 必须断言具体值（"应当等于 X"），不能断言"存在"或"不为空"
-3. **「反向路径测了吗？」** —— 如果正向是"有结果"，反向就必须有"无结果"测试
 4. **「边界测了吗？」** —— null/空字符串/负数/超出范围/列表为空 等
 5. **「排序/筛选/分页测了顺序吗？」** —— 如果结果集有序，必须验证顺序，不能只验证条数
 6. **「这个测试我删了，有人会发现吗？」** —— 如果删了不影响任何人对代码的信心，那就是凑数测试
@@ -207,7 +202,6 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 1. **要么删除** — 确认这个行为不值得测
 2. **要么重写** — 改成验证具体行为
-3. **禁止** — 保留凑数测试来"凑覆盖率"
 
 ### AI 特别约束
 
@@ -228,7 +222,6 @@ AI 生成测试代码后，必须在回复中附上**质量自证声明**，逐�
 
 1. **先读 `docs/ARCHITECTURE.md`** 了解完整架构
 2. **读本文件**（AGENTS.md）了解开发和测试命令
-3. **读相关 spec**（`docs/superpowers/specs/`）了解功能的设计背景
 4. **读 `docs/superpowers/plans/`**（如有）了解实施计划细节
 5. **收到问题后，先复述确认，再动手修改** — 用结构化的方式复述你理解的问题、涉及的文件、改动的思路，等待用户确认后再执行代码改动。禁止一上来直接改代码。
 6. **方案优先行业标准做法** — 遇到架构/流程/交互设计问题时，优先采用业内成熟的通用方案（如先创建再流式、RESTful 设计等），而不是自己想一个"巧妙的"替代方案。不熟悉行业标准时先问。
