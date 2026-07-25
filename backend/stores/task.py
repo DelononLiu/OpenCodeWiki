@@ -14,7 +14,7 @@ def create_task(type: str, kb_id: str | None = None, repo_id: str | None = None,
     )
     db.commit()
     return {"id": task_id, "type": type, "status": "pending", "progress": 0,
-            "kb_id": kb_id, "repo_id": repo_id, "params": params_json,
+            "kb_id": kb_id, "repo_id": repo_id, "params": params or {},
             "progress_msg": "", "error_message": None}
 
 
@@ -30,7 +30,7 @@ def get_task(task_id: str) -> dict | None:
     return {
         "id": row[0], "type": row[1], "status": row[2], "progress": row[3],
         "progress_msg": row[4], "kb_id": row[5], "repo_id": row[6],
-        "params": row[7], "error_message": row[8],
+        "params": json.loads(row[7]) if row[7] else {}, "error_message": row[8],
         "created_at": row[9], "started_at": row[10], "completed_at": row[11],
     }
 
@@ -54,13 +54,14 @@ def list_tasks(status: str | None = None, type: str | None = None, limit: int = 
     return [{
         "id": r[0], "type": r[1], "status": r[2], "progress": r[3],
         "progress_msg": r[4], "kb_id": r[5], "repo_id": r[6],
-        "params": r[7], "error_message": r[8],
+        "params": json.loads(r[7]) if r[7] else {}, "error_message": r[8],
         "created_at": r[9], "started_at": r[10], "completed_at": r[11],
     } for r in rows]
 
 
 def update_task_status(task_id: str, status: str, progress: int | None = None,
-                       progress_msg: str | None = None, error_message: str | None = None) -> None:
+                       progress_msg: str | None = None, error_message: str | None = None,
+                       params: dict | None = None) -> None:
     db = get_knora_db()
     sets = ["status = ?"]
     params_list = [status]
@@ -73,6 +74,9 @@ def update_task_status(task_id: str, status: str, progress: int | None = None,
     if error_message is not None:
         sets.append("error_message = ?")
         params_list.append(error_message)
+    if params is not None:
+        sets.append("params = ?")
+        params_list.append(json.dumps(params))
     if status in ("completed", "failed", "cancelled"):
         sets.append("completed_at = datetime('now')")
     if status == "running":

@@ -6,6 +6,7 @@ from backend.stores.doc import create_document, list_documents
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.importer import import_document, compute_hash
 from backend.sync import git_sync
+from backend.sync import svn_sync
 from backend.task_worker.plugins.base import TaskPlugin, TaskEvent, TaskCancelledError
 
 
@@ -42,16 +43,33 @@ class SyncRepoPlugin(TaskPlugin):
         local_path = os.path.join(os.path.expanduser(self.cfg.database.path), "knowledge", kb["name"])
         repo_url = kb["repo_url"]
         repo_branch = kb.get("repo_branch") or "main"
+        svn_username = kb.get("svn_username") or ""
+        svn_password = kb.get("svn_password") or ""
 
         update_task_status(event.task_id, "running", progress=5,
                            progress_msg=f"正在同步 {repo_url}")
 
-        # 1. Clone or pull
-        if os.path.isdir(local_path):
-            await git_sync.pull(local_path)
+        # 1. Clone or pull (dispatch by repo_type)
+        is_svn = kb.get("repo_type") == "svn"
+        if is_svn:
+            try:
+                if os.path.isdir(local_path):
+                    await svn_sync.update(local_path, svn_username, svn_password)
+                else:
+                    os.makedirs(local_path, exist_ok=True)
+                    await svn_sync.checkout(repo_url, local_path, repo_branch, svn_username, svn_password)
+            except svn_sync.SVNAuthError as e:
+                import json
+                update_task_status(event.task_id, "running", progress=10,
+                                   progress_msg="等待SVN认证...",
+                                   params={"auth_required": True, "realm": repo_url})
+                raise TaskCancelledError()
         else:
-            os.makedirs(local_path, exist_ok=True)
-            await git_sync.clone(repo_url, local_path, repo_branch)
+            if os.path.isdir(local_path):
+                await git_sync.pull(local_path)
+            else:
+                os.makedirs(local_path, exist_ok=True)
+                await git_sync.clone(repo_url, local_path, repo_branch)
 
         def _cancelled():
             t = get_task(event.task_id)
@@ -165,7 +183,10 @@ class SyncRepoPlugin(TaskPlugin):
         # 7. Save repo version (git commit hash)
         from backend.database import get_knora_db
         try:
-            ver = await git_sync.get_head_commit(local_path)
+            if is_svn:
+                ver = await svn_sync.get_revision(local_path)
+            else:
+                ver = await git_sync.get_head_commit(local_path)
             if ver:
                 db = get_knora_db()
                 db.execute("UPDATE knowledge_bases SET repo_version = ? WHERE id = ?", (ver, kb_id))
