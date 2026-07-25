@@ -59,7 +59,7 @@ def _build_svn_url(url: str, branch: str) -> str:
 
 
 def _build_auth_args(username: str | None, password: str | None) -> list[str]:
-    args = ["--non-interactive", "--trust-server-cert-fail-unknown-ca"]
+    args = ["--non-interactive"]
     if username:
         args.extend(["--username", username])
     if password:
