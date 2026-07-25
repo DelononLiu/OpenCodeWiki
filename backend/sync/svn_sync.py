@@ -36,13 +36,13 @@ async def _run_cmd(cmd: list[str], cwd: str | None = None, timeout: int = 300) -
     except asyncio.TimeoutError:
         proc.kill()
         raise RuntimeError(f"Command timed out after {timeout}s: {' '.join(cmd)}")
-    return stdout.decode(), stderr.decode(), proc.returncode
+    return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode
 
 
 def _build_svn_url(url: str, branch: str) -> str:
     """Build the full SVN URL by appending the branch if not already present."""
     url = url.rstrip("/")
-    branch = branch.strip("/") if branch else ""
+    branch = branch.strip() if branch else ""
     if branch and branch != "/" and not url.endswith(f"/{branch}"):
         url = url + "/" + branch
     return url
@@ -81,13 +81,14 @@ async def update(dest: str, username: str | None = None, password: str | None = 
     changed = []
     for line in stdout.split("\n"):
         line = line.rstrip()
-        # Format: "U   path/to/file" or " U  path" (two status chars, then path)
+        # Format: "U   path/to/file" or "UU  path" (one or two status chars, then space(s), then path)
         if len(line) >= 4 and line[0] in "UADMRCGE!":
-            path = line[1:].strip()
+            n = 2 if len(line) > 1 and line[1] in "UADMRCGE!" else 1
+            path = line[n:].lstrip()
             if path:
                 changed.append(path)
         elif len(line) >= 4 and line[0] == " " and line[1] in "UADMRCGE!":
-            path = line[2:].strip()
+            path = line[2:].lstrip()
             if path:
                 changed.append(path)
     return changed

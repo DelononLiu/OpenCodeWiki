@@ -2,7 +2,7 @@ import asyncio
 import os
 import tempfile
 import pytest
-from unittest.mock import patch, AsyncMock
+
 from backend.sync.svn_sync import (
     is_auth_error, SVNAuthError, _build_svn_url,
     _build_auth_args, list_files,
@@ -63,10 +63,5 @@ class TestSVNSyncUtils:
 
 class TestSVNAuthError:
 
-    def test_is_exception(self):
-        try:
-            raise SVNAuthError("auth failed")
-        except SVNAuthError:
-            assert True
-        except RuntimeError:
-            assert True  # inherits from RuntimeError
+    def test_svn_auth_error_inherits_runtime_error(self):
+        assert issubclass(SVNAuthError, RuntimeError)
