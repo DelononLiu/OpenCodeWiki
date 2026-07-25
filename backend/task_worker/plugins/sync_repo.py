@@ -66,7 +66,7 @@ class SyncRepoPlugin(TaskPlugin):
                 update_task_status(event.task_id, "pending", progress=10,
                                    progress_msg="等待SVN认证...",
                                    params={"auth_required": True, "realm": repo_url})
-                raise TaskCancelledError()
+                return event
         else:
             if os.path.isdir(local_path):
                 await git_sync.pull(local_path)

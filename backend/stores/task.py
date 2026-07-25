@@ -75,8 +75,12 @@ def update_task_status(task_id: str, status: str, progress: int | None = None,
         sets.append("error_message = ?")
         params_list.append(error_message)
     if params is not None:
+        # Merge with existing params to preserve fields like kb_id
+        current_row = db.execute("SELECT params FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        merged = json.loads(current_row[0]) if current_row and current_row[0] else {}
+        merged.update(params)
         sets.append("params = ?")
-        params_list.append(json.dumps(params))
+        params_list.append(json.dumps(merged))
     if status in ("completed", "failed", "cancelled"):
         sets.append("completed_at = datetime('now')")
     if status == "running":

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from backend.config import Config
-from backend.stores.task import claim_next_pending, update_task_status
+from backend.stores.task import claim_next_pending, get_task, update_task_status
 from backend.task_worker.plugins.base import TaskEvent, TaskCancelledError, TaskPlugin
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,10 @@ class TaskWorker:
 
         try:
             event = await plugin.process(event)
+            # Don't overwrite tasks that are pending authentication
+            t = get_task(task_id)
+            if t and t.get("params", {}).get("auth_required"):
+                return
             update_task_status(task_id, "completed", progress=100, progress_msg="完成")
         except TaskCancelledError:
             update_task_status(task_id, "cancelled", progress_msg="已取消")
