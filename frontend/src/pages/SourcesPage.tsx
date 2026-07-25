@@ -481,7 +481,7 @@ export function SourcesPage() {
                         ))}
                       </div>
                     </div>
-                    {(repoType === 'git' || repoType === 'svn') && (
+                    {repoType === 'git' && (
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400 w-10 shrink-0">分支</span>
                         <input value={repoBranch} onChange={e => setRepoBranch(e.target.value)}
