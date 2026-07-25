@@ -53,9 +53,13 @@ class SyncRepoPlugin(TaskPlugin):
         is_svn = kb.get("repo_type") == "svn"
         if is_svn:
             try:
-                if os.path.isdir(local_path):
+                is_wc = os.path.isdir(os.path.join(local_path, ".svn")) if os.path.isdir(local_path) else False
+                if is_wc:
                     await svn_sync.update(local_path, svn_username, svn_password)
                 else:
+                    if os.path.isdir(local_path):
+                        import shutil
+                        shutil.rmtree(local_path)
                     os.makedirs(local_path, exist_ok=True)
                     await svn_sync.checkout(repo_url, local_path, repo_branch, svn_username, svn_password)
             except svn_sync.SVNAuthError:
