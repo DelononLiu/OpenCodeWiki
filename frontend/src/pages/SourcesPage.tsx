@@ -30,8 +30,8 @@ export function SourcesPage() {
   const [repoType, setRepoType] = useState<'git' | 'svn'>('git')
   const [contentType, setContentType] = useState<'code' | 'docs'>('docs')
   const [repoBranch, setRepoBranch] = useState('main')
+  const [nameError, setNameError] = useState('')
   const [branchError, setBranchError] = useState('')
-  const [formError, setFormError] = useState('')
   const [svnUsername, setSvnUsername] = useState('')
   const [svnPassword, setSvnPassword] = useState('')
   const [svnSaveCreds, setSvnSaveCreds] = useState(true)
@@ -125,6 +125,7 @@ export function SourcesPage() {
     if (addMode === 'online' ? !repoName.trim() : !addName.trim()) return
     setBranchError('')
     setAddSubmitting(true)
+    let shouldReset = true
 
     try {
       const name = repoName.trim()
@@ -149,6 +150,7 @@ export function SourcesPage() {
                 setRepoBranch(check.default_branch)
               }
               setAddSubmitting(false)
+              shouldReset = false
               return
             }
             if (check.auth_required) {
@@ -161,7 +163,7 @@ export function SourcesPage() {
           } catch {}
         }
 
-        setShowAddModal(false)
+        // 成功后才关窗口
 
         // 1. Create KB with repo info, then trigger sync
         const kb = await createKB(name, desc, {
@@ -173,6 +175,7 @@ export function SourcesPage() {
         await syncKB(kb.id, svnSaveCreds ? undefined : svnUsername,
                      svnSaveCreds ? undefined : svnPassword)
         showSuccess(`仓库「${name}」已添加，首轮同步已启动`)
+        setShowAddModal(false)
       } else if (addMode === 'upload' && addFiles && addFiles.length > 0) {
         const kb = await createKB(name, desc)
         // 2. Upload files
@@ -183,19 +186,23 @@ export function SourcesPage() {
         showSuccess(`知识库「${name}」已创建，上传 ${ok}/${addFiles.length} 个文档`)
       } else {
         showSuccess(`知识库「${name}」已创建`)
+        setShowAddModal(false)
       }
       await loadKBs()
     } catch (e: any) {
       const msg = e.message || '未知错误'
       if (msg.includes('已存在')) {
-        setFormError(msg)
+        setNameError(msg)
         setAddSubmitting(false)
+        shouldReset = false
         return  // 不关闭窗口，不重置表单
       }
       showError(`创建失败: ${msg}`)
     } finally {
-      setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setAddSubmitting(false)
-      setRepoName(''); setRepoType('git'); setRepoBranch('main')
+      if (shouldReset) {
+        setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setAddSubmitting(false)
+        setRepoName(''); setRepoType('git'); setRepoBranch('main')
+      }
     }
   }
 
@@ -358,7 +365,7 @@ export function SourcesPage() {
 
               {/* Plus-box — 新建知识库 */}
               <button
-                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setBranchError(''); setFormError(''); setShowAddModal(true) }}
+                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setNameError(''); setBranchError(''); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[160px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -492,11 +499,7 @@ export function SourcesPage() {
               </button>
             </div>
 
-            {formError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-700 mb-4">
-                {formError}
-              </div>
-            )}
+
             {addMode === 'online' ? (
               <div className="space-y-4">
                 <div>
@@ -510,9 +513,10 @@ export function SourcesPage() {
                   <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2.5">
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-10 shrink-0">名称</span>
-                      <input value={repoName} onChange={e => setRepoName(e.target.value)}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white" />
+                      <input value={repoName} onChange={e => { setNameError(''); setRepoName(e.target.value) }}
+                        className={`flex-1 text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white ${nameError ? 'border-red-400' : 'border-gray-200'}`} />
                     </div>
+                    {nameError && <p className="text-xs text-red-500 -mt-2 mb-2 ml-10">{nameError}</p>}
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400 w-10 shrink-0">类型</span>
                       <div className="flex gap-1">
