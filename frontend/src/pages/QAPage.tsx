@@ -319,7 +319,8 @@ export function QAPage() {
   const hasContent = messages.length > 0 || streaming || historyLoading
 
   // ── KB selector dropdown ──
-  const currentKb = kbs.find(kb => kb.id === selectedKB)
+  const ALL_KB = '' // empty = search all KBs
+  const currentKb = selectedKB ? kbs.find(kb => kb.id === selectedKB) : null
   const kbSelector = (
     <div className="relative shrink-0" ref={kbDropdownRef}>
       <button
@@ -327,11 +328,22 @@ export function QAPage() {
         className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors px-2 py-1 rounded-md hover:bg-blue-50/60"
       >
         <Database className="w-3.5 h-3.5" />
-        <span className="max-w-[100px] truncate">{currentKb?.name || '选择知识库'}</span>
+        <span className="max-w-[100px] truncate">{currentKb?.name || '全部知识库'}</span>
         <ChevronDown className={`w-3 h-3 transition-transform ${kbDropdownOpen ? 'rotate-180' : ''}`} />
       </button>
       {kbDropdownOpen && (
         <div className="absolute top-full left-0 mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto">
+          <button
+            onClick={() => { handleKBChange(ALL_KB); setKbDropdownOpen(false) }}
+            className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
+              !selectedKB ? 'text-blue-600 font-medium' : 'text-gray-600'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+            <span>全部知识库</span>
+            {!selectedKB && <Check className="w-3.5 h-3.5 ml-auto shrink-0 text-blue-600" />}
+          </button>
+          {kbs.length > 0 && <div className="mx-3 my-1 border-t border-gray-100" />}
           {kbs.length === 0 ? (
             <div className="px-3 py-3 text-xs text-gray-400 text-center">暂无知识库</div>
           ) : (
