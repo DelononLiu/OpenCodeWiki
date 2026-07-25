@@ -111,6 +111,8 @@ async def get_head_revision(url: str, branch: str = "trunk", username: str | Non
     stdout, stderr, rc = await _run_cmd(cmd)
     if rc == 0:
         return stdout.strip()[:7]
+    if is_auth_error(stderr):
+        raise SVNAuthError(stderr)
     return ""
 
 
