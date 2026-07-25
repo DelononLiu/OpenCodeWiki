@@ -26,8 +26,14 @@ export function createKB(name: string, description?: string, repoOpts?: {
 export function deleteKB(id: string): Promise<{ deleted: boolean }> {
   return request(`/api/kb/${id}`, { method: 'DELETE' })
 }
-export function syncKB(id: string): Promise<any> {
-  return request(`/api/kb/${id}/sync`, { method: 'POST' })
+export function syncKB(id: string, svnUsername?: string, svnPassword?: string): Promise<any> {
+  const body: Record<string, string> = {}
+  if (svnUsername) body.svn_username = svnUsername
+  if (svnPassword) body.svn_password = svnPassword
+  return request(`/api/kb/${id}/sync`, {
+    method: 'POST',
+    body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+  })
 }
 
 // Documents

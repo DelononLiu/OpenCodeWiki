@@ -155,7 +155,8 @@ export function SourcesPage() {
           svn_username: svnSaveCreds ? svnUsername : '',
           svn_password: svnSaveCreds ? svnPassword : '',
         })
-        await syncKB(kb.id)
+        await syncKB(kb.id, svnSaveCreds ? undefined : svnUsername,
+                     svnSaveCreds ? undefined : svnPassword)
         showSuccess(`仓库「${name}」已添加，首轮同步已启动`)
       } else if (addMode === 'upload' && addFiles && addFiles.length > 0) {
         const kb = await createKB(name, desc)
@@ -224,7 +225,8 @@ export function SourcesPage() {
           svn_username: authSave ? authUsername : '',
           svn_password: authSave ? authPassword : '',
         })
-        await syncKB(kb.id)
+        await syncKB(kb.id, authSave ? undefined : authUsername,
+                     authSave ? undefined : authPassword)
         await loadKBs()
         setSelectedKB(kb)
         showSuccess(`仓库「${showAuthDialog.kbName}」已添加，首轮同步已启动`)

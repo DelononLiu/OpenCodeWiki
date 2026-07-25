@@ -527,14 +527,23 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return task
 
     # ── Sync ──
+    class SyncKBRequest(BaseModel):
+        svn_username: str = ""
+        svn_password: str = ""
+
     @app.post("/api/kb/{kb_id}/sync")
-    async def api_sync_kb(kb_id: str):
+    async def api_sync_kb(kb_id: str, req: SyncKBRequest | None = None):
         kb = get_kb(kb_id)
         if not kb:
             raise HTTPException(404, "Knowledge base not found")
         if not kb.get("repo_url"):
             raise HTTPException(400, "知识库没有关联远程仓库")
-        task = create_task("sync_repo", kb_id=kb_id, params={"kb_id": kb_id})
+        params = {"kb_id": kb_id}
+        if req and req.svn_username:
+            params["svn_username"] = req.svn_username
+        if req and req.svn_password:
+            params["svn_password"] = req.svn_password
+        task = create_task("sync_repo", kb_id=kb_id, params=params)
         return task
 
     @app.post("/api/kb/{kb_id}/svn-auth")
