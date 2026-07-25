@@ -11,7 +11,7 @@ from openai import AsyncOpenAI
 
 from backend.config import Config, load_config
 from backend.database import init_databases
-from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, ensure_default_kb, DEFAULT_KB_NAME
+from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, update_kb_credentials, ensure_default_kb, DEFAULT_KB_NAME
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
 from backend.stores.task import create_task, get_task, list_tasks, cancel_task
@@ -28,7 +28,7 @@ from backend.pipeline.plugins.chat_complete import ChatCompletePlugin
 from backend.task_worker.worker import TaskWorker
 from backend.task_worker.plugins.rebuild import RebuildPlugin
 from backend.task_worker.plugins.sync_repo import SyncRepoPlugin
-from backend.sync import git_sync
+from backend.sync import git_sync, svn_sync
 
 
 def _load_prompt(cfg: Config, name: str) -> str:
@@ -45,11 +45,16 @@ def _load_prompt(cfg: Config, name: str) -> str:
     return ""
 
 
-async def _fetch_commit_and_update(kb_id: str, repo_url: str, branch: str) -> None:
-    """Fetch remote commit hash and update KB card immediately."""
+async def _fetch_commit_and_update(kb_id: str, repo_url: str, branch: str,
+                                   repo_type: str = "git",
+                                   svn_username: str = "", svn_password: str = "") -> None:
+    """Fetch remote commit/revision hash and update KB card immediately."""
     try:
         from backend.database import get_knora_db
-        ver = await git_sync.get_remote_head_commit(repo_url, branch)
+        if repo_type == "svn":
+            ver = await svn_sync.get_head_revision(repo_url, branch, svn_username, svn_password)
+        else:
+            ver = await git_sync.get_remote_head_commit(repo_url, branch)
         if ver:
             db = get_knora_db()
             db.execute("UPDATE knowledge_bases SET repo_version = ? WHERE id = ?", (ver, kb_id))
@@ -305,15 +310,22 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         repo_type: str = ""
         repo_branch: str = ""
         content_type: str = "docs"
+        svn_username: str = ""
+        svn_password: str = ""
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
         kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
                         repo_url=req.repo_url, repo_type=req.repo_type,
-                        repo_branch=req.repo_branch, content_type=req.content_type)
-        # Fetch remote commit hash in background so card shows version immediately
+                        repo_branch=req.repo_branch, content_type=req.content_type,
+                        svn_username=req.svn_username, svn_password=req.svn_password)
+        # Fetch remote commit/revision hash in background so card shows version immediately
         if req.repo_url and req.repo_type == "git":
             asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "main"))
+        elif req.repo_url and req.repo_type == "svn":
+            asyncio.create_task(_fetch_commit_and_update(kb["id"], req.repo_url, req.repo_branch or "trunk",
+                                                          repo_type="svn", svn_username=req.svn_username,
+                                                          svn_password=req.svn_password))
         return kb
 
     @app.get("/api/kb")
@@ -499,6 +511,26 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(400, "知识库没有关联远程仓库")
         task = create_task("sync_repo", kb_id=kb_id, params={"kb_id": kb_id})
         return task
+
+    @app.post("/api/kb/{kb_id}/svn-auth")
+    async def api_svn_auth(kb_id: str, data: dict):
+        kb = get_kb(kb_id)
+        if not kb:
+            raise HTTPException(404, "Knowledge base not found")
+        if kb.get("repo_type") != "svn":
+            raise HTTPException(400, "知识库不是 SVN 类型")
+
+        username = data.get("username", "")
+        password = data.get("password", "")
+        save_creds = data.get("save_credentials", False)
+
+        if save_creds:
+            update_kb_credentials(kb_id, username, password)
+
+        from backend.stores.task import create_task
+        task = create_task("sync_repo", kb_id=kb_id, params={"kb_id": kb_id})
+
+        return {"ok": True, "task_id": task["id"]}
 
     # ── QA (SSE) ──
     class QARequest(BaseModel):
