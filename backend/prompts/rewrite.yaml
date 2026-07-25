@@ -13,10 +13,15 @@ templates:
          - `general` — chitchat, jokes, who-are-you, etc. that don't need knowledge base
 
       2. Generate 1-3 alternative search queries that might retrieve relevant documents.
+         If the question refers back to a previous topic (like "it", "关键部分", "上面", "能详细解释"), use the conversation history to make the rewritten queries self-contained.
+
+      Conversation history (most recent first):
+      {{history}}
 
       Rules:
       - Preserve key entities, technical terms, and core concepts
       - Vary phrasing: synonyms, related concepts, different angles
+      - If the question is vague or referential, expand it using the history context
       - Default to `kb_search` when unsure
 
       Output ONLY a JSON object, nothing else:

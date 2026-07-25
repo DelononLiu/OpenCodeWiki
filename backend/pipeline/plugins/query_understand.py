@@ -14,7 +14,7 @@ class QueryUnderstandPlugin(BasePlugin):
     async def process(self, event: PipelineEvent) -> PipelineEvent:
         # Step 1: Extract keywords (with fallback)
         try:
-            event.keywords = await self._extract_keywords(event.question)
+            event.keywords = await self._extract_keywords(event.question, event.history)
         except Exception:
             event.keywords = []
         if not event.keywords:
@@ -25,7 +25,7 @@ class QueryUnderstandPlugin(BasePlugin):
 
         # Step 2: Rewrite query + classify intent (with fallback)
         try:
-            queries, intent = await self._rewrite(event.question)
+            queries, intent = await self._rewrite(event.question, event.history)
             event.rewritten_queries = queries
             event.intent = intent
         except Exception:
@@ -38,11 +38,18 @@ class QueryUnderstandPlugin(BasePlugin):
 
         return event
 
-    async def _extract_keywords(self, question: str) -> list[str]:
+    async def _extract_keywords(self, question: str, history: list[dict] | None = None) -> list[str]:
         if not question.strip():
             return []
 
+        history_text = ""
+        if history:
+            lines = [f"{m['role']}: {m['content'][:150]}" for m in history[-4:]]
+            history_text = "\n".join(lines)
+
         prompt = self.keywords_prompt.replace("{{query}}", question).replace("{{language}}", "Chinese")
+        if "{{history}}" in self.keywords_prompt:
+            prompt = prompt.replace("{{history}}", history_text or "（无历史）")
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
@@ -53,12 +60,20 @@ class QueryUnderstandPlugin(BasePlugin):
         keywords = [kw.strip() for kw in text.split(",") if kw.strip()]
         return keywords[:10]
 
-    async def _rewrite(self, question: str) -> tuple[list[str], str]:
+    async def _rewrite(self, question: str, history: list[dict] | None = None) -> tuple[list[str], str]:
         """Returns (queries, intent). Intent defaults to 'kb_search'."""
         if not question.strip():
             return [question], "kb_search"
 
-        prompt = self.rewrite_prompt.replace("{{query}}", question)
+        history_text = ""
+        if history:
+            history_lines = []
+            for m in history[-4:]:  # last 2 turns
+                role = "用户" if m["role"] == "user" else "助手"
+                history_lines.append(f"{role}: {m['content'][:200]}")
+            history_text = "\n".join(history_lines)
+
+        prompt = self.rewrite_prompt.replace("{{query}}", question).replace("{{history}}", history_text or "（无历史）")
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
