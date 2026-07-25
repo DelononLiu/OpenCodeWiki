@@ -74,6 +74,7 @@ export function SourcesPage() {
   const kbsRef = useRef(kbs)
   kbsRef.current = kbs
   const dismissedTaskIdsRef = useRef(new Set<string>())
+  const pendingRepoUrlRef = useRef('')
 
   useEffect(() => { loadKBs() }, [loadKBs])
 
@@ -128,6 +129,25 @@ export function SourcesPage() {
       const desc = addUrl.trim()
 
       if (addMode === 'online') {
+        // For SVN without credentials: pre-check if auth is needed before creating task
+        if (repoType === 'svn' && !svnUsername.trim() && !svnPassword.trim()) {
+          try {
+            const check = await fetch('/api/svn/check-auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch }),
+            }).then(r => r.json())
+            if (check.auth_required) {
+              // Need password first — show dialog, then create KB after credentials
+              pendingRepoUrlRef.current = addUrl.trim()
+              setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true)
+              setShowAuthDialog({ kbId: 'new', kbName: name })
+              setAddSubmitting(false)
+              return
+            }
+          } catch {}
+        }
+
         // 1. Create KB with repo info, then trigger sync
         const kb = await createKB(name, desc, {
           repo_url: addUrl.trim(), repo_type: repoType,
@@ -196,10 +216,22 @@ export function SourcesPage() {
     if (!showAuthDialog) return
     setAuthSubmitting(true)
     try {
-      await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
-      // Keep dismissed set so old auth_required tasks don't re-trigger
-      // New tasks created by svn-auth have different IDs and won't be dismissed
-      showSuccess('认证信息已提交，正在重新同步')
+      if (showAuthDialog.kbId === 'new') {
+        // Pre-check flow: create KB with credentials, then sync
+        const kb = await createKB(showAuthDialog.kbName, pendingRepoUrlRef.current, {
+          repo_url: pendingRepoUrlRef.current, repo_type: 'svn',
+          repo_branch: 'trunk', content_type: 'docs',
+          svn_username: authSave ? authUsername : '',
+          svn_password: authSave ? authPassword : '',
+        })
+        await syncKB(kb.id)
+        await loadKBs()
+        setSelectedKB(kb)
+        showSuccess(`仓库「${showAuthDialog.kbName}」已添加，首轮同步已启动`)
+      } else {
+        await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
+        showSuccess('认证信息已提交，正在重新同步')
+      }
       setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('')
     } catch (e: any) {
       showError(`认证失败: ${e.message || '未知错误'}`)

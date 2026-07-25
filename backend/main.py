@@ -318,6 +318,26 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         password: str = ""
         save_credentials: bool = False
 
+    class SVNCheckRequest(BaseModel):
+        repo_url: str
+        repo_branch: str = "trunk"
+        username: str = ""
+        password: str = ""
+
+    @app.post("/api/svn/check-auth")
+    async def api_svn_check_auth(req: SVNCheckRequest):
+        """Pre-check if an SVN repo requires authentication before creating a task."""
+        try:
+            ver = await svn_sync.get_head_revision(
+                req.repo_url, req.repo_branch,
+                req.username or None, req.password or None,
+            )
+            return {"auth_required": False, "revision": ver}
+        except svn_sync.SVNAuthError:
+            return {"auth_required": True}
+        except Exception:
+            return {"auth_required": True, "error": "无法连接"}
+
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
         kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
