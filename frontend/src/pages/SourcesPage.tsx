@@ -33,7 +33,7 @@ export function SourcesPage() {
   const [svnUsername, setSvnUsername] = useState('')
   const [svnPassword, setSvnPassword] = useState('')
   const [svnSaveCreds, setSvnSaveCreds] = useState(true)
-  const [showAuthDialog, setShowAuthDialog] = useState<{ kbId: string; kbName: string } | null>(null)
+  const [showAuthDialog, setShowAuthDialog] = useState<{ kbId: string; kbName: string; repoType?: string } | null>(null)
   const [authUsername, setAuthUsername] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authSave, setAuthSave] = useState(true)
@@ -107,7 +107,7 @@ export function SourcesPage() {
           if (t.params?.auth_required && t.kb_id && !dismissedTaskIdsRef.current.has(t.id)) {
             const kb = kbsRef.current.find((k: KB) => k.id === t.kb_id)
             // Only prompt if KB still needs sync (no documents imported yet)
-            if (kb && kb.repo_type === 'svn' && (kb.doc_count || 0) === 0) {
+            if (kb && (kb.doc_count || 0) === 0) {
               setShowAuthDialog({ kbId: t.kb_id, kbName: kb.name || '' })
             }
           }
@@ -129,19 +129,23 @@ export function SourcesPage() {
       const desc = addUrl.trim()
 
       if (addMode === 'online') {
-        // For SVN without credentials: pre-check if auth is needed before creating task
-        if (repoType === 'svn' && !svnUsername.trim() && !svnPassword.trim()) {
+        // Pre-check if auth needed before creating task (SVN or Git HTTPS)
+        const needsPreCheck = (
+          (repoType === 'svn' && !svnUsername.trim() && !svnPassword.trim()) ||
+          (repoType === 'git' && (addUrl.trim().startsWith('http://') || addUrl.trim().startsWith('https://'))
+           && !svnUsername.trim() && !svnPassword.trim())
+        )
+        if (needsPreCheck) {
           try {
-            const check = await fetch('/api/svn/check-auth', {
+            const check = await fetch('/api/check-repo-auth', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch }),
+              body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch, repo_type: repoType }),
             }).then(r => r.json())
             if (check.auth_required) {
-              // Need password first — show dialog, then create KB after credentials
               pendingRepoUrlRef.current = addUrl.trim()
               setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true)
-              setShowAuthDialog({ kbId: 'new', kbName: name })
+              setShowAuthDialog({ kbId: 'new', kbName: name, repoType })
               setAddSubmitting(false)
               return
             }
@@ -219,9 +223,11 @@ export function SourcesPage() {
     try {
       if (showAuthDialog.kbId === 'new') {
         // Pre-check flow: create KB with credentials, then sync
+        const repoType = showAuthDialog.repoType || 'svn'
+        const branch = repoType === 'svn' ? 'trunk' : 'main'
         const kb = await createKB(showAuthDialog.kbName, pendingRepoUrlRef.current, {
-          repo_url: pendingRepoUrlRef.current, repo_type: 'svn',
-          repo_branch: 'trunk', content_type: 'docs',
+          repo_url: pendingRepoUrlRef.current, repo_type: repoType,
+          repo_branch: branch, content_type: 'docs',
           svn_username: authSave ? authUsername : '',
           svn_password: authSave ? authPassword : '',
         })
@@ -596,11 +602,11 @@ export function SourcesPage() {
         </div>
       )}
 
-      {/* ── SVN 认证弹窗 ── */}
+      {/* ── 认证弹窗 ── */}
       {showAuthDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowAuthDialog(null)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-gray-900 mb-1">SVN 认证</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-1">认证</h3>
             <p className="text-xs text-gray-400 mb-4">{showAuthDialog.kbName} 需要输入密码</p>
             <div className="space-y-3">
               <div>

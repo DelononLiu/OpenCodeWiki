@@ -68,11 +68,19 @@ class SyncRepoPlugin(TaskPlugin):
                                    params={"auth_required": True, "realm": repo_url})
                 return event
         else:
-            if os.path.isdir(local_path):
-                await git_sync.pull(local_path)
-            else:
-                os.makedirs(local_path, exist_ok=True)
-                await git_sync.clone(repo_url, local_path, repo_branch)
+            try:
+                if os.path.isdir(local_path):
+                    await git_sync.pull(local_path)
+                else:
+                    os.makedirs(local_path, exist_ok=True)
+                    await git_sync.clone(repo_url, local_path, repo_branch,
+                                         svn_username if not is_svn else None,
+                                         svn_password if not is_svn else None)
+            except git_sync.GITAuthError:
+                update_task_status(event.task_id, "pending", progress=10,
+                                   progress_msg="等待Git认证...",
+                                   params={"auth_required": True, "realm": repo_url})
+                return event
 
         def _cancelled():
             t = get_task(event.task_id)
