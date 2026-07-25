@@ -132,8 +132,7 @@ export function SourcesPage() {
         // Pre-check if auth needed before creating task (SVN or Git HTTPS)
         const needsPreCheck = (
           (repoType === 'svn' && !svnUsername.trim() && !svnPassword.trim()) ||
-          (repoType === 'git' && (addUrl.trim().startsWith('http://') || addUrl.trim().startsWith('https://'))
-           && !svnUsername.trim() && !svnPassword.trim())
+          (repoType === 'git' && !svnUsername.trim() && !svnPassword.trim())
         )
         if (needsPreCheck) {
           try {
