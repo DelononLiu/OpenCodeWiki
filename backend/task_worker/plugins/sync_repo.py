@@ -58,8 +58,7 @@ class SyncRepoPlugin(TaskPlugin):
                 else:
                     os.makedirs(local_path, exist_ok=True)
                     await svn_sync.checkout(repo_url, local_path, repo_branch, svn_username, svn_password)
-            except svn_sync.SVNAuthError as e:
-                import json
+            except svn_sync.SVNAuthError:
                 update_task_status(event.task_id, "running", progress=10,
                                    progress_msg="等待SVN认证...",
                                    params={"auth_required": True, "realm": repo_url})
@@ -115,7 +114,7 @@ class SyncRepoPlugin(TaskPlugin):
                            progress_msg="正在扫描文件变化")
 
         # 3. Scan files
-        local_files = await git_sync.list_files(scan_dir)
+        local_files = await (svn_sync.list_files(scan_dir) if is_svn else git_sync.list_files(scan_dir))
         existing = list_documents(kb_id)
         existing_by_path: dict[str, dict] = {}
         for doc in existing:
