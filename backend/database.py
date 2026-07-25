@@ -92,6 +92,8 @@ _MIGRATIONS = [
     "ALTER TABLE knowledge_bases ADD COLUMN repo_branch TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN content_type TEXT DEFAULT 'docs'",
     "ALTER TABLE knowledge_bases ADD COLUMN repo_version TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN svn_username TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN svn_password TEXT DEFAULT ''",
 ]
 
 # ── Triggers: auto-maintain KB doc_count / chunk_count ──

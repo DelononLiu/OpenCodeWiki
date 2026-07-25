@@ -5,19 +5,21 @@ DEFAULT_KB_NAME = "默认知识库"
 
 def create_kb(name: str, description: str = "", embedding_model: str = "",
               repo_url: str = "", repo_type: str = "", repo_branch: str = "",
-              content_type: str = "docs") -> dict:
+              content_type: str = "docs",
+              svn_username: str = "", svn_password: str = "") -> dict:
     db = get_knora_db()
     kb_id = f"kb-{uuid.uuid4().hex[:8]}"
     db.execute(
-        "INSERT INTO knowledge_bases (id, name, description, embedding_model, repo_url, repo_type, repo_branch, content_type) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO knowledge_bases (id, name, description, embedding_model, repo_url, repo_type, repo_branch, content_type, svn_username, svn_password) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (kb_id, name, description, embedding_model or "text-embedding-3-small",
-         repo_url, repo_type, repo_branch, content_type),
+         repo_url, repo_type, repo_branch, content_type,
+         svn_username, svn_password),
     )
     db.commit()
     return {"id": kb_id, "name": name, "description": description, "embedding_model": embedding_model}
 
-_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, created_at"
+_KB_COLS = "id, name, description, embedding_model, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, svn_username, svn_password, created_at"
 
 def list_kbs() -> list[dict]:
     db = get_knora_db()
@@ -61,7 +63,7 @@ def ensure_default_kb(embedding_model: str = "") -> dict:
     return create_kb(DEFAULT_KB_NAME, "系统默认知识库，存放自述文档和 Wiki 沉淀", embedding_model)
 
 def _row_to_dict(row) -> dict:
-    # columns: id, name, desc, em, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, created_at
+    # columns: id, name, desc, em, chunk_config, doc_count, chunk_count, repo_url, repo_type, repo_branch, content_type, repo_version, svn_username, svn_password, created_at
     d = {
         "id": row[0], "name": row[1], "description": row[2],
         "embedding_model": row[3], "chunk_config": row[4],
@@ -69,7 +71,19 @@ def _row_to_dict(row) -> dict:
         "repo_url": row[7] or "", "repo_type": row[8] or "",
         "repo_branch": row[9] or "", "content_type": row[10] or "docs",
         "repo_version": row[11] or "",
-        "created_at": row[12],
+        "svn_username": row[12] or "",
+        "svn_password": row[13] or "",
+        "created_at": row[14],
     }
     d["is_default"] = d["name"] == DEFAULT_KB_NAME
     return d
+
+
+def update_kb_credentials(kb_id: str, username: str, password: str) -> None:
+    """Update SVN credentials for a knowledge base."""
+    db = get_knora_db()
+    db.execute(
+        "UPDATE knowledge_bases SET svn_username = ?, svn_password = ? WHERE id = ?",
+        (username, password, kb_id),
+    )
+    db.commit()
