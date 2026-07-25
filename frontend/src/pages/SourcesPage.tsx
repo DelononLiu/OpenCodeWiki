@@ -30,6 +30,7 @@ export function SourcesPage() {
   const [repoType, setRepoType] = useState<'git' | 'svn'>('git')
   const [contentType, setContentType] = useState<'code' | 'docs'>('docs')
   const [repoBranch, setRepoBranch] = useState('main')
+  const [branchError, setBranchError] = useState('')
   const [svnUsername, setSvnUsername] = useState('')
   const [svnPassword, setSvnPassword] = useState('')
   const [svnSaveCreds, setSvnSaveCreds] = useState(true)
@@ -121,8 +122,8 @@ export function SourcesPage() {
 
   const handleAddSubmit = async () => {
     if (addMode === 'online' ? !repoName.trim() : !addName.trim()) return
+    setBranchError('')
     setAddSubmitting(true)
-    setShowAddModal(false)
 
     try {
       const name = repoName.trim()
@@ -142,7 +143,10 @@ export function SourcesPage() {
               body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch, repo_type: repoType }),
             }).then(r => r.json())
             if (!check.ok && check.error) {
-              showError(check.error)
+              setBranchError(check.error)
+              if (check.default_branch) {
+                setRepoBranch(check.default_branch)
+              }
               setAddSubmitting(false)
               return
             }
@@ -155,6 +159,8 @@ export function SourcesPage() {
             }
           } catch {}
         }
+
+        setShowAddModal(false)
 
         // 1. Create KB with repo info, then trigger sync
         const kb = await createKB(name, desc, {
@@ -345,7 +351,7 @@ export function SourcesPage() {
 
               {/* Plus-box — 新建知识库 */}
               <button
-                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setShowAddModal(true) }}
+                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setBranchError(''); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[160px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -528,8 +534,9 @@ export function SourcesPage() {
                     {repoType === 'git' && (
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400 w-10 shrink-0">分支</span>
-                        <input value={repoBranch} onChange={e => setRepoBranch(e.target.value)}
-                          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono" />
+                        <input value={repoBranch} onChange={e => { setRepoBranch(e.target.value); setBranchError('') }}
+                          className={`flex-1 text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono ${branchError ? 'border-red-400' : 'border-gray-200'}`} />
+                        {branchError && <p className="text-xs text-red-500 mt-1">{branchError}</p>}
                       </div>
                     )}
                     {repoType === 'svn' && (
