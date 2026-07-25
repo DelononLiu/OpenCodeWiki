@@ -486,16 +486,16 @@ export function SourcesPage() {
             {/* Tabs */}
             <div className="flex border-b border-gray-200 mb-4">
               <button
-                onClick={() => { setAddMode('upload'); setAddUrl(''); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main') }}
-                className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'upload' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-              >
-                <Upload className="w-3.5 h-3.5 inline mr-1" />上传本地文件
-              </button>
-              <button
                 onClick={() => { setAddMode('online'); setAddFiles(null); setAddName('') }}
                 className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'online' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
               >
                 <Globe className="w-3.5 h-3.5 inline mr-1" />添加在线仓库
+              </button>
+              <button
+                onClick={() => { setAddMode('upload'); setAddUrl(''); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main') }}
+                className={`flex-1 pb-2 text-xs font-bold border-b-2 transition ${addMode === 'upload' ? 'border-cyber-blue text-cyber-blue' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                <Upload className="w-3.5 h-3.5 inline mr-1" />上传本地文件
               </button>
             </div>
 
