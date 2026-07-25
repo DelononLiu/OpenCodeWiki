@@ -142,6 +142,11 @@ export function SourcesPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch, repo_type: repoType }),
             }).then(r => r.json())
+            if (!check.ok && check.error) {
+              showError(check.error)
+              setAddSubmitting(false)
+              return
+            }
             if (check.auth_required) {
               pendingRepoUrlRef.current = addUrl.trim()
               setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true)

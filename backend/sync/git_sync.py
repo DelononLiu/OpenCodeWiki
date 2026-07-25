@@ -55,16 +55,10 @@ async def _run_cmd(cmd: list[str], cwd: str | None = None) -> str:
 
 async def clone(url: str, dest: str, branch: str = "main",
                 username: str | None = None, password: str | None = None) -> None:
-    """Clone a git repository to local path. Falls back to default branch if specified branch doesn't exist."""
+    """Clone a git repository to local path."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     git_url = _embed_credentials(url, username or "", password or "") if (username or password) else url
-    try:
-        await _run_cmd(["git", "clone", "--branch", branch, "--depth", "1", git_url, dest])
-    except RuntimeError as e:
-        if "Could not find remote branch" in str(e) or "not found in upstream" in str(e):
-            await _run_cmd(["git", "clone", "--depth", "1", git_url, dest])
-        else:
-            raise
+    await _run_cmd(["git", "clone", "--branch", branch, "--depth", "1", git_url, dest])
 
 
 async def pull(dest: str) -> list[str]:
@@ -86,6 +80,28 @@ async def get_remote_head_commit(url: str, branch: str = "main") -> str:
     except Exception:
         pass
     return ""
+
+
+async def get_default_branch(url: str) -> str | None:
+    """Get the default branch name from a remote git URL."""
+    try:
+        out = await _run_cmd(["git", "ls-remote", "--symref", url])
+        for line in out.split("\n"):
+            line = line.strip()
+            if line.startswith("ref: refs/heads/"):
+                return line.split("/")[2].split("\t")[0]
+    except Exception:
+        pass
+    return None
+
+
+async def branch_exists(url: str, branch: str) -> bool:
+    """Check if a branch exists on a remote git URL."""
+    try:
+        out = await _run_cmd(["git", "ls-remote", "--heads", url, branch])
+        return bool(out.strip())
+    except Exception:
+        return False
 
 
 async def get_head_commit(repo_path: str) -> str:

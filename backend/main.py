@@ -347,30 +347,59 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.post("/api/check-repo-auth")
     async def api_check_repo_auth(req: RepoCheckRequest):
-        """Pre-check if a repo (git/svn) requires authentication."""
+        """Pre-check: validate branch, detect auth requirements."""
         try:
+            # ── SVN ──
             if req.repo_type == "svn":
-                ver = await svn_sync.get_head_revision(
-                    req.repo_url, req.repo_branch,
-                    req.username or None, req.password or None,
-                )
-                return {"auth_required": False, "revision": ver}
-            elif req.repo_type == "git" and req.repo_url.startswith(("http://", "https://")):
+                try:
+                    ver = await svn_sync.get_head_revision(
+                        req.repo_url, req.repo_branch,
+                        req.username or None, req.password or None,
+                    )
+                    return {"ok": True, "auth_required": False, "revision": ver}
+                except svn_sync.SVNAuthError:
+                    return {"ok": True, "auth_required": True}
+
+            # ── Git HTTPS / HTTP ──
+            if req.repo_type == "git" and req.repo_url.startswith(("http://", "https://")):
                 url = git_sync._embed_credentials(req.repo_url, req.username, req.password)
                 try:
+                    # 1. Try without auth first to detect auth requirement
                     ver = await git_sync.get_remote_head_commit(url, req.repo_branch)
-                    if not ver:
-                        return {"auth_required": True}
-                    return {"auth_required": False, "revision": ver}
                 except git_sync.GITAuthError:
-                    return {"auth_required": True}
+                    return {"ok": True, "auth_required": True}
                 except Exception:
-                    return {"auth_required": True}
-            return {"auth_required": False}
-        except (svn_sync.SVNAuthError, git_sync.GITAuthError):
-            return {"auth_required": True}
-        except Exception:
-            return {"auth_required": True, "error": "无法连接"}
+                    # Can't access at all — might be auth, might be network
+                    return {"ok": True, "auth_required": True}
+
+                # Successfully connected — now validate branch
+                if not ver:
+                    default = await git_sync.get_default_branch(url)
+                    if req.repo_branch != (default or "main"):
+                        return {
+                            "ok": False, "auth_required": False,
+                            "error": f"分支 '{req.repo_branch}' 不存在" + (f"，仓库默认分支是 '{default}'" if default else ""),
+                            "default_branch": default or "",
+                        }
+                    return {"ok": True, "auth_required": True}
+                return {"ok": True, "auth_required": False, "revision": ver}
+
+            # ── Git local / SSH ── no password needed
+            if req.repo_type == "git":
+                ver = await git_sync.get_remote_head_commit(req.repo_url, req.repo_branch)
+                if not ver:
+                    default = await git_sync.get_default_branch(req.repo_url)
+                    if req.repo_branch != (default or "main"):
+                        return {
+                            "ok": False, "auth_required": False,
+                            "error": f"分支 '{req.repo_branch}' 不存在" + (f"，仓库默认分支是 '{default}'" if default else ""),
+                            "default_branch": default or "",
+                        }
+                return {"ok": True, "auth_required": False, "revision": ver or ""}
+
+            return {"ok": True, "auth_required": False}
+        except Exception as e:
+            return {"ok": False, "error": f"检查失败: {str(e)}"}
 
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
