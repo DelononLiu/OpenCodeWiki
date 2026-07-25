@@ -65,6 +65,7 @@ class TaskWorker:
             # Don't overwrite tasks that are pending authentication
             t = get_task(task_id)
             if t and t.get("params", {}).get("auth_required"):
+                update_task_status(task_id, "cancelled")
                 return
             update_task_status(task_id, "completed", progress=100, progress_msg="完成")
         except TaskCancelledError:

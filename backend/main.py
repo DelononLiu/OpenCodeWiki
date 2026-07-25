@@ -532,7 +532,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         if save_creds:
             update_kb_credentials(kb_id, username, password)
 
-        from backend.stores.task import create_task
+        # Cancel any pending/running sync tasks for this KB to avoid stale auth_required dialogs
+        from backend.stores.task import create_task, list_tasks, update_task_status
+        for old_task in list_tasks(status="running", type="sync_repo") + list_tasks(status="pending", type="sync_repo"):
+            if old_task.get("kb_id") == kb_id:
+                update_task_status(old_task["id"], "cancelled")
+
         task_params = {"kb_id": kb_id}
         if not save_creds:
             task_params["svn_username"] = username

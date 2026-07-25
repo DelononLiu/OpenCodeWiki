@@ -195,7 +195,8 @@ export function SourcesPage() {
     setAuthSubmitting(true)
     try {
       await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
-      dismissedTaskIdsRef.current = new Set() // Clear dismissed tasks — new sync task created
+      // Keep dismissed set so old auth_required tasks don't re-trigger
+      // New tasks created by svn-auth have different IDs and won't be dismissed
       showSuccess('认证信息已提交，正在重新同步')
       setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('')
     } catch (e: any) {
