@@ -357,8 +357,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 return {"auth_required": False, "revision": ver}
             elif req.repo_type == "git" and req.repo_url.startswith(("http://", "https://")):
                 url = git_sync._embed_credentials(req.repo_url, req.username, req.password)
-                ver = await git_sync.get_remote_head_commit(url, req.repo_branch)
-                return {"auth_required": False, "revision": ver}
+                try:
+                    ver = await git_sync.get_remote_head_commit(url, req.repo_branch)
+                    if not ver:
+                        return {"auth_required": True}
+                    return {"auth_required": False, "revision": ver}
+                except git_sync.GITAuthError:
+                    return {"auth_required": True}
+                except Exception:
+                    return {"auth_required": True}
             return {"auth_required": False}
         except (svn_sync.SVNAuthError, git_sync.GITAuthError):
             return {"auth_required": True}

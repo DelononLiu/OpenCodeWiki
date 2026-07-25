@@ -55,10 +55,16 @@ async def _run_cmd(cmd: list[str], cwd: str | None = None) -> str:
 
 async def clone(url: str, dest: str, branch: str = "main",
                 username: str | None = None, password: str | None = None) -> None:
-    """Clone a git repository to local path."""
+    """Clone a git repository to local path. Falls back to default branch if specified branch doesn't exist."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     git_url = _embed_credentials(url, username or "", password or "") if (username or password) else url
-    await _run_cmd(["git", "clone", "--branch", branch, "--depth", "1", git_url, dest])
+    try:
+        await _run_cmd(["git", "clone", "--branch", branch, "--depth", "1", git_url, dest])
+    except RuntimeError as e:
+        if "Could not find remote branch" in str(e) or "not found in upstream" in str(e):
+            await _run_cmd(["git", "clone", "--depth", "1", git_url, dest])
+        else:
+            raise
 
 
 async def pull(dest: str) -> list[str]:
