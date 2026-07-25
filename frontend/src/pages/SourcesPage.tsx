@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB } from '@/api/opencodewiki'
+import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB, submitSVNAuth } from '@/api/opencodewiki'
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
@@ -30,6 +30,14 @@ export function SourcesPage() {
   const [repoType, setRepoType] = useState<'git' | 'svn'>('git')
   const [contentType, setContentType] = useState<'code' | 'docs'>('docs')
   const [repoBranch, setRepoBranch] = useState('main')
+  const [svnUsername, setSvnUsername] = useState('')
+  const [svnPassword, setSvnPassword] = useState('')
+  const [svnSaveCreds, setSvnSaveCreds] = useState(true)
+  const [showAuthDialog, setShowAuthDialog] = useState<{ kbId: string; kbName: string } | null>(null)
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authSave, setAuthSave] = useState(true)
+  const [authSubmitting, setAuthSubmitting] = useState(false)
 
   // URL → auto-detect
   useEffect(() => {
@@ -82,6 +90,15 @@ export function SourcesPage() {
           }
         }
         setRunningTasks(map)
+        // Detect SVN auth required
+        for (const t of Array.isArray(tasks) ? tasks : []) {
+          if (t.params?.auth_required && t.kb_id && !showAuthDialog) {
+            const kb = kbs.find(k => k.id === t.kb_id)
+            if (kb && kb.repo_type === 'svn') {
+              setShowAuthDialog({ kbId: t.kb_id, kbName: kb.name || '' })
+            }
+          }
+        }
       } catch {}
     }
     poll()
@@ -103,6 +120,8 @@ export function SourcesPage() {
         const kb = await createKB(name, desc, {
           repo_url: addUrl.trim(), repo_type: repoType,
           repo_branch: repoBranch, content_type: contentType,
+          svn_username: svnSaveCreds ? svnUsername : '',
+          svn_password: svnSaveCreds ? svnPassword : '',
         })
         await syncKB(kb.id)
         showSuccess(`仓库「${name}」已添加，首轮同步已启动`)
@@ -255,7 +274,7 @@ export function SourcesPage() {
 
               {/* Plus-box — 新建知识库 */}
               <button
-                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setShowAddModal(true) }}
+                onClick={() => { setAddName(''); setAddDesc(''); setAddUrl(''); setAddFiles(null); setRepoName(''); setRepoType('git'); setContentType('docs'); setRepoBranch('main'); setSvnUsername(''); setSvnPassword(''); setSvnSaveCreds(true); setShowAddModal(true) }}
                 className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-cyber-blue hover:bg-cyber-blue/5 transition group min-h-[160px]"
               >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-cyber-blue/10 transition">
@@ -442,6 +461,27 @@ export function SourcesPage() {
                           className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono" />
                       </div>
                     )}
+                    {repoType === 'svn' && (
+                      <div className="border-t border-gray-100 pt-3 mt-2 space-y-2.5">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400 w-10 shrink-0">用户名</span>
+                          <input value={svnUsername} onChange={e => setSvnUsername(e.target.value)}
+                            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono"
+                            placeholder="可选" />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400 w-10 shrink-0">密码</span>
+                          <input type="password" value={svnPassword} onChange={e => setSvnPassword(e.target.value)}
+                            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 bg-white font-mono"
+                            placeholder="可选" />
+                        </div>
+                        <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+                          <input type="checkbox" checked={svnSaveCreds} onChange={e => setSvnSaveCreds(e.target.checked)}
+                            className="rounded border-gray-300 text-cyber-blue focus:ring-cyber-blue/20" />
+                          保存密码到知识库
+                        </label>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -489,6 +529,53 @@ export function SourcesPage() {
                 className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
                 {addSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 {addSubmitting ? '创建中...' : addMode === 'online' ? '添加并同步' : '创建'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SVN 认证弹窗 ── */}
+      {showAuthDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowAuthDialog(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-gray-900 mb-1">SVN 认证</h3>
+            <p className="text-xs text-gray-400 mb-4">{showAuthDialog.kbName} 需要输入密码</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">用户名</label>
+                <input value={authUsername} onChange={e => setAuthUsername(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">密码</label>
+                <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20" />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+                <input type="checkbox" checked={authSave} onChange={e => setAuthSave(e.target.checked)}
+                  className="rounded border-gray-300 text-cyber-blue focus:ring-cyber-blue/20" />
+                保存密码到知识库
+              </label>
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <button onClick={() => { setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('') }}
+                className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
+              <button onClick={async () => {
+                if (!showAuthDialog) return
+                setAuthSubmitting(true)
+                try {
+                  await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
+                  showSuccess('认证信息已提交，正在重新同步')
+                  setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('')
+                } catch (e: any) {
+                  showError(`认证失败: ${e.message || '未知错误'}`)
+                }
+                setAuthSubmitting(false)
+              }} disabled={authSubmitting || !authUsername.trim()}
+                className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
+                {authSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                提交并重试
               </button>
             </div>
           </div>

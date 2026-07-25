@@ -19,6 +19,7 @@ export function fetchKBs(): Promise<KB[]> { return request('/api/kb') }
 export function fetchKB(id: string): Promise<KB> { return request(`/api/kb/${id}`) }
 export function createKB(name: string, description?: string, repoOpts?: {
   repo_url?: string; repo_type?: string; repo_branch?: string; content_type?: string;
+  svn_username?: string; svn_password?: string;
 }): Promise<KB> {
   return request('/api/kb', { method: 'POST', body: JSON.stringify({ name, description, ...repoOpts }) })
 }
@@ -68,4 +69,11 @@ export function askQuestion(kbId: string, question: string, sessionId?: string):
 export function fetchTasks(status?: string): Promise<any[]> {
   const qs = status ? `?status=${status}` : ''
   return request(`/api/tasks${qs}`)
+}
+
+export function submitSVNAuth(kbId: string, username: string, password: string, saveCredentials: boolean): Promise<{ task_id: string }> {
+  return request(`/api/kb/${kbId}/svn-auth`, {
+    method: 'POST',
+    body: JSON.stringify({ username, password, save_credentials: saveCredentials }),
+  })
 }
