@@ -35,7 +35,17 @@ async def _run_cmd(cmd: list[str], cwd: str | None = None, timeout: int = 300) -
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
-        raise RuntimeError(f"Command timed out after {timeout}s: {' '.join(cmd)}")
+        redacted_cmd = []
+        i = 0
+        while i < len(cmd):
+            if cmd[i] == "--password" and i + 1 < len(cmd):
+                redacted_cmd.append("--password")
+                redacted_cmd.append("***")
+                i += 2
+            else:
+                redacted_cmd.append(cmd[i])
+                i += 1
+        raise RuntimeError(f"Command timed out after {timeout}s: {' '.join(redacted_cmd)}")
     return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode
 
 

@@ -36,6 +36,19 @@ def get_kb(kb_id: str) -> dict | None:
     ).fetchone()
     return _row_to_dict(row) if row else None
 
+def get_kb_with_credentials(kb_id: str) -> dict | None:
+    """Same as get_kb but includes svn_username/svn_password for server-side use."""
+    db = get_knora_db()
+    row = db.execute(
+        f"SELECT {_KB_COLS} FROM knowledge_bases WHERE id = ?", (kb_id,)
+    ).fetchone()
+    if not row:
+        return None
+    d = _row_to_dict(row)
+    d["svn_username"] = row[12] or ""
+    d["svn_password"] = row[13] or ""
+    return d
+
 def get_kb_by_name(name: str) -> dict | None:
     db = get_knora_db()
     row = db.execute(
@@ -71,8 +84,7 @@ def _row_to_dict(row) -> dict:
         "repo_url": row[7] or "", "repo_type": row[8] or "",
         "repo_branch": row[9] or "", "content_type": row[10] or "docs",
         "repo_version": row[11] or "",
-        "svn_username": row[12] or "",
-        "svn_password": row[13] or "",
+        # NOTE: svn_username/svn_password intentionally omitted — use get_kb_with_credentials()
         "created_at": row[14],
     }
     d["is_default"] = d["name"] == DEFAULT_KB_NAME

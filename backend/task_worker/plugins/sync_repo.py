@@ -1,7 +1,7 @@
 import asyncio
 import os
 from backend.config import Config
-from backend.stores.kb import get_kb
+from backend.stores.kb import get_kb_with_credentials
 from backend.stores.doc import create_document, list_documents
 from backend.stores.task import get_task, update_task_status
 from backend.knowledge.importer import import_document, compute_hash
@@ -34,7 +34,7 @@ class SyncRepoPlugin(TaskPlugin):
         if not kb_id:
             raise ValueError("Missing kb_id in params")
 
-        kb = get_kb(kb_id)
+        kb = get_kb_with_credentials(kb_id)
         if not kb:
             raise ValueError(f"Knowledge base not found: {kb_id}")
         if not kb.get("repo_url"):
@@ -43,8 +43,8 @@ class SyncRepoPlugin(TaskPlugin):
         local_path = os.path.join(os.path.expanduser(self.cfg.database.path), "knowledge", kb["name"])
         repo_url = kb["repo_url"]
         repo_branch = kb.get("repo_branch") or "main"
-        svn_username = kb.get("svn_username") or ""
-        svn_password = kb.get("svn_password") or ""
+        svn_username = kb.get("svn_username") or event.params.get("svn_username", "")
+        svn_password = kb.get("svn_password") or event.params.get("svn_password", "")
 
         update_task_status(event.task_id, "running", progress=5,
                            progress_msg=f"正在同步 {repo_url}")
@@ -59,7 +59,7 @@ class SyncRepoPlugin(TaskPlugin):
                     os.makedirs(local_path, exist_ok=True)
                     await svn_sync.checkout(repo_url, local_path, repo_branch, svn_username, svn_password)
             except svn_sync.SVNAuthError:
-                update_task_status(event.task_id, "running", progress=10,
+                update_task_status(event.task_id, "pending", progress=10,
                                    progress_msg="等待SVN认证...",
                                    params={"auth_required": True, "realm": repo_url})
                 raise TaskCancelledError()

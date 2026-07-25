@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB, submitSVNAuth } from '@/api/opencodewiki'
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
@@ -43,7 +43,7 @@ export function SourcesPage() {
   useEffect(() => {
     if (addMode !== 'online' || !addUrl.trim()) return
     const t = addUrl.trim()
-    const detected = /^svn:\/\//i.test(t) || /svn\./i.test(t) ? 'svn' : 'git'
+    const detected = /^svn:\/\//i.test(t) || /^svn\+ssh:\/\//i.test(t) ? 'svn' : 'git'
     setRepoType(detected)
     setRepoBranch(detected === 'git' ? 'main' : 'trunk')
     const sshM = t.match(/:([^\/]+)\/([^\/]+?)(\.git)?\/?$/)
@@ -71,6 +71,9 @@ export function SourcesPage() {
 
   // Track running rebuild tasks
   const [runningTasks, setRunningTasks] = useState<Record<string, {progress: number; msg: string}>>({})
+  const kbsRef = useRef(kbs)
+  kbsRef.current = kbs
+  const dismissedTaskIdsRef = useRef(new Set<string>())
 
   useEffect(() => { loadKBs() }, [loadKBs])
 
@@ -82,7 +85,14 @@ export function SourcesPage() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const tasks = await fetch('/api/tasks?status=running').then(r => r.json())
+        const [runningTasks_, pendingTasks_] = await Promise.all([
+          fetch('/api/tasks?status=running').then(r => r.json()),
+          fetch('/api/tasks?status=pending').then(r => r.json()),
+        ])
+        const tasks = [
+          ...(Array.isArray(runningTasks_) ? runningTasks_ : []),
+          ...(Array.isArray(pendingTasks_) ? pendingTasks_ : []),
+        ]
         const map: Record<string, {progress: number; msg: string}> = {}
         for (const t of Array.isArray(tasks) ? tasks : []) {
           if (t.kb_id && (t.type === 'rebuild' || t.type === 'sync_repo')) {
@@ -90,10 +100,10 @@ export function SourcesPage() {
           }
         }
         setRunningTasks(map)
-        // Detect SVN auth required
+        // Detect SVN auth required — use refs to avoid stale closure
         for (const t of Array.isArray(tasks) ? tasks : []) {
-          if (t.params?.auth_required && t.kb_id && !showAuthDialog) {
-            const kb = kbs.find(k => k.id === t.kb_id)
+          if (t.params?.auth_required && t.kb_id && !dismissedTaskIdsRef.current.has(t.id)) {
+            const kb = kbsRef.current.find((k: KB) => k.id === t.kb_id)
             if (kb && kb.repo_type === 'svn') {
               setShowAuthDialog({ kbId: t.kb_id, kbName: kb.name || '' })
             }
@@ -179,6 +189,20 @@ export function SourcesPage() {
 
   const statusColor = (status: string) =>
     status === 'completed' ? 'text-green-600' : status === 'failed' ? 'text-red-600' : 'text-yellow-600'
+
+  const handleAuthSubmit = async () => {
+    if (!showAuthDialog) return
+    setAuthSubmitting(true)
+    try {
+      await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
+      dismissedTaskIdsRef.current = new Set() // Clear dismissed tasks — new sync task created
+      showSuccess('认证信息已提交，正在重新同步')
+      setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('')
+    } catch (e: any) {
+      showError(`认证失败: ${e.message || '未知错误'}`)
+    }
+    setAuthSubmitting(false)
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -454,7 +478,7 @@ export function SourcesPage() {
                         ))}
                       </div>
                     </div>
-                    {repoType === 'git' && (
+                    {(repoType === 'git' || repoType === 'svn') && (
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400 w-10 shrink-0">分支</span>
                         <input value={repoBranch} onChange={e => setRepoBranch(e.target.value)}
@@ -561,18 +585,7 @@ export function SourcesPage() {
             <div className="flex gap-2 justify-end pt-4">
               <button onClick={() => { setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('') }}
                 className="px-4 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition">取消</button>
-              <button onClick={async () => {
-                if (!showAuthDialog) return
-                setAuthSubmitting(true)
-                try {
-                  await submitSVNAuth(showAuthDialog.kbId, authUsername, authPassword, authSave)
-                  showSuccess('认证信息已提交，正在重新同步')
-                  setShowAuthDialog(null); setAuthUsername(''); setAuthPassword('')
-                } catch (e: any) {
-                  showError(`认证失败: ${e.message || '未知错误'}`)
-                }
-                setAuthSubmitting(false)
-              }} disabled={authSubmitting || !authUsername.trim()}
+              <button onClick={handleAuthSubmit} disabled={authSubmitting || !authUsername.trim()}
                 className="inline-flex items-center gap-1 px-4 py-2 text-xs bg-cyber-blue text-white rounded-lg hover:bg-cyber-blue-dark transition disabled:opacity-50">
                 {authSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 提交并重试

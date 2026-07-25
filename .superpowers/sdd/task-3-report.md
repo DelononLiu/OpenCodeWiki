@@ -1,22 +1,34 @@
-# Task 3 Report: Database Initialization
+# Task 3 Report: SyncRepoPlugin SVN dispatch
 
-## Status: Complete
+**Status:** DONE
 
-## Commits
-- `497227f` - `feat: dual SQLite database initialization with schema`
+## Changes Made
 
-## Files Created
-- `backend/database.py` -- Dual SQLite database initialization (knora.db + vectors.db)
-- `backend/tests/test_database.py` -- Test for table creation
+### `backend/task_worker/plugins/sync_repo.py`
+- Added `from backend.sync import svn_sync` import
+- Added SVN credential extraction (`svn_username`, `svn_password`) from KB config
+- Replaced the clone/pull block with SVN-aware dispatch (`is_svn = kb.get("repo_type") == "svn"`)
+  - SVN path: calls `svn_sync.update()` or `svn_sync.checkout()`, catches `SVNAuthError` and sets `params={"auth_required": True}` on the task
+  - Git path: unchanged behavior via `git_sync`
+- Replaced the save-repo-version block to dispatch between `svn_sync.get_revision()` and `git_sync.get_head_commit()`
 
-## Test Summary
-- `test_init_databases_creates_tables` -- PASS (1/1)
+### `backend/stores/task.py`
+- Added `params: dict | None = None` parameter to `update_task_status()`, serializes to JSON if provided
+- `get_task()`: parses `params` column from JSON string to dict via `json.loads()`
+- `list_tasks()`: same params parsing fix
+- `create_task()`: returns `params or {}` instead of raw JSON string
 
-## Implementation Notes
-- Followed brief schemas exactly for knora.db (5 tables: `knowledge_bases`, `documents`, `chunks`, `sessions`, `messages`) and vectors.db (2 virtual tables: `vector_chunks` using vec0, `chunk_fts` using fts5)
-- Required adding `sqlite_vec` to dependencies and calling `sqlite_vec.load(conn)` to enable the `vec0` virtual table module -- this was an undocumented dependency not mentioned in the brief
-- knora.db uses WAL mode + foreign_keys ON as specified
-- `_db_path` helper ensures the directory exists before connecting
+## Commit
+
+```
+1a8b075 feat(sync): SyncRepoPlugin dispatches SVN operations, handles auth errors
+```
+
+## Smoke Tests
+
+- `from backend.task_worker.plugins.sync_repo import SyncRepoPlugin` -- OK
+- `from backend.stores.task import update_task_status, get_task, list_tasks` -- OK
 
 ## Concerns
-- `sqlite_vec` is a runtime dependency not listed in `requirements.txt` -- if this is a permanent dependency it should be added there
+
+- Line 118 still calls `git_sync.list_files(scan_dir)` unconditionally. For SVN repos, this may fail if `git_sync.list_files` relies on git-specific logic rather than being a pure directory-walk helper. The task brief explicitly stated "no changes needed" for the scan_dir logic, so this was left as-is. If issues arise with SVN file scanning, `svn_sync.list_files()` can be substituted in a follow-up.

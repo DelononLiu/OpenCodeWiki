@@ -313,6 +313,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         svn_username: str = ""
         svn_password: str = ""
 
+    class SVNAuthRequest(BaseModel):
+        username: str = ""
+        password: str = ""
+        save_credentials: bool = False
+
     @app.post("/api/kb")
     async def api_create_kb(req: CreateKBRequest):
         kb = create_kb(req.name, req.description, embedding_model=cfg.embedding.model,
@@ -513,22 +518,26 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return task
 
     @app.post("/api/kb/{kb_id}/svn-auth")
-    async def api_svn_auth(kb_id: str, data: dict):
+    async def api_svn_auth(kb_id: str, data: SVNAuthRequest):
         kb = get_kb(kb_id)
         if not kb:
             raise HTTPException(404, "Knowledge base not found")
         if kb.get("repo_type") != "svn":
             raise HTTPException(400, "知识库不是 SVN 类型")
 
-        username = data.get("username", "")
-        password = data.get("password", "")
-        save_creds = data.get("save_credentials", False)
+        username = data.username
+        password = data.password
+        save_creds = data.save_credentials
 
         if save_creds:
             update_kb_credentials(kb_id, username, password)
 
         from backend.stores.task import create_task
-        task = create_task("sync_repo", kb_id=kb_id, params={"kb_id": kb_id})
+        task_params = {"kb_id": kb_id}
+        if not save_creds:
+            task_params["svn_username"] = username
+            task_params["svn_password"] = password
+        task = create_task("sync_repo", kb_id=kb_id, params=task_params)
 
         return {"ok": True, "task_id": task["id"]}
 
