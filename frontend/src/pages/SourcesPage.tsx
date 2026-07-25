@@ -18,7 +18,7 @@ export function SourcesPage() {
 
   // Add modal
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addMode, setAddMode] = useState<'upload' | 'online'>('upload')
+  const [addMode, setAddMode] = useState<'upload' | 'online'>('online')
   const [addName, setAddName] = useState('')
   const [addDesc, setAddDesc] = useState('')
   const [addUrl, setAddUrl] = useState('')
@@ -128,8 +128,8 @@ export function SourcesPage() {
     let shouldReset = true
 
     try {
-      const name = repoName.trim()
-      const desc = addUrl.trim()
+      const name = addMode === 'online' ? repoName.trim() : addName.trim()
+      const desc = addMode === 'online' ? addUrl.trim() : ''
 
       if (addMode === 'online') {
         // Pre-check if auth needed before creating task (SVN or Git HTTPS)
@@ -184,6 +184,7 @@ export function SourcesPage() {
           try { await uploadDocument(kb.id, file); ok++ } catch {}
         }
         showSuccess(`知识库「${name}」已创建，上传 ${ok}/${addFiles.length} 个文档`)
+        setShowAddModal(false)
       } else {
         showSuccess(`知识库「${name}」已创建`)
         setShowAddModal(false)
@@ -583,9 +584,10 @@ export function SourcesPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">知识库名称</label>
-                  <input value={addName} onChange={e => setAddName(e.target.value)}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20"
+                  <input value={addName} onChange={e => { setNameError(''); setAddName(e.target.value) }}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyber-blue/20 ${nameError ? 'border-red-400' : 'border-gray-200'}`}
                     placeholder="输入名称" />
+                  {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">描述（可选）</label>
@@ -610,7 +612,13 @@ export function SourcesPage() {
                     )}
                   </div>
                   <input type="file" multiple accept=".md,.txt,.pdf,.docx"
-                    onChange={e => setAddFiles(e.target.files)}
+                    onChange={e => {
+                      setAddFiles(e.target.files)
+                      if (e.target.files?.length && !addName) {
+                        const name = e.target.files[0].name.replace(/\.[^.]+$/, "")
+                        setAddName(name)
+                      }
+                    }}
                     className="hidden" />
                 </label>
               </div>

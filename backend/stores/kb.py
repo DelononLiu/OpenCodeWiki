@@ -8,6 +8,9 @@ def create_kb(name: str, description: str = "", embedding_model: str = "",
               content_type: str = "docs",
               svn_username: str = "", svn_password: str = "") -> dict:
     db = get_knora_db()
+    # 检查名称
+    if not name or not name.strip():
+        raise ValueError("知识库名称不能为空")
     # 检查名称是否重复
     existing = db.execute("SELECT id FROM knowledge_bases WHERE name = ?", (name,)).fetchone()
     if existing:
