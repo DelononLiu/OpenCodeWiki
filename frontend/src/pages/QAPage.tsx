@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Send, Database, Plus, ChevronDown, ArrowDown } from 'lucide-react'
+import { Loader2, Send, Database, Plus, ChevronDown, ArrowDown, Check } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -92,7 +92,9 @@ export function QAPage() {
   const [error, setError] = useState<string | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [userScrolledUp, setUserScrolledUp] = useState(false)
+  const [kbDropdownOpen, setKbDropdownOpen] = useState(false)
   const messageAreaRef = useRef<HTMLDivElement>(null)
+  const kbDropdownRef = useRef<HTMLDivElement>(null)
   const thinkStartRef = useRef(0)
   const submitTimeRef = useRef(0)
   const centerInputRef = useRef<HTMLInputElement>(null)
@@ -157,6 +159,17 @@ export function QAPage() {
       messageAreaRef.current.scrollTop = messageAreaRef.current.scrollHeight
     }
   }, [messages, streamingText, userScrolledUp])
+
+  // ── Close KB dropdown on outside click ──
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (kbDropdownRef.current && !kbDropdownRef.current.contains(e.target as Node)) {
+        setKbDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   // ── Send question ──
   const handleSubmit = async (text?: string, overrideKB?: string) => {
@@ -305,11 +318,53 @@ export function QAPage() {
 
   const hasContent = messages.length > 0 || streaming || historyLoading
 
+  // ── KB selector dropdown ──
+  const currentKb = kbs.find(kb => kb.id === selectedKB)
+  const kbSelector = (
+    <div className="relative shrink-0" ref={kbDropdownRef}>
+      <button
+        onClick={() => setKbDropdownOpen(!kbDropdownOpen)}
+        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors px-2 py-1 rounded-md hover:bg-blue-50/60"
+      >
+        <Database className="w-3.5 h-3.5" />
+        <span className="max-w-[100px] truncate">{currentKb?.name || '选择知识库'}</span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${kbDropdownOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {kbDropdownOpen && (
+        <div className="absolute top-full left-0 mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto">
+          {kbs.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-gray-400 text-center">暂无知识库</div>
+          ) : (
+            kbs.map(kb => (
+              <button
+                key={kb.id}
+                onClick={() => { handleKBChange(kb.id); setKbDropdownOpen(false) }}
+                className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
+                  selectedKB === kb.id ? 'text-blue-600 font-medium' : 'text-gray-600'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                <span className="truncate">{kb.name}</span>
+                {selectedKB === kb.id && (
+                  <Check className="w-3.5 h-3.5 ml-auto shrink-0 text-blue-600" />
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   // ── Shared input bar ──
   const renderInputBar = (compact = false) => {
     // Unified input card — matches homepage search bar style
     const cardContent = (
       <>
+        {kbSelector}
+
+        <div className="w-px h-5 bg-gray-200 shrink-0" />
+
         {!compact && (
           <button onClick={startNewChat} title="新对话"
             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
@@ -339,18 +394,16 @@ export function QAPage() {
     )
 
     if (compact) {
-      // Centered: card is the input itself
       return (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-2.5 flex items-center gap-3 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-2 flex items-center gap-2 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
           {cardContent}
         </div>
       )
     }
 
-    // Bottom bar: inline in the bar
     return (
       <div className="flex items-center gap-2">
-        <div className="flex-1 bg-white border border-gray-200/80 rounded-xl shadow-sm p-2 flex items-center gap-2 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:ring-2 focus-within:ring-cyber-blue/10">
+        <div className="flex-1 bg-white border border-gray-200/80 rounded-xl shadow-sm p-2 flex items-center gap-1.5 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:ring-2 focus-within:ring-cyber-blue/10">
           {cardContent}
         </div>
       </div>
@@ -371,7 +424,7 @@ export function QAPage() {
               <Database className="w-8 h-8 text-cyber-blue/60" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-1.5">知识库问答</h2>
-            <p className="text-sm text-gray-400 mb-8">输入问题开始对话，在侧栏选择知识库</p>
+            <p className="text-sm text-gray-400 mb-8">在左侧选择知识库，输入问题开始对话</p>
 
             {/* Suggested questions */}
             <div className="flex flex-wrap justify-center gap-2 max-w-lg mb-8">
