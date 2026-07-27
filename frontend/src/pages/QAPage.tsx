@@ -7,6 +7,11 @@ import ProcessPanel from '@/components/ProcessPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Send, Database, Plus, ChevronDown, ArrowDown, Check } from 'lucide-react'
+import { FeedbackBar } from '@/components/qa/FeedbackBar'
+import { ParagraphCorrection } from '@/components/qa/ParagraphCorrection'
+import { FeedbackStats } from '@/components/qa/FeedbackStats'
+import { WikiSlidePanel } from '@/components/qa/WikiSlidePanel'
+import type { QaFeedbackState, ParagraphCorrection as CorrectionType, FeedbackStats as StatsType } from '@/components/qa/types'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -101,6 +106,105 @@ export function QAPage() {
   const centerInputRef = useRef<HTMLInputElement>(null)
   const lastScrollTop = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
+
+  // ── QA 反馈状态管理 ──
+  const [qaFeedbackMap, setQaFeedbackMap] = useState<Record<number, QaFeedbackState>>({})
+  const [wikiSlideQa, setWikiSlideQa] = useState<{ msgIdx: number; question: string; answer: string } | null>(null)
+  // 用于顶部统计的 Demo 数据（无真实 QA 时展示）
+  const [demoStats] = useState<StatsType>({
+    approvedCount: 3,
+    rejectedCount: 1,
+    wikiPromotedCount: 2,
+    correctionCount: 5,
+  })
+
+  const getFeedbackState = (msgIdx: number): QaFeedbackState => {
+    const st = qaFeedbackMap[msgIdx]
+    if (st) return st
+    // 默认空状态
+    const empty: QaFeedbackState = { status: 'pending', wikiPromoted: false, corrections: [] }
+    return empty
+  }
+
+  const updateFeedback = (msgIdx: number, upd: Partial<QaFeedbackState>) => {
+    setQaFeedbackMap(prev => {
+      const cur = prev[msgIdx] || { status: 'pending' as const, wikiPromoted: false, corrections: [] }
+      return { ...prev, [msgIdx]: { ...cur, ...upd } }
+    })
+  }
+
+  const computeStats = (): StatsType => {
+    const values = Object.values(qaFeedbackMap)
+    return {
+      approvedCount: values.filter(v => v.status === 'approved').length,
+      rejectedCount: values.filter(v => v.status === 'rejected').length,
+      wikiPromotedCount: values.filter(v => v.wikiPromoted).length,
+      correctionCount: values.reduce((sum, v) => sum + v.corrections.length, 0),
+    }
+  }
+
+  const handleApprove = (msgIdx: number) => {
+    updateFeedback(msgIdx, { status: 'approved' })
+  }
+
+  const handleReject = (msgIdx: number) => {
+    updateFeedback(msgIdx, { status: 'rejected' })
+  }
+
+  const handleCorrection = (msgIdx: number, paragraphIdx: number, suggestion: string) => {
+    const corr: CorrectionType = {
+      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      paragraphIdx,
+      originalText: '',
+      suggestion,
+      replies: [],
+      createdAt: new Date().toLocaleTimeString(),
+    }
+    updateFeedback(msgIdx, {
+      corrections: [...(qaFeedbackMap[msgIdx]?.corrections || []), corr],
+    })
+  }
+
+  const handleCorrectionReply = (msgIdx: number, correctionId: string, text: string) => {
+    setQaFeedbackMap(prev => {
+      const cur = prev[msgIdx]
+      if (!cur) return prev
+      return {
+        ...prev,
+        [msgIdx]: {
+          ...cur,
+          corrections: cur.corrections.map(c =>
+            c.id === correctionId
+              ? { ...c, replies: [...c.replies, { id: `r-${Date.now()}`, text, author: 'user' as const, createdAt: new Date().toLocaleTimeString() }] }
+              : c
+          ),
+        },
+      }
+    })
+  }
+
+  const handleWikiPromote = (msgIdx: number) => {
+    const msg = messages[msgIdx]
+    if (!msg || msg.role !== 'assistant') return
+    // 找对应的问题（前一条 user 消息）
+    const qMsg = messages.slice(0, msgIdx).reverse().find(m => m.role === 'user')
+    setWikiSlideQa({ msgIdx, question: qMsg?.content || '', answer: msg.content })
+  }
+
+  const handleWikiSuccess = () => {
+    if (wikiSlideQa) {
+      updateFeedback(wikiSlideQa.msgIdx, { wikiPromoted: true })
+    }
+    setWikiSlideQa(null)
+  }
+
+  // ── 是否为最新（最后一条）assistant 消息 ──
+  const getLatestAssistantIdx = () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return i
+    }
+    return -1
+  }
 
   // ── Init ──
   useEffect(() => {
@@ -484,6 +588,9 @@ export function QAPage() {
         ) : (
           /* ═══════════════ Messages ═══════════════ */
           <div className="max-w-3xl mx-auto py-6 space-y-5">
+            {/* QA 反馈统计（顶部） */}
+            <FeedbackStats stats={computeStats()} />
+
             {historyLoading ? (
               <MessageSkeleton />
             ) : (
@@ -497,7 +604,7 @@ export function QAPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-3 group">
                         <ProcessPanel
                           thinking={m.thinking || ''}
                           thinkingDone={true}
@@ -507,9 +614,22 @@ export function QAPage() {
                           stages={m.stages || []}
                           summary={m.summary}
                         />
-                        <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-gray-800 prose-strong:text-gray-800 prose-code:text-cyber-blue prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                        </div>
+                        {/* 段落纠错展示 */}
+                        <ParagraphCorrection
+                          content={m.content}
+                          corrections={getFeedbackState(i).corrections}
+                          onSubmitCorrection={(paraIdx, suggestion) => handleCorrection(i, paraIdx, suggestion)}
+                          onReplyToCorrection={(corrId, text) => handleCorrectionReply(i, corrId, text)}
+                        />
+                        {/* QA 反馈操作栏 */}
+                        <FeedbackBar
+                          isLatest={i === getLatestAssistantIdx()}
+                          status={getFeedbackState(i).status}
+                          wikiPromoted={getFeedbackState(i).wikiPromoted}
+                          onApprove={() => handleApprove(i)}
+                          onReject={() => handleReject(i)}
+                          onWikiPromote={() => handleWikiPromote(i)}
+                        />
                         {/* Follow-up suggestions on last message */}
                         {i === messages.length - 1 && isAssistant(m) && (
                           <FollowUpSuggestions
@@ -580,6 +700,17 @@ export function QAPage() {
             {renderInputBar(false)}
           </div>
         </div>
+      )}
+
+      {/* ── Wiki 沉淀面板 ── */}
+      {wikiSlideQa && (
+        <WikiSlidePanel
+          open={!!wikiSlideQa}
+          onClose={() => setWikiSlideQa(null)}
+          question={wikiSlideQa.question}
+          answer={wikiSlideQa.answer}
+          onSuccess={handleWikiSuccess}
+        />
       )}
     </div>
   )
