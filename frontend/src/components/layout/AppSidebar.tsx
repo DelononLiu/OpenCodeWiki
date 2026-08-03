@@ -205,6 +205,9 @@ export function AppSidebar() {
           ))}
         </nav>
 
+        {/* 导航与内容区分隔 */}
+        {sidebarOpen && <div className="mx-[10px] border-t border-slate-700/30" />}
+
         {/* KB Dropdown — Wiki pages only */}
         {sidebarOpen && showDocTree && (
           <div className="px-[6px] mb-2">
@@ -265,21 +268,28 @@ export function AppSidebar() {
                 )}
               </div>
             ) : (
-              /* QA / Admin / Other pages — session history */
+              /* QA / Admin / Other pages — session history（内容区：与导航区分层） */
               <div>
+                <div className="mx-[10px] mb-1 border-t border-slate-700/30" />
                 <button onClick={() => setSessionsExpanded(o => !o)}
-                  className="w-full flex items-center gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-slate-500 uppercase tracking-widest hover:text-slate-300 transition-colors rounded-md">
-                  <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-slate-600 ${sessionsExpanded ? '' : '-rotate-90'}`} />
-                  历史问答
+                  className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-slate-500 uppercase tracking-widest hover:text-slate-300 transition-colors rounded-md">
+                  <span className="flex items-center gap-1">
+                    <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-slate-600 ${sessionsExpanded ? '' : '-rotate-90'}`} />
+                    历史问答
+                  </span>
+                  {sessionList.length > 0 && (
+                    <span className="text-[10px] font-normal text-slate-600 bg-white/5 rounded-full px-1.5 py-0.5">{sessionList.length}</span>
+                  )}
                 </button>
                 {sessionsExpanded && (
                   sessionList.length > 0 ? sessionList.map(s => (
                     <button key={s.id}
                       onClick={() => navigate(`/qa/${s.id}`)}
-                      className={`block w-full text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
-                        (location.pathname === `/qa/${s.id}` || window.location.pathname === `/qa/${s.id}`) ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
+                      className={`flex w-full items-center gap-1.5 text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
+                        (location.pathname === `/qa/${s.id}` || window.location.pathname === `/qa/${s.id}`) ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/45 hover:text-sidebar-active'
                       }`}>
-                      {s.title || '新对话'}
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0 text-sidebar-text/30" />
+                      <span className="truncate">{s.title || '新对话'}</span>
                     </button>
                   )) : (
                     <div className="text-sm text-slate-600 px-[10px] py-5 text-center">暂无问答记录</div>
