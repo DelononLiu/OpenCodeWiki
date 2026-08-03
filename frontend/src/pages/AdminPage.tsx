@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { fetchWikiConversions, deleteWikiConversion } from '@/api/client'
 import type { WikiConversion } from '@/types'
 import { FileText, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { ReviewPanel } from '@/components/review/ReviewPanel'
 
 export function AdminPage() {
+  const { user } = useAuth()
   const [conversions, setConversions] = useState<WikiConversion[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -35,6 +38,12 @@ export function AdminPage() {
                 QA 对话转为结构化 Wiki 文档，自动索引供后续检索
               </p>
             </div>
+
+            {user?.role === 'admin' && (
+              <div className="mt-6">
+                <ReviewPanel />
+              </div>
+            )}
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
