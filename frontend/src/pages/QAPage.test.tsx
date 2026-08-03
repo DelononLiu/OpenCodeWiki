@@ -30,7 +30,7 @@ describe('QAPage (simplified)', () => {
 
   it('should render bottom input bar', () => {
     const { container } = renderQAPage()
-    const input = screen.getByPlaceholderText('输入问题，Enter 发送...')
+    const input = screen.getByPlaceholderText('输入问题，Enter 发送，Shift+Enter 换行')
     expect(input).toBeInTheDocument()
     expect(container.querySelector('.lucide-send')).toBeInTheDocument()
   })
@@ -43,7 +43,7 @@ describe('QAPage (simplified)', () => {
 
   it('should show bottom input is enabled initially', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('输入问题，Enter 发送...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('输入问题，Enter 发送，Shift+Enter 换行') as HTMLTextAreaElement
     expect(input.disabled).toBe(false)
   })
 })

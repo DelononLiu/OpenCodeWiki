@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { sedimentSession } from '@/api/opencodewiki'
 import type { KnowledgeItem } from '@/types/opencodewiki'
-import { Sparkles, ChevronDown, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2 } from 'lucide-react'
 
 export function SedimentMenu({ sessionId, disabled, onDone }: {
   sessionId: string
@@ -11,6 +11,15 @@ export function SedimentMenu({ sessionId, disabled, onDone }: {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 提示 3 秒后自动消失
+  useEffect(() => {
+    if (!msg) return
+    if (msgTimer.current) clearTimeout(msgTimer.current)
+    msgTimer.current = setTimeout(() => setMsg(null), 3000)
+    return () => { if (msgTimer.current) clearTimeout(msgTimer.current) }
+  }, [msg])
 
   const run = async (kind: 'card' | 'article') => {
     if (!sessionId || busy) return
@@ -30,11 +39,13 @@ export function SedimentMenu({ sessionId, disabled, onDone }: {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen(o => !o)} disabled={disabled || busy}
-        className="flex items-center gap-1.5 text-xs text-cyber-blue border border-cyber-blue/30 rounded-lg px-3 py-1.5 hover:bg-cyber-blue/10 disabled:opacity-40 transition-colors">
+      <button
+        onClick={() => setOpen(o => !o)}
+        disabled={disabled || busy}
+        title="沉淀为知识"
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
         {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-        沉淀
-        <ChevronDown className="w-3 h-3" />
       </button>
       {open && (
         <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-30">

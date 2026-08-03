@@ -104,7 +104,7 @@ export function QAPage() {
   const kbDropdownRef = useRef<HTMLDivElement>(null)
   const thinkStartRef = useRef(0)
   const submitTimeRef = useRef(0)
-  const centerInputRef = useRef<HTMLInputElement>(null)
+  const centerInputRef = useRef<HTMLTextAreaElement>(null)
   const lastScrollTop = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -504,62 +504,52 @@ export function QAPage() {
     </div>
   )
 
-  // ── Shared input bar ──
+  // ── Shared input bar（业界标准：圆角容器 + 多行自适应 textarea + 底部工具条）──
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value)
+    // 自适应高度：内容增长时增高，最多 160px
+    e.target.style.height = 'auto'
+    e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'
+  }
+
   const renderInputBar = (compact = false) => {
-    // Unified input card — matches homepage search bar style
-    const cardContent = (
-      <>
-        {kbSelector}
-
-        <div className="w-px h-5 bg-gray-200 shrink-0" />
-
-        {!compact && (
-          <button onClick={startNewChat} title="新对话"
-            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-            <Plus className="w-4 h-4" />
+    // 工具条：KB 选择（弱化）+ 新对话 + 发送
+    const toolbar = (
+      <div className="flex items-center justify-between px-1.5 pb-1.5 pt-0.5">
+        <div className="flex items-center gap-1">
+          {kbSelector}
+        </div>
+        <div className="flex items-center gap-0.5">
+          {!compact && (
+            <button onClick={startNewChat} title="新对话"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => handleSubmit()}
+            disabled={streaming || !input.trim()}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
-        )}
-
-        {activeSessionId && (
-          <SedimentMenu sessionId={activeSessionId}
-            disabled={!messages.length || streaming}
-            onDone={() => {}} />
-        )}
-
-        <input
-          ref={!hasContent ? centerInputRef : undefined}
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-1.5"
-          placeholder={isNewChat ? '输入问题，Enter 发送...' : '继续提问...'}
-          disabled={streaming}
-        />
-
-        <button
-          onClick={() => handleSubmit()}
-          disabled={streaming || !input.trim()}
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-cyber-blue text-white hover:bg-cyber-blue-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
-      </>
+        </div>
+      </div>
     )
 
-    if (compact) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-2 flex items-center gap-2 transition-all duration-300 focus-within:border-cyber-blue focus-within:ring-4 focus-within:ring-cyber-blue/10">
-          {cardContent}
-        </div>
-      )
-    }
-
     return (
-      <div className="flex items-center gap-2">
-        <div className="flex-1 bg-white border border-gray-200/80 rounded-xl shadow-sm p-2 flex items-center gap-1.5 transition-all duration-200 focus-within:border-cyber-blue/40 focus-within:ring-2 focus-within:ring-cyber-blue/10">
-          {cardContent}
-        </div>
+      <div className={`bg-white border border-gray-200 rounded-2xl shadow-sm transition-all duration-200 focus-within:border-cyber-blue/50 focus-within:ring-4 focus-within:ring-cyber-blue/5 ${compact ? 'shadow-xl' : ''}`}>
+        <textarea
+          ref={!hasContent ? centerInputRef : undefined}
+          rows={1}
+          value={input}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          className="w-full bg-transparent border-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 py-3 px-4 resize-none leading-relaxed max-h-40"
+          placeholder={isNewChat ? '输入问题，Enter 发送，Shift+Enter 换行' : '继续提问，Enter 发送，Shift+Enter 换行'}
+          disabled={streaming}
+        />
+        {toolbar}
       </div>
     )
   }
@@ -631,15 +621,20 @@ export function QAPage() {
                           onSubmitCorrection={(paraIdx, suggestion) => handleCorrection(i, paraIdx, suggestion)}
                           onReplyToCorrection={(corrId, text) => handleCorrectionReply(i, corrId, text)}
                         />
-                        {/* QA 反馈操作栏 */}
-                        <FeedbackBar
-                          isLatest={i === getLatestAssistantIdx()}
-                          status={getFeedbackState(i).status}
-                          wikiPromoted={getFeedbackState(i).wikiPromoted}
-                          onApprove={() => handleApprove(i)}
-                          onReject={() => handleReject(i)}
-                          onWikiPromote={() => handleWikiPromote(i)}
-                        />
+                        {/* QA 反馈操作栏 + 沉淀（仅最新回答） */}
+                        <div className="flex items-center gap-1">
+                          <FeedbackBar
+                            isLatest={i === getLatestAssistantIdx()}
+                            status={getFeedbackState(i).status}
+                            wikiPromoted={getFeedbackState(i).wikiPromoted}
+                            onApprove={() => handleApprove(i)}
+                            onReject={() => handleReject(i)}
+                            onWikiPromote={() => handleWikiPromote(i)}
+                          />
+                          {i === getLatestAssistantIdx() && activeSessionId && (
+                            <SedimentMenu sessionId={activeSessionId} disabled={streaming} onDone={() => {}} />
+                          )}
+                        </div>
                         {/* Follow-up suggestions on last message */}
                         {i === messages.length - 1 && isAssistant(m) && (
                           <FollowUpSuggestions

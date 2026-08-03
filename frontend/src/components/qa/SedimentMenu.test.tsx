@@ -10,14 +10,14 @@ vi.mock('@/api/opencodewiki', () => ({
 describe('SedimentMenu', () => {
   it('should render menu items after click', async () => {
     render(<SedimentMenu sessionId="ses-1" />)
-    fireEvent.click(screen.getByText('沉淀'))
+    fireEvent.click(screen.getByTitle('沉淀为知识'))
     expect(screen.getByText('沉淀为卡片')).toBeInTheDocument()
     expect(screen.getByText('沉淀为文章（草稿）')).toBeInTheDocument()
   })
 
   it('should call sediment on card click', async () => {
     render(<SedimentMenu sessionId="ses-1" />)
-    fireEvent.click(screen.getByText('沉淀'))
+    fireEvent.click(screen.getByTitle('沉淀为知识'))
     fireEvent.click(screen.getByText('沉淀为卡片'))
     await waitFor(() => expect(screen.getByText(/已沉淀为卡片/)).toBeInTheDocument())
   })
