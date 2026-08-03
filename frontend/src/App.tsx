@@ -7,6 +7,8 @@ import { QAPage } from '@/pages/QAPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SourcesPage } from '@/pages/SourcesPage'
+import { CardsPage } from '@/pages/CardsPage'
+import { FragmentsPage } from '@/pages/FragmentsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 
@@ -43,6 +45,8 @@ function Shell() {
             <Route path="/qa/:sessionId" element={<RequireAuth><QAPageRoute /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
             <Route path="/sources" element={<RequireAuth><SourcesPage /></RequireAuth>} />
+            <Route path="/cards" element={<RequireAuth><CardsPage /></RequireAuth>} />
+            <Route path="/fragments" element={<RequireAuth><FragmentsPage /></RequireAuth>} />
           </Routes>
         </div>
       </div>
