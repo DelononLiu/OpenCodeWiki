@@ -22,33 +22,46 @@ function QAPageRoute() {
   return <QAPage key={navKey} />
 }
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+/**
+ * 壳分为两态：
+ * - 未登录（或访问 /login、/register）：只渲染登录/注册页，不渲染侧边栏 ——
+ *   避免无 token 时 AppSidebar 挂载并发出一批 401 请求。
+ * - 已登录：完整壳（侧边栏 + 受保护路由）。
+ */
+function Shell() {
   const { token, loading } = useAuth()
+  const location = useLocation()
+
+  if (location.pathname === '/login' || location.pathname === '/register') {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Routes>
+    )
+  }
+
+  // 未登录：不渲染任何内容，直接重定向登录页
   if (loading) return null
   if (!token) return <Navigate to="/login" replace />
-  return <>{children}</>
-}
 
-function Shell() {
   return (
     <LayoutProvider>
       <div className="h-screen flex overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/" element={<RequireAuth><Navigate to="/qa" replace /></RequireAuth>} />
-            <Route path="/wiki/:name" element={<RequireAuth><WikiGlobalPage /></RequireAuth>} />
-            <Route path="/wiki/node/:nodeId" element={<RequireAuth><WikiNodePage /></RequireAuth>} />
-            <Route path="/wiki" element={<RequireAuth><WikiGlobalPage /></RequireAuth>} />
-            <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
-            <Route path="/qa" element={<RequireAuth><QAPageRoute /></RequireAuth>} />
-            <Route path="/qa/:sessionId" element={<RequireAuth><QAPageRoute /></RequireAuth>} />
-            <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
-            <Route path="/sources" element={<RequireAuth><SourcesPage /></RequireAuth>} />
-            <Route path="/cards" element={<RequireAuth><CardsPage /></RequireAuth>} />
-            <Route path="/fragments" element={<RequireAuth><FragmentsPage /></RequireAuth>} />
+            <Route path="/" element={<Navigate to="/qa" replace />} />
+            <Route path="/wiki/:name" element={<WikiGlobalPage />} />
+            <Route path="/wiki/node/:nodeId" element={<WikiNodePage />} />
+            <Route path="/wiki" element={<WikiGlobalPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/qa" element={<QAPageRoute />} />
+            <Route path="/qa/:sessionId" element={<QAPageRoute />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/sources" element={<SourcesPage />} />
+            <Route path="/cards" element={<CardsPage />} />
+            <Route path="/fragments" element={<FragmentsPage />} />
           </Routes>
         </div>
       </div>
