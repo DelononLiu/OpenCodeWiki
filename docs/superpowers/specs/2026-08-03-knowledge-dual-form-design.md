@@ -45,6 +45,16 @@ QA 问答（个人）       ──▶  文章（结构化沉淀）
 
 **弱化"空间"概念**：scope 是权限元数据，不是 UI 导航范式。UI 不出现"个人空间/团队空间"，所有内容混排于统一视图，靠轻量标识（「仅自己可见」/「团队」）区分。
 
+**存储层与组织层分离**（2026-08-03 补充讨论）：
+- **知识库 = 唯一的存储层**：一切知识（knowledge_items、源文档/索引 chunks、QA 记录）都在这里；保持**多知识库平铺结构**（kb_id 分区，负责归属与检索过滤），**知识库本身无层级**。
+- **Wiki = 唯一的组织与视图层**：树形组织（`wiki_nodes` 表），节点引用知识项（可跨库、可被多处引用）；Wiki 不存储内容，只编排 —— 页面内容是所引用知识项的渲染。
+- **层级只存在于 Wiki，不存在于知识库**：条目是原子的、扁平的，管理靠四件套 —— kb 分区（归属/检索）、搜索与筛选（发现）、标签（横向分类）、Wiki 树（组织/浏览）。
+- **Wiki 树的产生**（鸡生蛋问题的解法）：
+  1. **起点**：现有文件树直接迁移 —— `knowledge/{kb_name}/` 目录结构与 `pages/` 在首次启动时导入 `wiki_nodes`，系统不是白纸；
+  2. **生长**：沉淀动作自带挂载点 —— "沉淀为文章/发布卡片"时可选择挂载到 Wiki 节点，条目一出生就在树上（也可先留在"待整理"节点）；
+  3. **增强**：AI 分类建议（承接原 Topic 聚合职责），用户确认即入树。
+  树的形成是**组织行为的累积**，不是条目的固有属性；树未生成时，扁平条目由列表页/搜索管理，Wiki 只是增强浏览。
+
 **架构选择**：方案 1（统一知识项模型）—— 单一 SQLite 数据库承载全部实体；方案 2（输入输出分域双库）与方案 3（文档型存储）因跨域引用复杂、关系完整性弱被否决。
 
 ## 3. 数据模型
@@ -79,6 +89,7 @@ QA 问答（个人）       ──▶  文章（结构化沉淀）
 | 列 | 类型 | 说明 |
 |---|---|---|
 | id | TEXT (UUID) | 主键 |
+| kb_id | TEXT | 归属知识库分区（平铺多库，无层级；沉淀时选择） |
 | title | TEXT | 标题 |
 | content_md | TEXT | Markdown 内容 |
 | form | TEXT | `card` \| `article` |
@@ -86,6 +97,20 @@ QA 问答（个人）       ──▶  文章（结构化沉淀）
 | status | TEXT | `draft` \| `pending` \| `published` |
 | owner_id | TEXT (FK → users) | 作者 |
 | created_at / updated_at / published_at | TEXT | 时间戳 |
+
+### wiki_nodes（组织视图层，唯一的层级）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | TEXT (UUID) | 主键 |
+| parent_id | TEXT (FK → wiki_nodes, 可空) | 父节点；NULL = 根（允许多棵子树并存） |
+| name | TEXT | 节点显示名 |
+| item_id | TEXT (FK → knowledge_items, 可空) | 引用的知识项；NULL = 目录/模块节点 |
+| file_path | TEXT 可空 | 兼容：引用未入库的旧 md 文件路径（迁移遗留） |
+| sort_order | INTEGER | 兄弟节点排序 |
+| created_at | TEXT | 时间戳 |
+
+规则：`item_id` 与 `file_path` 至少其一（或都空 = 纯目录）；同一 item 可被多个节点引用（视图自由编排）；删除知识项时其引用节点转为纯目录节点。
 
 ### item_links（引用图 / backlink）
 
@@ -128,7 +153,8 @@ QA 记录（个人对话）  ─「沉淀为卡片」─▶ AI 提炼 → 个人
 
 - 文章草稿 = `scope=personal, status=draft`；提交 → `pending` 进审核队列；admin 批准 → `status=published, scope=team`。**审核通过的瞬间就是个人→团队的边界**。
 - 每次沉淀记 `derived_from` 链接，知识可回溯到原料；文章引用卡片记 `references`，可反查（backlink）。
-- **Topic 概念被取代**：聚合职责由"选卡片组 → 起草文章"承担，`topics`/`topic_drafts` 状态机（pool→published）不再需要。
+- **沉淀动作带 Wiki 挂载点**：创建知识项时（或之后）可挂载到 `wiki_nodes` 节点（选择目标模块/目录），"沉淀为文章"与"进 Wiki 树"一次完成；未选择则留在"待整理"根节点下，事后可再挂载/移动。
+- **Topic 概念被取代**：聚合职责由"选卡片组 → 起草文章"承担，`topics`/`topic_drafts` 状态机（pool→published）不再需要；其"自动聚合"职责部分由 Wiki 树的 AI 分类建议承接。
 
 ## 5. 认证与权限
 
@@ -163,6 +189,7 @@ Wiki        /wiki         ← 文章：实体文章 + 沉淀文章 + 文档
 
 - 侧边栏底部当前写死的用户信息（`Long / long@example.com`）替换为真实登录态 + 退出登录。
 - 不出现"空间"导航；scope 差异只以可见性标识（「仅自己可见」/「团队」）呈现。
+- **Wiki 文档树改读组织层**：侧边栏 Wiki 树不再扫描文件系统（`/api/wiki/modules` 退役或降级），改渲染 `wiki_nodes` 组织树（`/api/wiki/tree`）；节点点击后渲染被引用知识项（item）或遗留文件内容。
 
 ### 页面
 
@@ -171,14 +198,14 @@ Wiki        /wiki         ← 文章：实体文章 + 沉淀文章 + 文档
 | 登录 / 注册 | /login, /register | 用户名+密码 |
 | 问答 | /qa | 现有对话 + 沉淀按钮（沉淀为卡片 / 沉淀为文章） |
 | 我的碎片 | /fragments | 碎片列表（文本捕获输入框 + 卡片视图）、发布/聚合为文章动作 |
-| Wiki | /wiki | 文章浏览（现有文档树保留） |
+| Wiki | /wiki | 组织树浏览（wiki_nodes 渲染：知识项 + 遗留文件） |
 | 审核台 | /admin | 待审文章列表、批准/驳回、实体文章批量审核 |
 | 卡片 | /cards | 卡片流（团队 + 自己，可按形态/可见性过滤）、新增卡片、卡片详情（含 backlink） |
 | 知识库 | /sources | 来源管理（现有） |
 
 ## 8. 分期
 
-- **第一期（核心闭环）**：用户体系（注册/登录/首用户 admin）+ knowledge_items 单域模型 + 碎片文本捕获 + 沉淀动作（QA→卡片、碎片→卡片、卡片组→文章草稿）+ 审核台 + RAG 团队层过滤。链接剪藏、文件导入不做。
+- **第一期（核心闭环）**：用户体系（注册/登录/首用户 admin）+ knowledge_items 单域模型（含 kb_id）+ 碎片文本捕获 + 沉淀动作（QA→卡片、碎片→卡片、卡片组→文章草稿，含 Wiki 挂载）+ Wiki 组织层（wiki_nodes 建树 API + 文件树迁移 + 侧边栏改读组织树）+ 审核台 + RAG 团队层过滤。链接剪藏、文件导入不做。
 - **第二期（输入增强）**：链接剪藏、文件导入；卡片聚合的 AI 起草增强；backlink 检索加权。
 - **远期**：角色矩阵（viewer/editor/admin）、离职数据迁移、权限体系深化。
 
@@ -190,4 +217,6 @@ Wiki        /wiki         ← 文章：实体文章 + 沉淀文章 + 文档
 | `entities` + wiki_builder | 代码输入 → 实体文章（knowledge_items, form=article） |
 | `topics` / `topic_drafts` 状态机 | 被"文章草稿（引用卡片组）+ review_tasks"取代 |
 | Wiki 页面（磁盘 .md） | knowledge_items.content_md（DB 存储，可导出 md） |
+| 文件目录树（`knowledge/{kb}/*.md`、`pages/` 扫描） | `wiki_nodes` 组织表（首次启动迁移原目录结构；`file_path` 列兼容旧文件节点） |
+| 多知识库（KB 列表） | 保留：平铺分区（kb_id），归属与检索维度；**无层级** |
 | 无认证 | users + 会话鉴权 |
