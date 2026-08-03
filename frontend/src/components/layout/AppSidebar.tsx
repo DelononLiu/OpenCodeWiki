@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation, useParams, useMatch } from 'react-router-dom'
 import { useLayout, type TabType } from '@/contexts/LayoutContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { fetchWikiModules, fetchTopics } from '@/api/client'
 import type { Topic } from '@/types'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import {
   BookOpen, MessageSquare, FileText, Database, Settings,
   Plus, ChevronLeft, ChevronDown, GitFork, Search,
+  StickyNote, LayoutGrid, LogOut, LogIn,
 } from 'lucide-react'
 
 interface WikiModule {
@@ -17,6 +19,7 @@ export function AppSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { setActiveTab } = useLayout()
+  const { user, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -174,8 +177,10 @@ export function AppSidebar() {
         <nav className="flex flex-col gap-[2px] px-[6px] mb-2">
           {[
             { key: 'qa' as TabType, icon: MessageSquare, label: '新问题', path: '/qa' },
+            { key: 'fragments' as TabType, icon: StickyNote, label: '我的碎片', path: '/fragments' },
             { key: 'read' as TabType, icon: BookOpen, label: 'Wiki', path: '/wiki' },
             { key: 'wiki' as TabType, icon: FileText, label: '知识沉淀', path: '/admin' },
+            { key: 'cards' as TabType, icon: LayoutGrid, label: '知识卡片', path: '/cards' },
             { key: 'sources' as TabType, icon: Database, label: '知识库', path: '/sources' },
           ].map(tab => (
             <button key={tab.key} onClick={() => handleTabClick(tab.key, tab.path)}
@@ -292,17 +297,29 @@ export function AppSidebar() {
           </button>
 
           {/* User info */}
-          <div className="flex items-center gap-[8px] px-[10px] h-[36px] rounded-lg text-sidebar-text/60">
-            <div className="w-7 h-7 rounded-full bg-slate-600/50 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
-              L
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-sidebar-text/80 truncate">Long</div>
-                <div className="text-[10px] text-slate-500 truncate">long@example.com</div>
+          {user ? (
+            <div className="flex items-center gap-[8px] px-[10px] h-[36px] rounded-lg text-sidebar-text/60">
+              <div className="w-7 h-7 rounded-full bg-slate-600/50 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
+                {user.username[0]?.toUpperCase()}
               </div>
-            )}
-          </div>
+              {sidebarOpen && (
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-sidebar-text/80 truncate">{user.username}</div>
+                  <div className="text-[10px] text-slate-500 truncate">{user.role === 'admin' ? '管理员' : '成员'}</div>
+                </div>
+              )}
+              <button onClick={logout} title="退出登录"
+                className="text-slate-500 hover:text-red-400 transition-colors shrink-0">
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => navigate('/login')} title="登录"
+              className="flex items-center gap-[8px] h-[36px] px-[10px] rounded-lg text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors">
+              <LogIn className="w-[18px] h-[18px] shrink-0" />
+              {sidebarOpen && <span className="text-sm font-semibold">登录</span>}
+            </button>
+          )}
         </div>
       </aside>
 
