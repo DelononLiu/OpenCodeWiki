@@ -1,12 +1,29 @@
-import type { KB, Document, Session, Message, Config } from '@/types/opencodewiki'
+import type { KB, Document, Session, Message, Config, User, KnowledgeItem, ReviewTask } from '@/types/opencodewiki'
 
 const BASE = ''
 
+const TOKEN_KEY = 'ocw_token'
+
+export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY) }
+export function setToken(token: string | null) {
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
+}
+
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...opts,
   })
+  if (res.status === 401 && !path.startsWith('/api/auth/login')) {
+    setToken(null)
+    if (!window.location.pathname.startsWith('/login')) window.location.href = '/login'
+    throw new Error('未登录')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || body.message || `HTTP ${res.status}`)
@@ -69,7 +86,10 @@ export function fetchConfig(): Promise<Config> { return request('/api/config') }
 export function askQuestion(kbId: string, question: string, sessionId?: string): Promise<Response> {
   return fetch(`${BASE}/api/qa`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getToken() ? { Authorization: `Bearer ${getToken()!}` } : {}),
+    },
     body: JSON.stringify({ kb_id: kbId, question, session_id: sessionId || '' }),
   })
 }
@@ -85,4 +105,59 @@ export function submitSVNAuth(kbId: string, username: string, password: string, 
     method: 'POST',
     body: JSON.stringify({ username, password, save_credentials: saveCredentials }),
   })
+}
+
+// Auth
+export function register(username: string, password: string): Promise<{ token: string; user: User }> {
+  return request('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) })
+}
+export function login(username: string, password: string): Promise<{ token: string; user: User }> {
+  return request('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
+}
+export function fetchMe(): Promise<User> { return request('/api/auth/me') }
+
+// Fragments & Items
+export function fetchFragments(): Promise<KnowledgeItem[]> { return request('/api/fragments') }
+export function createFragment(content: string, title?: string): Promise<KnowledgeItem> {
+  return request('/api/fragments', { method: 'POST', body: JSON.stringify({ content, title: title || '' }) })
+}
+export function fetchItems(params?: { form?: string; scope?: string; q?: string }): Promise<KnowledgeItem[]> {
+  const qs = new URLSearchParams()
+  if (params?.form) qs.set('form', params.form)
+  if (params?.scope) qs.set('scope', params.scope)
+  if (params?.q) qs.set('q', params.q)
+  const s = qs.toString()
+  return request(`/api/items${s ? `?${s}` : ''}`)
+}
+export function fetchItem(id: string): Promise<KnowledgeItem> { return request(`/api/items/${id}`) }
+export function createItem(payload: { title: string; content_md: string; form?: string; scope?: string }): Promise<KnowledgeItem> {
+  return request('/api/items', { method: 'POST', body: JSON.stringify(payload) })
+}
+export function updateItem(id: string, patch: { title?: string; content_md?: string }): Promise<KnowledgeItem> {
+  return request(`/api/items/${id}`, { method: 'PUT', body: JSON.stringify(patch) })
+}
+export function deleteItemApi(id: string): Promise<{ deleted: boolean }> {
+  return request(`/api/items/${id}`, { method: 'DELETE' })
+}
+export function publishItem(id: string): Promise<KnowledgeItem> {
+  return request(`/api/items/${id}/publish`, { method: 'POST' })
+}
+
+// Sedimentation & Review
+export function sedimentSession(sid: string, kind: 'card' | 'article'): Promise<KnowledgeItem> {
+  return request(`/api/sessions/${sid}/sediment`, { method: 'POST', body: JSON.stringify({ kind }) })
+}
+export function draftArticle(itemIds: string[], title?: string): Promise<KnowledgeItem> {
+  return request('/api/articles/draft', { method: 'POST', body: JSON.stringify({ item_ids: itemIds, title: title || '' }) })
+}
+export function submitItem(id: string): Promise<KnowledgeItem> {
+  return request(`/api/items/${id}/submit`, { method: 'POST' })
+}
+export function reviewItem(id: string, action: 'approve' | 'reject', reason: string): Promise<KnowledgeItem> {
+  return request(`/api/items/${id}/review`, { method: 'POST', body: JSON.stringify({ action, reason }) })
+}
+export function fetchReviews(): Promise<ReviewTask[]> { return request('/api/admin/reviews') }
+export function fetchAdminUsers(): Promise<User[]> { return request('/api/admin/users') }
+export function deactivateUser(id: string): Promise<{ deactivated: boolean }> {
+  return request(`/api/admin/users/${id}/deactivate`, { method: 'POST' })
 }

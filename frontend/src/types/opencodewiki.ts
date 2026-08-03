@@ -91,3 +91,34 @@ export interface Config {
   llm: { provider: string; model: string; base_url: string }
   embedding: { provider: string; model: string }
 }
+
+export interface User {
+  id: string
+  username: string
+  role: 'admin' | 'user'
+  active: boolean
+}
+
+export interface KnowledgeItem {
+  id: string
+  title: string
+  content_md: string
+  form: 'card' | 'article'
+  scope: 'personal' | 'team'
+  status: 'draft' | 'pending' | 'published'
+  owner_id: string
+  created_at: string
+  updated_at: string
+  published_at: string | null
+  links?: { id: string; title: string; form: string; type: string; direction: 'in' | 'out' }[]
+}
+
+export interface ReviewTask {
+  id: string
+  item_id: string
+  title: string
+  owner_id: string
+  action: 'pending' | 'approved' | 'rejected'
+  reason: string
+  created_at: string
+}
