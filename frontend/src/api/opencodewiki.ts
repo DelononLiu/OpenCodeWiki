@@ -60,7 +60,12 @@ export function fetchDocuments(kbId: string): Promise<Document[]> {
 export function uploadDocument(kbId: string, file: File): Promise<Document> {
   const formData = new FormData()
   formData.append('file', file)
-  return fetch(`${BASE}/api/kb/${kbId}/documents`, { method: 'POST', body: formData }).then(r => r.json())
+  return fetch(`${BASE}/api/kb/${kbId}/documents`, {
+    method: 'POST',
+    body: formData,
+    // FormData 自带 Content-Type；仅补鉴权头
+    headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+  }).then(r => r.json())
 }
 export function deleteDocument(kbId: string, docId: string): Promise<{ deleted: boolean }> {
   return request(`/api/kb/${kbId}/documents/${docId}`, { method: 'DELETE' })
@@ -121,10 +126,11 @@ export function fetchFragments(): Promise<KnowledgeItem[]> { return request('/ap
 export function createFragment(content: string, title?: string): Promise<KnowledgeItem> {
   return request('/api/fragments', { method: 'POST', body: JSON.stringify({ content, title: title || '' }) })
 }
-export function fetchItems(params?: { form?: string; scope?: string; q?: string }): Promise<KnowledgeItem[]> {
+export function fetchItems(params?: { form?: string; scope?: string; status?: string; q?: string }): Promise<KnowledgeItem[]> {
   const qs = new URLSearchParams()
   if (params?.form) qs.set('form', params.form)
   if (params?.scope) qs.set('scope', params.scope)
+  if (params?.status) qs.set('status', params.status)
   if (params?.q) qs.set('q', params.q)
   const s = qs.toString()
   return request(`/api/items${s ? `?${s}` : ''}`)

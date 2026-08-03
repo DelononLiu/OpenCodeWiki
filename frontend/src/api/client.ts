@@ -1,10 +1,15 @@
 import type { AnalyzeResult, ApiResponse, Repo, QaEntry, ReviewItem, Topic, TopicDraft, WikiConversion, WikiPageResponse } from '@/types'
+import { getToken } from '@/api/opencodewiki'
 
 const BASE = '/api'
 
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...opts,
   })
   const body: ApiResponse<T> = await res.json()

@@ -4,7 +4,7 @@ import { useLayout, type TabType } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { fetchWikiModules, fetchTopics } from '@/api/client'
 import type { Topic } from '@/types'
-import { fetchWikiTree } from '@/api/opencodewiki'
+import { fetchWikiTree, fetchKBs, fetchSessions as fetchSessionsApi } from '@/api/opencodewiki'
 import type { WikiNode } from '@/types/opencodewiki'
 import { WikiTree } from '@/components/wiki/WikiTree'
 import { SettingsModal } from '@/components/settings/SettingsModal'
@@ -52,15 +52,13 @@ export function AppSidebar() {
   useEffect(() => {
     fetchWikiModules().then(setModules).catch(() => {})
     fetchTopics().then(setTopics).catch(() => {})
-    fetch('/api/knowledge').then(r => r.json()).then(d => {
-      setKbList(d.data || [])
-    }).catch(() => {})
+    fetchKBs().then(setKbList).catch(() => {})
     fetchWikiTree().then(setWikiTree).catch(() => {})
   }, [])
 
   // Fetch sessions on mount and every navigation
   const fetchSessions = useCallback(() => {
-    fetch('/api/sessions').then(r => r.json()).then(list => {
+    fetchSessionsApi().then(list => {
       if (Array.isArray(list)) setSessionList(list)
     }).catch(e => console.warn('Session fetch failed:', e))
   }, [])
