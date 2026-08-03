@@ -5,11 +5,10 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "OpenCodeWiki 启动"
 
-# 启动后端
+# 启动后端（backend.main 以包方式导入，须从仓库根目录启动，且使用 venv 内 python）
 echo "[1/2] 启动后端 (FastAPI :8100)..."
-cd "$ROOT_DIR/backend"
-source .venv/bin/activate 2>/dev/null || true
-uvicorn main:app --host 0.0.0.0 --port 8100 --reload &
+cd "$ROOT_DIR"
+"$ROOT_DIR/backend/.venv/bin/python" -m uvicorn backend.main:app --host 0.0.0.0 --port 8100 --reload --reload-dir backend &
 BACKEND_PID=$!
 
 # 启动前端 dev server
