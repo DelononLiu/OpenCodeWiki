@@ -1,17 +1,7 @@
-import os
-import tempfile
-from backend.database import init_databases, get_knora_db, get_vectors_db
+from backend.database import get_knora_db, get_vectors_db
 
 
 def test_init_databases_creates_tables():
-    db_path = tempfile.mkdtemp()
-    os.environ['KNORA_DB_PATH'] = db_path
-    from backend.config import Config
-    cfg = Config()
-    cfg.database.path = db_path
-
-    init_databases(cfg)
-
     knora = get_knora_db()
     tables = knora.execute(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"

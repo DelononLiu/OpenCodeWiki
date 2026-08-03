@@ -1,14 +1,10 @@
-import tempfile
-from backend.database import init_databases
+import base64
+import json
+import os
 from backend.config import Config
 from backend.auth import hash_password, verify_password, create_token, verify_token, get_secret
 from backend.stores.users import create_user, get_user, get_user_by_username, list_users, set_user_active
 
-
-def setup_module():
-    cfg = Config()
-    cfg.database.path = tempfile.mkdtemp()
-    init_databases(cfg)
 
 def test_hash_and_verify_password():
     stored = hash_password("secret123")
@@ -26,12 +22,30 @@ def test_token_roundtrip():
     assert verify_token(token, "other-secret") is None
     assert verify_token("garbage", secret) is None
 
+def test_expired_and_tampered_tokens_rejected():
+    secret = "test-secret"
+    expired = create_token("usr-1", secret, ttl_hours=-1)
+    assert verify_token(expired, secret) is None
+    good = create_token("usr-1", secret)
+    payload_b64, sig = good.split(".")
+    payload = json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * (-len(payload_b64) % 4)))
+    payload["uid"] = "usr-2"
+    forged_payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
+    assert verify_token(f"{forged_payload}.{sig}", secret) is None
+
 def test_get_secret_persists(tmp_path):
     cfg = Config()
     cfg.database.path = str(tmp_path)
     s1 = get_secret(cfg)
     s2 = get_secret(cfg)
     assert s1 == s2 and len(s1) >= 32
+
+def test_secret_file_permissions(tmp_path):
+    cfg = Config()
+    cfg.database.path = str(tmp_path)
+    get_secret(cfg)
+    key_path = os.path.join(str(tmp_path), ".session_secret")
+    assert (os.stat(key_path).st_mode & 0o777) == 0o600
 
 def test_first_user_is_admin():
     admin = create_user("alice", "pw1")

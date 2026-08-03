@@ -42,6 +42,7 @@ def get_secret(cfg) -> str:
     secret = secrets.token_hex(32)
     with open(key_path, "w") as f:
         f.write(secret)
+    os.chmod(key_path, 0o600)
     return secret
 
 
