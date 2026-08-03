@@ -382,3 +382,23 @@ async def test_resubmit_after_reject_returns_to_pending(client, monkeypatch):
     assert r.status_code == 200 and r.json()["status"] == "pending"
     r = await client.get("/api/admin/reviews", headers={"Authorization": f"Bearer {admin_token}"})
     assert any(t["item_id"] == art["id"] for t in r.json())
+
+@pytest.mark.asyncio
+async def test_wiki_tree_api(client):
+    headers = await _auth(client, "alice")
+    r = await client.post("/api/wiki/nodes", json={"name": "产品A"}, headers=headers)
+    assert r.status_code == 200
+    parent = r.json()
+    r = await client.post("/api/wiki/nodes", json={"name": "指南", "parent_id": parent["id"]}, headers=headers)
+    child = r.json()
+    # 挂载一个团队卡片
+    card = (await client.post("/api/items", json={"title": "卡", "content_md": "x", "scope": "team"}, headers=headers)).json()
+    r = await client.post(f"/api/wiki/nodes/{child['id']}/attach", json={"item_id": card["id"]}, headers=headers)
+    assert r.status_code == 200 and r.json()["item_id"] == card["id"]
+    # 树
+    r = await client.get("/api/wiki/tree", headers=headers)
+    tree = r.json()
+    assert any(n["name"] == "产品A" for n in tree)
+    # 渲染
+    r = await client.get(f"/api/wiki/node/{child['id']}", headers=headers)
+    assert r.status_code == 200 and r.json()["content"] == "x"

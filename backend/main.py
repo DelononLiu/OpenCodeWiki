@@ -318,6 +318,74 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         modules.extend(pages_modules)
         return {"ok": True, "data": modules}
 
+    # ── Wiki 组织层（wiki_nodes 树）──
+    # 必须注册在 GET /api/wiki/{slug:path} catch-all 之前，否则 tree/node 路由会被吞掉
+    from backend.stores.wiki_tree import (
+        create_node as _wn_create, list_tree as _wn_tree, get_node as _wn_get,
+        attach_item as _wn_attach, move_node as _wn_move,
+        delete_node as _wn_delete, get_node_content,
+    )
+
+    class WikiNodeRequest(BaseModel):
+        name: str
+        parent_id: str | None = None
+
+    class WikiAttachRequest(BaseModel):
+        item_id: str
+
+    class WikiMoveRequest(BaseModel):
+        parent_id: str | None = None
+        sort_order: int | None = None
+
+    @app.get("/api/wiki/tree")
+    async def api_wiki_tree(user: dict = Depends(get_current_user)):
+        return _wn_tree()
+
+    @app.post("/api/wiki/nodes")
+    async def api_create_wiki_node(req: WikiNodeRequest, user: dict = Depends(get_current_user)):
+        if not req.name.strip():
+            raise HTTPException(400, "节点名不能为空")
+        try:
+            return _wn_create(req.name, parent_id=req.parent_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/wiki/nodes/{node_id}/attach")
+    async def api_attach_wiki_node(node_id: str, req: WikiAttachRequest,
+                                   user: dict = Depends(get_current_user)):
+        if not _wn_get(node_id):
+            raise HTTPException(404, "节点不存在")
+        from backend.stores.items import get_item as _get_item
+        if not _get_item(req.item_id):
+            raise HTTPException(404, "知识项不存在")
+        try:
+            return _wn_attach(node_id, req.item_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/wiki/nodes/{node_id}/move")
+    async def api_move_wiki_node(node_id: str, req: WikiMoveRequest,
+                                 user: dict = Depends(get_current_user)):
+        if not _wn_get(node_id):
+            raise HTTPException(404, "节点不存在")
+        try:
+            _wn_move(node_id, req.parent_id, req.sort_order)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"moved": True}
+
+    @app.delete("/api/wiki/nodes/{node_id}")
+    async def api_delete_wiki_node(node_id: str, user: dict = Depends(get_current_user)):
+        _wn_delete(node_id)
+        return {"deleted": True}
+
+    @app.get("/api/wiki/node/{node_id}")
+    async def api_wiki_node_content(node_id: str, user: dict = Depends(get_current_user)):
+        content = get_node_content(node_id)
+        if not content:
+            raise HTTPException(404, "节点不存在")
+        return content
+
     @app.get("/api/wiki/{slug:path}")
     async def api_wiki_page(slug: str, kb: str = ""):
         """Get wiki page content by slug (just the filename).
