@@ -284,3 +284,101 @@ async def test_draft_article_from_cards(client, monkeypatch):
         "SELECT COUNT(*) FROM item_links WHERE source_id = ? AND type = 'references'",
         (art["id"],)).fetchone()[0]
     assert n == 2
+
+# ── Task 12: 审核 API 与管理员用户管理 ──
+
+@pytest.mark.asyncio
+async def test_article_submit_and_admin_review(client, monkeypatch):
+    from backend import sediment
+    async def fake_draft(client, model, cards, title_hint=""):
+        return {"title": "待审文章", "content": "# 正文"}
+    monkeypatch.setattr(sediment, "draft_article", fake_draft)
+
+    alice = await _auth(client, "alice")
+    # fixture 首个注册用户是 tester=admin；alice 是普通用户（作者）
+    r = await client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
+    admin_token = r.json()["token"]
+
+    # 起草文章（alice）
+    r = await client.post("/api/articles/draft", json={"item_ids": []}, headers=alice)
+    # 空卡片组应 400；先造卡片
+    c = (await client.post("/api/items", json={"title": "卡", "content_md": "x", "scope": "team"}, headers=alice)).json()
+    r = await client.post("/api/articles/draft", json={"item_ids": [c["id"]]}, headers=alice)
+    art = r.json()
+    assert art["status"] == "draft"
+
+    # 提交审核
+    r = await client.post(f"/api/items/{art['id']}/submit", headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "pending"
+
+    # 非 admin 审批 → 403
+    r = await client.post(f"/api/items/{art['id']}/review",
+                          json={"action": "approve", "reason": ""}, headers=alice)
+    assert r.status_code == 403
+
+    # 待审列表（admin）
+    r = await client.get("/api/admin/reviews", headers={"Authorization": f"Bearer {admin_token}"})
+    assert any(t["item_id"] == art["id"] for t in r.json())
+
+    # admin 批准 → 发布
+    r = await client.post(f"/api/items/{art['id']}/review",
+                          json={"action": "approve", "reason": "可以"}, headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+    item = (await client.get(f"/api/items/{art['id']}", headers=alice)).json()
+    assert item["status"] == "published" and item["scope"] == "team"
+
+@pytest.mark.asyncio
+async def test_review_reject_returns_to_draft(client, monkeypatch):
+    from backend import sediment
+    async def fake_draft(client, model, cards, title_hint=""):
+        return {"title": "驳回文章", "content": "# 正文"}
+    monkeypatch.setattr(sediment, "draft_article", fake_draft)
+    alice = await _auth(client, "alice")
+    r = await client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
+    admin_token = r.json()["token"]
+    c = (await client.post("/api/items", json={"title": "卡", "content_md": "x", "scope": "team"}, headers=alice)).json()
+    art = (await client.post("/api/articles/draft", json={"item_ids": [c["id"]]}, headers=alice)).json()
+    await client.post(f"/api/items/{art['id']}/submit", headers=alice)
+    r = await client.post(f"/api/items/{art['id']}/review",
+                          json={"action": "reject", "reason": "缺引用"},
+                          headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+    item = (await client.get(f"/api/items/{art['id']}", headers=alice)).json()
+    assert item["status"] == "draft" and item["scope"] == "personal"
+
+@pytest.mark.asyncio
+async def test_admin_user_management(client):
+    r = await client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
+    admin_token = r.json()["token"]
+    await client.post("/api/auth/register", json={"username": "victim", "password": "pw"})
+    users = (await client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})).json()
+    victim = next(u for u in users if u["username"] == "victim")
+    r = await client.post(f"/api/admin/users/{victim['id']}/deactivate",
+                          headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+    # 停用后登录失败
+    r = await client.post("/api/auth/login", json={"username": "victim", "password": "pw"})
+    assert r.status_code == 401
+
+@pytest.mark.asyncio
+async def test_resubmit_after_reject_returns_to_pending(client, monkeypatch):
+    """驳回后重新提交应回到待审队列（Task 4 幂等逻辑的缺口修复）。"""
+    from backend import sediment
+    async def fake_draft(client, model, cards, title_hint=""):
+        return {"title": "重提文章", "content": "# 正文"}
+    monkeypatch.setattr(sediment, "draft_article", fake_draft)
+    alice = await _auth(client, "alice")
+    r = await client.post("/api/auth/login", json={"username": "tester", "password": "pw"})
+    admin_token = r.json()["token"]
+    c = (await client.post("/api/items", json={"title": "卡", "content_md": "x", "scope": "team"}, headers=alice)).json()
+    art = (await client.post("/api/articles/draft", json={"item_ids": [c["id"]]}, headers=alice)).json()
+    # 提交 → 驳回
+    await client.post(f"/api/items/{art['id']}/submit", headers=alice)
+    await client.post(f"/api/items/{art['id']}/review",
+                      json={"action": "reject", "reason": "缺引用"},
+                      headers={"Authorization": f"Bearer {admin_token}"})
+    # 再次提交 → 回到 pending，且出现在待审列表
+    r = await client.post(f"/api/items/{art['id']}/submit", headers=alice)
+    assert r.status_code == 200 and r.json()["status"] == "pending"
+    r = await client.get("/api/admin/reviews", headers={"Authorization": f"Bearer {admin_token}"})
+    assert any(t["item_id"] == art["id"] for t in r.json())

@@ -15,7 +15,7 @@ from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, update_kb_
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
 from backend.auth import get_secret, create_token, verify_token
-from backend.stores.users import create_user, get_user, get_user_by_username
+from backend.stores.users import create_user, get_user, get_user_by_username, list_users, set_user_active
 from backend.stores.task import create_task, get_task, list_tasks, cancel_task
 from backend.stores.items import (
     create_item, get_item, list_items, update_item, delete_item,
@@ -795,6 +795,81 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         for card in cards:
             add_link(item["id"], card["id"], "references")  # add_link 已在 Task 7 导入
         return item
+
+    # ── 审核与管理 ──
+    class ReviewRequest(BaseModel):
+        action: str  # "approve" | "reject"
+        reason: str = ""
+
+    @app.post("/api/items/{item_id}/submit")
+    async def api_submit_item(item_id: str, user: dict = Depends(get_current_user)):
+        item = get_item(item_id)
+        if not item:
+            raise HTTPException(404, "知识项不存在")
+        if item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "只有作者可提交")
+        from backend.stores.reviews import create_review_task
+        try:
+            submit_item(item_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        # 驳回后重新提交：重置非 pending 的审核任务，使其回到待审队列（已有 pending 任务时不动）
+        from backend.database import get_knora_db
+        db = get_knora_db()
+        db.execute(
+            "UPDATE review_tasks SET action = 'pending', reviewer_id = NULL, reason = '', reviewed_at = NULL WHERE item_id = ? AND action != 'pending'",
+            (item_id,))
+        db.commit()
+        create_review_task(item_id)
+        return get_item(item_id)
+
+    @app.post("/api/items/{item_id}/review")
+    async def api_review_item(item_id: str, req: ReviewRequest, user: dict = Depends(require_admin)):
+        from backend.stores.reviews import approve_review, reject_review, get_review_task
+        if not get_review_task(item_id):
+            raise HTTPException(404, "该文章没有待审任务")
+        item = get_item(item_id)
+        if req.action == "approve":
+            approve_review(item_id, user["id"], req.reason)
+            # TODO(Task 9): 批准后异步建知识项向量索引（item_index 尚未实现，import 容错；
+            # Task 9 落地后此分支自动恢复）
+            try:
+                from backend.knowledge.item_index import index_item
+            except ImportError:
+                pass
+            else:
+                asyncio.create_task(index_item(item, Embedder(
+                    client=AsyncOpenAI(api_key=cfg.embedding.api_key, base_url=cfg.embedding.base_url),
+                    model=cfg.embedding.model, dimensions=cfg.embedding.dimensions,
+                )))
+        elif req.action == "reject":
+            reject_review(item_id, user["id"], req.reason)
+            # TODO(Task 9): 驳回时清理向量索引（item_index 尚未实现，import 容错）
+            try:
+                from backend.knowledge.item_index import delete_item_index
+            except ImportError:
+                pass
+            else:
+                delete_item_index(item_id)
+        else:
+            raise HTTPException(400, "action 必须是 approve 或 reject")
+        return get_item(item_id)
+
+    @app.get("/api/admin/reviews")
+    async def api_list_reviews(user: dict = Depends(require_admin)):
+        from backend.stores.reviews import list_review_tasks
+        return list_review_tasks(status="pending")
+
+    @app.get("/api/admin/users")
+    async def api_list_users(user: dict = Depends(require_admin)):
+        return list_users()
+
+    @app.post("/api/admin/users/{user_id}/deactivate")
+    async def api_deactivate_user(user_id: str, user: dict = Depends(require_admin)):
+        if user_id == user["id"]:
+            raise HTTPException(400, "不能停用自己")
+        set_user_active(user_id, False)
+        return {"deactivated": True}
 
     # ── Tasks ──
     class CreateTaskRequest(BaseModel):
