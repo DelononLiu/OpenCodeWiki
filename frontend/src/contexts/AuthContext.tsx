@@ -25,7 +25,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!getToken()) { setLoading(false); return }
     fetchMe()
       .then(setUser)
-      .catch(() => { setToken(null); setUser(null) })
+      .catch((err: any) => {
+        if (err?.message === '未登录') {
+          // 401：token 无效/过期，清理
+          setToken(null)
+          setTokenState(null)
+          setUser(null)
+        } else {
+          // 网络/服务错误：保留 token，稍后重试
+          setUser(null)
+        }
+      })
       .finally(() => setLoading(false))
   }, [])
 
