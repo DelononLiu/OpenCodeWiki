@@ -41,6 +41,9 @@ class PipelineEvent(BaseModel):
     context_text: str = ""
     system_prompt: str = ""
 
+    # SystemInfo（系统元数据问答：知识库/文档清单）
+    system_context: str = ""
+
     # ChatComplete
     answer: str = ""
     sources: list[Source] = []

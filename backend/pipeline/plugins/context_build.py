@@ -21,6 +21,16 @@ class ContextBuildPlugin(BasePlugin):
             event.system_prompt = self.GENERAL_PROMPT
             event.context_text = event.question
             return event
+        if event.intent == "system":
+            # 系统元数据问答：只用注入的系统信息回答，不检索文档
+            event.system_prompt = (
+                "You are the OpenCodeWiki system assistant. Answer questions about the "
+                "system's knowledge bases and documents based ONLY on the provided system "
+                "information. If the information is incomplete, say so honestly. "
+                "ALWAYS respond in Chinese."
+            )
+            event.context_text = f"{event.system_context}\n\n问题：{event.question}"
+            return event
 
         # Take reranked or search results
         results = event.reranked_results if event.reranked_results else event.search_results

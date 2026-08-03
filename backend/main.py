@@ -1121,6 +1121,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             client=client, model=cfg.llm.model,
             keywords_prompt=keywords_prompt, rewrite_prompt=rewrite_prompt,
         ))
+        # 系统元数据问答（有哪些知识库/文档）—— 在意图分类后、检索前注入系统信息
+        from backend.pipeline.plugins.system_info import SystemInfoPlugin
+        pipeline.on(EventNames.QUERY_UNDERSTAND, SystemInfoPlugin())
         pipeline.on(EventNames.SEARCH, SearchPlugin(
             embedder=embedder,
             top_k=cfg.retrieval.vector_top_k,
