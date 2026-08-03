@@ -3,7 +3,7 @@ import json
 import os
 import time
 import yaml
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -14,6 +14,8 @@ from backend.database import init_databases
 from backend.stores.kb import create_kb, list_kbs, get_kb, delete_kb, update_kb_credentials, ensure_default_kb, DEFAULT_KB_NAME
 from backend.stores.doc import create_document, list_documents, get_document, delete_document
 from backend.stores.session import create_session, list_sessions, get_session, delete_session, create_message, get_messages
+from backend.auth import get_secret, create_token, verify_token
+from backend.stores.users import create_user, get_user, get_user_by_username
 from backend.stores.task import create_task, get_task, list_tasks, cancel_task
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
@@ -99,6 +101,36 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         update_document_status(doc["id"], "completed")
 
     app = FastAPI(title="OpenCodeWiki", version="0.1.0")
+
+    secret = get_secret(cfg)
+
+    @app.middleware("http")
+    async def auth_gate(request: Request, call_next):
+        path = request.url.path
+        public = ("/api/auth/register", "/api/auth/login", "/api/config")
+        if path.startswith("/api") and path not in public:
+            auth = request.headers.get("Authorization", "")
+            user = None
+            if auth.startswith("Bearer "):
+                uid = verify_token(auth[7:], secret)
+                user = get_user(uid) if uid else None
+            if not user or not user["active"]:
+                from fastapi.responses import JSONResponse
+                return JSONResponse({"detail": "未登录"}, status_code=401)
+            request.state.user = user
+        return await call_next(request)
+
+    def get_current_user(request: Request) -> dict:
+        user = getattr(request.state, "user", None)
+        if not user:
+            raise HTTPException(401, "未登录")
+        return user
+
+    def require_admin(user: dict = Depends(get_current_user)) -> dict:
+        if user["role"] != "admin":
+            raise HTTPException(403, "需要管理员权限")
+        return user
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -127,6 +159,35 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     async def put_config(data: dict):
         # Simple config update - write to config.yaml
         return {"updated": True}
+
+    class AuthRequest(BaseModel):
+        username: str
+        password: str
+
+    @app.post("/api/auth/register")
+    async def api_register(req: AuthRequest):
+        try:
+            user = create_user(req.username, req.password)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        token = create_token(user["id"], secret)
+        return {"token": token, "user": user}
+
+    @app.post("/api/auth/login")
+    async def api_login(req: AuthRequest):
+        user = get_user_by_username(req.username)
+        from backend.auth import verify_password
+        if not user or not verify_password(req.password, user["password_hash"]):
+            raise HTTPException(401, "用户名或密码错误")
+        if not user["active"]:
+            raise HTTPException(401, "账号已停用")
+        return {"token": create_token(user["id"], secret),
+                "user": {"id": user["id"], "username": user["username"],
+                         "role": user["role"], "active": user["active"]}}
+
+    @app.get("/api/auth/me")
+    async def api_me(user: dict = Depends(get_current_user)):
+        return user
 
     # ── Wiki (knowledge bases at ~/.opencodewiki/knowledge/{kb_name}/*.md) ──
     KNOWLEDGE_ROOT = os.path.join(os.path.expanduser("~"), ".opencodewiki", "knowledge")

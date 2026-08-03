@@ -17,6 +17,9 @@ async def client():
     app = create_app(cfg)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/auth/register", json={"username": "tester", "password": "pw"})
+        token = r.json()["token"]
+        ac.headers["Authorization"] = f"Bearer {token}"
         yield ac
     import shutil
     shutil.rmtree(db_path)

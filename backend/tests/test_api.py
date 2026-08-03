@@ -16,6 +16,9 @@ async def client():
     app = create_app(cfg)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/auth/register", json={"username": "tester", "password": "pw"})
+        token = r.json()["token"]
+        ac.headers["Authorization"] = f"Bearer {token}"
         yield ac
     import shutil
     shutil.rmtree(db_path)
@@ -66,3 +69,49 @@ async def test_upload_document(client):
     assert resp.status_code == 200
     docs = resp.json()
     assert len(docs) == 1
+
+@pytest.mark.asyncio
+async def test_auth_register_login_me(client):
+    resp = await client.post("/api/auth/register", json={"username": "alice", "password": "pw123"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["user"]["username"] == "alice"
+    assert data["user"]["role"] == "user"  # 第二个用户（fixture 已注册 tester）
+    token = data["token"]
+
+    # fixture 注册的 tester 是首个用户 → admin
+    resp = await client.get("/api/auth/me")
+    assert resp.json()["role"] == "admin"
+
+    # 未登录访问受保护接口 → 401（显式清空 fixture 默认头）
+    resp = await client.get("/api/kb", headers={"Authorization": ""})
+    assert resp.status_code == 401
+
+    # 带 token → 200
+    resp = await client.get("/api/kb", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+
+    # me
+    resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "alice"
+
+    # 登录
+    resp = await client.post("/api/auth/login", json={"username": "alice", "password": "pw123"})
+    assert resp.status_code == 200
+
+    # 错误密码 → 401
+    resp = await client.post("/api/auth/login", json={"username": "alice", "password": "bad"})
+    assert resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_second_user_is_normal(client):
+    await client.post("/api/auth/register", json={"username": "alice", "password": "pw"})
+    resp = await client.post("/api/auth/register", json={"username": "bob", "password": "pw"})
+    assert resp.json()["user"]["role"] == "user"
+
+@pytest.mark.asyncio
+async def test_duplicate_username_register(client):
+    await client.post("/api/auth/register", json={"username": "carol", "password": "pw"})
+    resp = await client.post("/api/auth/register", json={"username": "carol", "password": "pw"})
+    assert resp.status_code == 400
