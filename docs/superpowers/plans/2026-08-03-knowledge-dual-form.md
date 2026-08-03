@@ -19,6 +19,8 @@
 - 前端测试惯例：vi.mock 依赖 + `MemoryRouter` + Testing Library（参照 `frontend/src/pages/QAPage.test.tsx`）。
 - 前端当前 API 客户端是 `frontend/src/api/opencodewiki.ts`（新），`frontend/src/api/client.ts` 是遗留代码——新功能只改 opencodewiki.ts。
 - 旧数据兼容：已存在 sessions 的 `owner_id` 为空串，视为对登录用户可见的遗留数据（admin 可见全部）。
+- **存储层与组织层分离**：知识库 = 扁平多库（kb_id 分区，无层级）；Wiki = 唯一组织视图层（`wiki_nodes` 树，节点引用 item 或遗留文件路径）。层级只存在于 wiki_nodes。
+- `knowledge_items` 携带 `kb_id`（归属分区，默认空串 = 未分区）；沉淀/创建时选择。
 - 提交信息：`feat:`/`fix:`/`docs:` + 中文描述，结尾带 `Co-Authored-By: Claude <noreply@anthropic.com>`。
 - 所有 `/api/*` 路由除白名单（`/api/auth/register`、`/api/auth/login`、`/api/config`）外都需要登录。
 
@@ -31,12 +33,13 @@
 - `backend/auth.py` — 密码哈希、token、签名密钥
 - `backend/stores/items.py` — knowledge_items CRUD + publish/submit + 链接
 - `backend/stores/reviews.py` — 审核队列
+- `backend/stores/wiki_tree.py` — wiki_nodes 组织树 CRUD（挂载/移动/删除）
 - `backend/sediment.py` — AI 提炼卡片 / AI 起草文章（LLM 调用）
 - `backend/knowledge/item_index.py` — 知识项向量索引
 
 **修改（后端）**
-- `backend/database.py` — 新表 users/knowledge_items/item_links/review_tasks/item_derivations + sessions.owner_id 迁移
-- `backend/main.py` — 鉴权中间件 + 12 个新路由 + sessions 个人化
+- `backend/database.py` — 新表 users/knowledge_items/item_links/review_tasks/item_derivations/**wiki_nodes** + sessions.owner_id 迁移
+- `backend/main.py` — 鉴权中间件 + 17 个新路由 + sessions 个人化 + 文件树迁移
 - `backend/knowledge/vector_store.py` — item_vec0/item_fts 搜索
 - `backend/pipeline/plugins/search.py` — 合并知识项结果
 
@@ -46,17 +49,18 @@
 - `frontend/src/pages/FragmentsPage.tsx`、`CardsPage.tsx`
 - `frontend/src/components/qa/SedimentMenu.tsx`
 - `frontend/src/components/review/ReviewPanel.tsx`
+- `frontend/src/components/wiki/WikiTree.tsx` — 组织树渲染（替换文档树扫描）
 
 **修改（前端）**
-- `frontend/src/api/opencodewiki.ts` — auth 头 + 新 API
-- `frontend/src/types/opencodewiki.ts` — User/KnowledgeItem/ReviewTask
+- `frontend/src/api/opencodewiki.ts` — auth 头 + 新 API（含 wiki 树）
+- `frontend/src/types/opencodewiki.ts` — User/KnowledgeItem/ReviewTask/WikiNode
 - `frontend/src/App.tsx` — 路由 + 守卫
-- `frontend/src/components/layout/AppSidebar.tsx` — 导航 6 项 + 登录态用户块
+- `frontend/src/components/layout/AppSidebar.tsx` — 导航 6 项 + 登录态用户块 + 文档树改读组织树
 - `frontend/src/pages/QAPage.tsx`、`frontend/src/pages/AdminPage.tsx`
 
 **测试**
-- `backend/tests/test_auth.py`（哈希/token/用户存储）、`test_items.py`、`test_reviews.py`、`test_item_index.py`
-- `backend/tests/test_api.py` 扩展（认证/碎片/卡片/沉淀/审核）
+- `backend/tests/test_auth.py`（哈希/token/用户存储）、`test_items.py`、`test_reviews.py`、`test_wiki_tree.py`、`test_item_index.py`
+- `backend/tests/test_api.py` 扩展（认证/碎片/卡片/沉淀/审核/wiki 树）
 - `frontend/src/pages/LoginPage.test.tsx`、`FragmentsPage.test.tsx`、`CardsPage.test.tsx`
 
 ---
@@ -321,7 +325,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 def test_new_tables_exist():
     from backend.database import get_knora_db
     db = get_knora_db()
-    for table in ("users", "knowledge_items", "item_links", "review_tasks", "item_derivations"):
+    for table in ("users", "knowledge_items", "item_links", "review_tasks", "item_derivations", "wiki_nodes"):
         row = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
         assert row is not None, f"table {table} missing"
 
@@ -370,6 +374,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS knowledge_items (
     id            TEXT PRIMARY KEY,
+    kb_id         TEXT NOT NULL DEFAULT '',
     title         TEXT NOT NULL DEFAULT '',
     content_md    TEXT NOT NULL DEFAULT '',
     form          TEXT NOT NULL CHECK(form IN ('card','article')),
@@ -406,6 +411,16 @@ CREATE TABLE IF NOT EXISTS item_derivations (
     created_at    TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (item_id, source_type, source_ref)
 );
+
+CREATE TABLE IF NOT EXISTS wiki_nodes (
+    id            TEXT PRIMARY KEY,
+    parent_id     TEXT REFERENCES wiki_nodes(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL DEFAULT '',
+    item_id       TEXT REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    file_path     TEXT DEFAULT '',
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
 ```
 
 在 `_MIGRATIONS` 列表末尾追加：
@@ -439,7 +454,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `get_knora_db()`
 - Produces:
-  - `create_item(owner_id, title="", content_md="", form="card", scope="personal", status=None) -> dict`
+  - `create_item(owner_id, title="", content_md="", form="card", scope="personal", status=None, kb_id="") -> dict`
     - status 缺省规则：scope=team → `"published"`；否则 `"draft"`
   - `get_item(item_id) -> dict | None`
   - `list_items(viewer_id, scope=None, form=None, status=None, q=None) -> list[dict]`
@@ -482,6 +497,12 @@ def test_create_and_get_item():
     assert item["status"] == "draft"
     got = get_item(item["id"])
     assert got["title"] == "卡片一" and got["owner_id"] == owner
+
+def test_create_item_with_kb():
+    owner, _ = _users()
+    item = create_item(owner, "带库卡片", "内容", form="card", scope="team", kb_id="kb-abc")
+    assert item["kb_id"] == "kb-abc"
+    assert get_item(item["id"])["kb_id"] == "kb-abc"
 
 def test_team_card_auto_published():
     owner, _ = _users()
@@ -575,11 +596,12 @@ Expected: FAIL（`ModuleNotFoundError: No module named 'backend.stores.items'`�
 import uuid
 from backend.database import get_knora_db
 
-_ITEM_COLS = "id, title, content_md, form, scope, status, owner_id, created_at, updated_at, published_at"
+_ITEM_COLS = "id, kb_id, title, content_md, form, scope, status, owner_id, created_at, updated_at, published_at"
 
 
 def create_item(owner_id: str, title: str = "", content_md: str = "",
-                form: str = "card", scope: str = "personal", status: str | None = None) -> dict:
+                form: str = "card", scope: str = "personal", status: str | None = None,
+                kb_id: str = "") -> dict:
     if form not in ("card", "article"):
         raise ValueError("form 必须是 card 或 article")
     if scope not in ("personal", "team"):
@@ -589,9 +611,9 @@ def create_item(owner_id: str, title: str = "", content_md: str = "",
     db = get_knora_db()
     item_id = f"it-{uuid.uuid4().hex[:8]}"
     db.execute(
-        "INSERT INTO knowledge_items (id, title, content_md, form, scope, status, owner_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (item_id, title or "", content_md or "", form, scope, status, owner_id),
+        "INSERT INTO knowledge_items (id, kb_id, title, content_md, form, scope, status, owner_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (item_id, kb_id or "", title or "", content_md or "", form, scope, status, owner_id),
     )
     db.commit()
     return get_item(item_id)
@@ -722,10 +744,10 @@ def list_links(item_id: str) -> list[dict]:
 
 def _row_to_dict(row) -> dict:
     return {
-        "id": row[0], "title": row[1], "content_md": row[2],
-        "form": row[3], "scope": row[4], "status": row[5],
-        "owner_id": row[6], "created_at": row[7],
-        "updated_at": row[8], "published_at": row[9],
+        "id": row[0], "kb_id": row[1], "title": row[2], "content_md": row[3],
+        "form": row[4], "scope": row[5], "status": row[6],
+        "owner_id": row[7], "created_at": row[8],
+        "updated_at": row[9], "published_at": row[10],
     }
 ```
 
@@ -1393,6 +1415,7 @@ from backend.stores.items import (
         content_md: str = ""
         form: str = "card"
         scope: str = "personal"
+        kb_id: str = ""
 
     class ItemUpdateRequest(BaseModel):
         title: str | None = None
@@ -1414,7 +1437,7 @@ from backend.stores.items import (
     async def api_create_item(req: ItemRequest, user: dict = Depends(get_current_user)):
         try:
             return create_item(user["id"], req.title, req.content_md,
-                               form=req.form, scope=req.scope)
+                               form=req.form, scope=req.scope, kb_id=req.kb_id)
         except ValueError as e:
             raise HTTPException(400, str(e))
 
@@ -2342,6 +2365,481 @@ Expected: PASS（含 3 个新用例）
 ```bash
 git add backend/main.py backend/tests/test_api.py
 git commit -m "feat: 文章提交审核、管理员审批/驳回、用户管理 API
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12A: Wiki 组织层（wiki_tree 存储 + 树 API）
+
+**Files:**
+- Create: `backend/stores/wiki_tree.py`
+- Modify: `backend/main.py`
+- Test: `backend/tests/test_wiki_tree.py` + `backend/tests/test_api.py` 追加
+
+**Interfaces:**
+- Consumes: `stores.items.get_item`
+- Produces:
+  - `stores/wiki_tree.py`：
+    - `create_node(name, parent_id=None, item_id=None, file_path="") -> dict`
+    - `get_node(node_id) -> dict | None`
+    - `list_tree() -> list[dict]`（**嵌套森林**：每个根节点含 `children` 递归）
+    - `attach_item(node_id, item_id) -> dict`（节点绑定知识项；`item_id` 与 `file_path` 互斥，绑定 item 时清空 file_path）
+    - `move_node(node_id, new_parent_id, sort_order=None) -> None`（防环：不能移动到自己子树内）
+    - `delete_node(node_id) -> None`（级联删除子节点；不影响被引用的 item）
+    - `get_node_content(node_id) -> dict | None`（渲染用：有 item_id → 查 item；否则有 file_path → 读文件；返回 `{"node": {...}, "content": str, "title": str}`）
+  - API（全部需登录）：
+    - `GET /api/wiki/tree` → 嵌套森林
+    - `POST /api/wiki/nodes {name, parent_id?}` → 新建目录节点
+    - `POST /api/wiki/nodes/{node_id}/attach {item_id}` → 挂载知识项
+    - `POST /api/wiki/nodes/{node_id}/move {parent_id?, sort_order?}` → 移动
+    - `DELETE /api/wiki/nodes/{node_id}`
+    - `GET /api/wiki/node/{node_id}` → 渲染内容（item 或遗留文件）
+
+- [ ] **Step 1: 写失败的测试** `backend/tests/test_wiki_tree.py`
+
+```python
+import tempfile
+from backend.database import init_databases
+from backend.config import Config
+from backend.stores.users import create_user
+from backend.stores.items import create_item
+from backend.stores.wiki_tree import (
+    create_node, get_node, list_tree, attach_item, move_node, delete_node, get_node_content,
+)
+
+
+def setup_module():
+    cfg = Config()
+    cfg.database.path = tempfile.mkdtemp()
+    init_databases(cfg)
+
+def test_create_and_get_node():
+    root = create_node("产品文档")
+    assert root["name"] == "产品文档" and root["parent_id"] is None
+    child = create_node("指南", parent_id=root["id"])
+    assert get_node(child["id"])["parent_id"] == root["id"]
+
+def test_tree_returns_nested_forest():
+    a = create_node("根A")
+    b = create_node("根B")
+    c = create_node("子", parent_id=a["id"])
+    tree = list_tree()
+    names = {n["name"]: n for n in tree}
+    assert "根A" in names and "根B" in names
+    assert any(ch["id"] == c["id"] for ch in names["根A"]["children"])
+
+def test_attach_item_to_node():
+    owner = create_user("alice", "pw")["id"]
+    item = create_item(owner, "文章一", "# 内容", form="article", scope="team")
+    node = create_node("文章一")
+    attached = attach_item(node["id"], item["id"])
+    assert attached["item_id"] == item["id"]
+    content = get_node_content(node["id"])
+    assert content["content"] == "# 内容"
+
+def test_move_node_rejects_cycle():
+    a = create_node("父")
+    b = create_node("子", parent_id=a["id"])
+    try:
+        move_node(a["id"], b["id"])  # 把父移到子下面 → 环
+        assert False, "should reject cycle"
+    except ValueError:
+        pass
+
+def test_delete_node_cascades():
+    a = create_node("父")
+    b = create_node("子", parent_id=a["id"])
+    delete_node(a["id"])
+    assert get_node(a["id"]) is None and get_node(b["id"]) is None
+
+def test_node_content_from_file(tmp_path):
+    md = tmp_path / "legacy.md"
+    md.write_text("# 旧文件\n内容", encoding="utf-8")
+    node = create_node("旧文件", file_path=str(md))
+    content = get_node_content(node["id"])
+    assert "旧文件" in content["content"]
+```
+
+追加到 `backend/tests/test_api.py`：
+
+```python
+@pytest.mark.asyncio
+async def test_wiki_tree_api(client):
+    headers = _auth(client, "alice")
+    r = await client.post("/api/wiki/nodes", json={"name": "产品A"}, headers=headers)
+    assert r.status_code == 200
+    parent = r.json()
+    r = await client.post("/api/wiki/nodes", json={"name": "指南", "parent_id": parent["id"]}, headers=headers)
+    child = r.json()
+    # 挂载一个团队卡片
+    card = (await client.post("/api/items", json={"title": "卡", "content_md": "x", "scope": "team"}, headers=headers)).json()
+    r = await client.post(f"/api/wiki/nodes/{child['id']}/attach", json={"item_id": card["id"]}, headers=headers)
+    assert r.status_code == 200 and r.json()["item_id"] == card["id"]
+    # 树
+    r = await client.get("/api/wiki/tree", headers=headers)
+    tree = r.json()
+    assert any(n["name"] == "产品A" for n in tree)
+    # 渲染
+    r = await client.get(f"/api/wiki/node/{child['id']}", headers=headers)
+    assert r.status_code == 200 and r.json()["content"] == "x"
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `cd backend && ../backend/.venv/bin/python -m pytest tests/test_wiki_tree.py -v`
+Expected: FAIL（`No module named 'backend.stores.wiki_tree'`）
+
+- [ ] **Step 3: 实现 `backend/stores/wiki_tree.py`**
+
+```python
+import os
+import uuid
+from backend.database import get_knora_db
+
+_NODE_COLS = "id, parent_id, name, item_id, file_path, sort_order, created_at"
+
+
+def create_node(name: str, parent_id: str | None = None, item_id: str | None = None,
+                file_path: str = "") -> dict:
+    db = get_knora_db()
+    if parent_id and not db.execute("SELECT id FROM wiki_nodes WHERE id = ?", (parent_id,)).fetchone():
+        raise ValueError("父节点不存在")
+    node_id = f"wn-{uuid.uuid4().hex[:8]}"
+    db.execute(
+        "INSERT INTO wiki_nodes (id, parent_id, name, item_id, file_path) VALUES (?, ?, ?, ?, ?)",
+        (node_id, parent_id, name or "", item_id, file_path or ""),
+    )
+    db.commit()
+    return get_node(node_id)
+
+
+def get_node(node_id: str) -> dict | None:
+    db = get_knora_db()
+    row = db.execute(f"SELECT {_NODE_COLS} FROM wiki_nodes WHERE id = ?", (node_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def list_tree() -> list[dict]:
+    """返回嵌套森林：每个根节点含 children 递归。"""
+    db = get_knora_db()
+    rows = db.execute(f"SELECT {_NODE_COLS} FROM wiki_nodes ORDER BY sort_order, created_at").fetchall()
+    nodes = {r[0]: _row_to_dict(r) for r in rows}
+    roots = []
+    for n in nodes.values():
+        n["children"] = []
+    for n in nodes.values():
+        if n["parent_id"] and n["parent_id"] in nodes:
+            nodes[n["parent_id"]]["children"].append(n)
+        else:
+            roots.append(n)
+    return roots
+
+
+def attach_item(node_id: str, item_id: str) -> dict:
+    db = get_knora_db()
+    if not db.execute("SELECT id FROM knowledge_items WHERE id = ?", (item_id,)).fetchone():
+        raise ValueError("知识项不存在")
+    db.execute(
+        "UPDATE wiki_nodes SET item_id = ?, file_path = '' WHERE id = ?",
+        (item_id, node_id),
+    )
+    db.commit()
+    return get_node(node_id)
+
+
+def move_node(node_id: str, new_parent_id: str | None, sort_order: int | None = None) -> None:
+    if new_parent_id == node_id:
+        raise ValueError("不能移动到自身下")
+    # 防环：新父不能是自己的子孙
+    if new_parent_id:
+        cur = get_node(new_parent_id)
+        while cur:
+            if cur["id"] == node_id:
+                raise ValueError("不能移动到自己的子树内")
+            cur = get_node(cur["parent_id"]) if cur["parent_id"] else None
+    db = get_knora_db()
+    if sort_order is not None:
+        db.execute("UPDATE wiki_nodes SET parent_id = ?, sort_order = ? WHERE id = ?",
+                   (new_parent_id, sort_order, node_id))
+    else:
+        db.execute("UPDATE wiki_nodes SET parent_id = ? WHERE id = ?",
+                   (new_parent_id, node_id))
+    db.commit()
+
+
+def delete_node(node_id: str) -> None:
+    db = get_knora_db()
+    db.execute("DELETE FROM wiki_nodes WHERE id = ?", (node_id,))
+    db.commit()
+
+
+def get_node_content(node_id: str) -> dict | None:
+    """渲染节点：有 item_id 查知识项；否则有 file_path 读文件。"""
+    node = get_node(node_id)
+    if not node:
+        return None
+    if node["item_id"]:
+        from backend.stores.items import get_item
+        item = get_item(node["item_id"])
+        if not item:
+            return {"node": node, "content": "", "title": node["name"]}
+        return {"node": node, "content": item["content_md"], "title": item["title"] or node["name"]}
+    if node["file_path"] and os.path.isfile(node["file_path"]):
+        with open(node["file_path"], encoding="utf-8") as f:
+            return {"node": node, "content": f.read(), "title": node["name"]}
+    return {"node": node, "content": "", "title": node["name"]}
+
+
+def _row_to_dict(row) -> dict:
+    return {
+        "id": row[0], "parent_id": row[1], "name": row[2],
+        "item_id": row[3], "file_path": row[4],
+        "sort_order": row[5], "created_at": row[6],
+    }
+```
+
+- [ ] **Step 4: 在 `backend/main.py` 追加路由**（Tasks 段之后）
+
+```python
+    # ── Wiki 组织层 ──
+    from backend.stores.wiki_tree import (
+        create_node as _wn_create, list_tree as _wn_tree, get_node as _wn_get,
+        attach_item as _wn_attach, move_node as _wn_move,
+        delete_node as _wn_delete, get_node_content,
+    )
+
+    class WikiNodeRequest(BaseModel):
+        name: str
+        parent_id: str | None = None
+
+    class WikiAttachRequest(BaseModel):
+        item_id: str
+
+    class WikiMoveRequest(BaseModel):
+        parent_id: str | None = None
+        sort_order: int | None = None
+
+    @app.get("/api/wiki/tree")
+    async def api_wiki_tree(user: dict = Depends(get_current_user)):
+        return _wn_tree()
+
+    @app.post("/api/wiki/nodes")
+    async def api_create_wiki_node(req: WikiNodeRequest, user: dict = Depends(get_current_user)):
+        if not req.name.strip():
+            raise HTTPException(400, "节点名不能为空")
+        try:
+            return _wn_create(req.name, parent_id=req.parent_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/wiki/nodes/{node_id}/attach")
+    async def api_attach_wiki_node(node_id: str, req: WikiAttachRequest,
+                                   user: dict = Depends(get_current_user)):
+        if not _wn_get(node_id):
+            raise HTTPException(404, "节点不存在")
+        from backend.stores.items import get_item as _get_item
+        if not _get_item(req.item_id):
+            raise HTTPException(404, "知识项不存在")
+        try:
+            return _wn_attach(node_id, req.item_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/wiki/nodes/{node_id}/move")
+    async def api_move_wiki_node(node_id: str, req: WikiMoveRequest,
+                                 user: dict = Depends(get_current_user)):
+        if not _wn_get(node_id):
+            raise HTTPException(404, "节点不存在")
+        try:
+            _wn_move(node_id, req.parent_id, req.sort_order)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"moved": True}
+
+    @app.delete("/api/wiki/nodes/{node_id}")
+    async def api_delete_wiki_node(node_id: str, user: dict = Depends(get_current_user)):
+        _wn_delete(node_id)
+        return {"deleted": True}
+
+    @app.get("/api/wiki/node/{node_id}")
+    async def api_wiki_node_content(node_id: str, user: dict = Depends(get_current_user)):
+        content = get_node_content(node_id)
+        if not content:
+            raise HTTPException(404, "节点不存在")
+        return content
+```
+
+- [ ] **Step 5: 运行确认通过**
+
+Run: `cd backend && ../backend/.venv/bin/python -m pytest tests/test_wiki_tree.py tests/test_api.py -v`
+Expected: PASS
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add backend/stores/wiki_tree.py backend/main.py backend/tests/test_wiki_tree.py backend/tests/test_api.py
+git commit -m "feat: Wiki 组织层（wiki_nodes 建树/挂载/移动/渲染 API）
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12B: 文件树迁移 + 沉淀挂载
+
+**Files:**
+- Modify: `backend/stores/wiki_tree.py`（`migrate_legacy_tree`）
+- Modify: `backend/main.py`（启动迁移调用 + sediment/draft 挂载补丁）
+- Test: `backend/tests/test_wiki_tree.py` + `backend/tests/test_api.py` 追加
+
+**Interfaces:**
+- Consumes: `cfg.database.path`、Task 12A 的 wiki_tree 函数
+- Produces:
+  - `migrate_legacy_tree(knowledge_root: str, pages_root: str) -> int`（幂等：wiki_nodes 非空时跳过；扫描 `knowledge/{kb_name}/*.md` 与 `pages/**/*.md`，每 KB 一个根节点 + 文件叶子节点（file_path 指向原文件）；返回创建的节点数）
+  - `create_app` 启动时调用迁移
+  - 沉淀路由补丁：`SedimentRequest`/`DraftRequest` 加 `wiki_node_id: str = ""`，创建 item 后若提供则挂载到节点
+
+- [ ] **Step 1: 写失败的测试**（追加到 `backend/tests/test_wiki_tree.py`）
+
+```python
+def test_migrate_legacy_tree(tmp_path):
+    from backend.stores.wiki_tree import migrate_legacy_tree, list_tree
+    kb_dir = tmp_path / "knowledge" / "默认知识库"
+    kb_dir.mkdir(parents=True)
+    (kb_dir / "readme.md").write_text("# readme", encoding="utf-8")
+    (kb_dir / "guide.md").write_text("# guide", encoding="utf-8")
+    pages = tmp_path / "pages"
+    (pages / "archive.md").write_text("# archive", encoding="utf-8")
+    n = migrate_legacy_tree(str(tmp_path / "knowledge"), str(pages))
+    # knowledge 根(1) + readme(1) + guide(1) + pages 根(1) + archive(1) = 5
+    assert n == 5
+    tree = list_tree()
+    assert any(r["name"] == "默认知识库" for r in tree)
+    assert any(r["name"] == "pages" for r in tree)
+    # 幂等：再跑一次不新增
+    assert migrate_legacy_tree(str(tmp_path / "knowledge"), str(pages)) == 0
+```
+
+追加到 `backend/tests/test_api.py`：
+
+```python
+@pytest.mark.asyncio
+async def test_sediment_with_wiki_mount(client, monkeypatch):
+    from backend import sediment
+    async def fake_refine(client, model, question, answer):
+        return {"title": "卡", "content": "c"}
+    monkeypatch.setattr(sediment, "refine_qa_to_card", fake_refine)
+    headers = _auth(client, "alice")
+    node = (await client.post("/api/wiki/nodes", json={"name": "待整理"}, headers=headers)).json()
+    ses = (await client.post("/api/sessions", json={"kb_id": "", "title": "s"}, headers=headers)).json()
+    from backend.stores.session import create_message
+    create_message(ses["id"], "user", "q?", "[]", 0)
+    create_message(ses["id"], "assistant", "a!", "[]", 5)
+    r = await client.post(f"/api/sessions/{ses['id']}/sediment",
+                          json={"kind": "card", "wiki_node_id": node["id"]}, headers=headers)
+    assert r.status_code == 200
+    item = r.json()
+    node_resp = (await client.get(f"/api/wiki/node/{node['id']}", headers=headers)).json()
+    assert node_resp["node"]["item_id"] == item["id"]
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `cd backend && ../backend/.venv/bin/python -m pytest tests/test_wiki_tree.py tests/test_api.py -v`
+Expected: FAIL（`migrate_legacy_tree` 不存在 / `wiki_node_id` 字段未被接受）
+
+- [ ] **Step 3: `backend/stores/wiki_tree.py` 追加迁移函数**
+
+```python
+def migrate_legacy_tree(knowledge_root: str, pages_root: str) -> int:
+    """首次启动时把旧文件目录结构导入 wiki_nodes（幂等）。"""
+    db = get_knora_db()
+    if db.execute("SELECT COUNT(*) FROM wiki_nodes").fetchone()[0] > 0:
+        return 0
+    created = 0
+
+    # knowledge/{kb_name}/*.md → 每 KB 一个根 + 文件叶子
+    if os.path.isdir(knowledge_root):
+        for kb_name in sorted(os.listdir(knowledge_root)):
+            kb_dir = os.path.join(knowledge_root, kb_name)
+            if not os.path.isdir(kb_dir):
+                continue
+            root = create_node(kb_name)
+            created += 1
+            for f in sorted(os.listdir(kb_dir)):
+                if f.endswith(".md"):
+                    create_node(f.replace(".md", ""), parent_id=root["id"],
+                                file_path=os.path.join(kb_dir, f))
+                    created += 1
+
+    # pages/**/*.md → 一个"pages"根
+    if os.path.isdir(pages_root):
+        root = create_node("pages")
+        created += 1
+        for dirpath, _dirs, files in os.walk(pages_root):
+            for f in files:
+                if f.endswith(".md"):
+                    create_node(f.replace(".md", ""), parent_id=root["id"],
+                                file_path=os.path.join(dirpath, f))
+                    created += 1
+    return created
+```
+
+- [ ] **Step 4: `backend/main.py` 启动迁移**（`init_databases(cfg)` 之后、`ensure_default_kb` 之前）
+
+```python
+    from backend.stores.wiki_tree import migrate_legacy_tree
+    migrate_legacy_tree(
+        os.path.join(os.path.expanduser(cfg.database.path), "knowledge"),
+        os.path.join(os.path.expanduser(cfg.database.path), "pages"),
+    )
+```
+
+- [ ] **Step 5: 沉淀挂载补丁**（Task 11 的 SedimentRequest / DraftRequest 与两个路由）
+
+`SedimentRequest` 改为：
+
+```python
+    class SedimentRequest(BaseModel):
+        kind: str = "card"   # "card" | "article"
+        wiki_node_id: str = ""
+```
+
+`DraftRequest` 改为：
+
+```python
+    class DraftRequest(BaseModel):
+        title: str = ""
+        item_ids: list[str]
+        wiki_node_id: str = ""
+```
+
+两个路由创建 item 后、`return item` 前，各加：
+
+```python
+        if req.wiki_node_id:
+            from backend.stores.wiki_tree import attach_item as _wn_attach
+            if _wn_get(req.wiki_node_id):
+                try:
+                    _wn_attach(req.wiki_node_id, item["id"])
+                except ValueError:
+                    pass  # 挂载失败不阻断沉淀
+```
+
+（`_wn_get` 已在 Task 12A 的 import 行导入。）
+
+- [ ] **Step 6: 运行确认通过**
+
+Run: `cd backend && ../backend/.venv/bin/python -m pytest tests/test_wiki_tree.py tests/test_api.py -v`
+Expected: PASS
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add backend/stores/wiki_tree.py backend/main.py backend/tests/test_wiki_tree.py backend/tests/test_api.py
+git commit -m "feat: 旧文件树迁移为 wiki_nodes + 沉淀挂载 Wiki 节点
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -3659,6 +4157,212 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
+### Task 18A: 前端 Wiki 组织树（侧边栏改读 /api/wiki/tree）
+
+**Files:**
+- Create: `frontend/src/components/wiki/WikiTree.tsx`
+- Create: `frontend/src/pages/WikiNodePage.tsx`
+- Modify: `frontend/src/components/layout/AppSidebar.tsx`
+- Modify: `frontend/src/api/opencodewiki.ts`、`frontend/src/types/opencodewiki.ts`
+- Modify: `frontend/src/App.tsx`（新增 `/wiki/node/:nodeId` 路由）
+- Test: `frontend/src/components/wiki/WikiTree.test.tsx`
+
+**Interfaces:**
+- Consumes: `GET /api/wiki/tree`、`GET /api/wiki/node/{id}`（Task 12A）
+- Produces:
+  - `types/opencodewiki.ts`：`WikiNode {id, name, item_id, file_path, children: WikiNode[]}`
+  - `api/opencodewiki.ts`：`fetchWikiTree()`, `fetchWikiNodeContent(id)`
+  - `components/wiki/WikiTree.tsx`：`WikiTree({ nodes, onSelect })` —— 递归渲染嵌套树（目录可折叠，叶子点击 `onSelect(node)`）
+  - `pages/WikiNodePage.tsx`：`/wiki/node/:nodeId`，`fetchWikiNodeContent` 渲染 markdown（复用现有 markdown 渲染组件；若无则 `<pre>` 简化）
+  - `AppSidebar.tsx`：Wiki 路径下的文档树区块替换为 `<WikiTree nodes={tree} onSelect={n => navigate(`/wiki/node/${n.id}`)} />`，数据来自 `fetchWikiTree()`
+
+- [ ] **Step 1: 类型与 API**
+
+`frontend/src/types/opencodewiki.ts` 追加：
+
+```ts
+export interface WikiNode {
+  id: string
+  name: string
+  item_id: string | null
+  file_path: string
+  children: WikiNode[]
+}
+```
+
+`frontend/src/api/opencodewiki.ts` 追加：
+
+```ts
+export function fetchWikiTree(): Promise<WikiNode[]> { return request('/api/wiki/tree') }
+export function fetchWikiNodeContent(id: string): Promise<{ node: { id: string; name: string; item_id: string | null }; content: string; title: string }> {
+  return request(`/api/wiki/node/${id}`)
+}
+```
+
+- [ ] **Step 2: `WikiTree.tsx`**
+
+```tsx
+import { useState } from 'react'
+import type { WikiNode } from '@/types/opencodewiki'
+import { ChevronDown, FileText, Folder } from 'lucide-react'
+
+function TreeNode({ node, depth, onSelect }: {
+  node: WikiNode
+  depth: number
+  onSelect: (n: WikiNode) => void
+}) {
+  const isLeaf = node.children.length === 0 && (node.item_id !== null || node.file_path !== '')
+  const [open, setOpen] = useState(true)
+  const indent = { paddingLeft: `${depth * 16 + 8}px` }
+
+  if (isLeaf) {
+    return (
+      <button onClick={() => onSelect(node)} style={indent}
+        className="w-full flex items-center gap-1.5 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors truncate">
+        <FileText className="w-3.5 h-3.5 shrink-0 text-sidebar-text/40" />
+        <span className="truncate">{node.name}</span>
+      </button>
+    )
+  }
+
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)} style={indent}
+        className="w-full flex items-center gap-1 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/70 hover:bg-white/5 hover:text-sidebar-active transition-colors">
+        <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-sidebar-text/40 ${open ? '' : '-rotate-90'}`} />
+        <Folder className="w-3.5 h-3.5 shrink-0 text-sidebar-text/40" />
+        <span className="truncate">{node.name}</span>
+      </button>
+      {open && node.children.map(child => (
+        <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} />
+      ))}
+    </div>
+  )
+}
+
+export function WikiTree({ nodes, onSelect }: {
+  nodes: WikiNode[]
+  onSelect: (n: WikiNode) => void
+}) {
+  if (nodes.length === 0) {
+    return <div className="text-sm text-slate-600 px-[10px] py-5 text-center">暂无文档</div>
+  }
+  return (
+    <div>
+      {nodes.map(n => <TreeNode key={n.id} node={n} depth={0} onSelect={onSelect} />)}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 3: `WikiNodePage.tsx`**
+
+```tsx
+import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import { fetchWikiNodeContent } from '@/api/opencodewiki'
+import { Loader2, FileText } from 'lucide-react'
+
+export function WikiNodePage() {
+  const { nodeId } = useParams()
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!nodeId) return
+    setLoading(true)
+    fetchWikiNodeContent(nodeId)
+      .then(d => { setTitle(d.title); setContent(d.content) })
+      .catch((e: any) => setError(e.message || '加载失败'))
+      .finally(() => setLoading(false))
+  }, [nodeId])
+
+  if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+  if (error) return <div className="text-center py-16 text-sm text-red-500">{error}</div>
+
+  return (
+    <div className="h-full overflow-y-auto p-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 mb-4">
+          <FileText className="w-4 h-4 text-cyber-blue" />
+          <h1 className="text-lg font-bold text-gray-900">{title}</h1>
+        </div>
+        <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{content}</div>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: 接入 `App.tsx` 与 `AppSidebar.tsx`**
+
+`App.tsx` 加路由（`/wiki` 路由旁）：
+
+```tsx
+            <Route path="/wiki/node/:nodeId" element={<RequireAuth><WikiNodePage /></RequireAuth>} />
+```
+
+import 对应补 `import { WikiNodePage } from '@/pages/WikiNodePage'`。
+
+`AppSidebar.tsx`：
+1. 顶部 import 补：`import { WikiTree } from '@/components/wiki/WikiTree'`、`import { fetchWikiTree } from '@/api/opencodewiki'`、`import type { WikiNode } from '@/types/opencodewiki'`
+2. state 补：`const [wikiTree, setWikiTree] = useState<WikiNode[]>([])`
+3. `useEffect` 补：`fetchWikiTree().then(setWikiTree).catch(() => {})`
+4. `showDocTree` 区块内、`docTree` 渲染处（`{kbModules.length > 0 ? docTree : (...)}` 整块）替换为：
+
+```tsx
+                <WikiTree nodes={wikiTree} onSelect={n => navigate(`/wiki/node/${n.id}`)} />
+```
+
+（`docTree`、`kbModules`、`topics` 等旧扫描逻辑保留不删 —— 旧 `/wiki/:name` 路由仍由 WikiGlobalPage 使用；新组织树只替换侧边栏展示。`fetchWikiModules`/`fetchTopics` 调用可保留或删除，不影响功能。）
+
+- [ ] **Step 5: `WikiTree.test.tsx`**
+
+```tsx
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { WikiTree } from './WikiTree'
+
+const nodes = [
+  { id: 'wn-1', name: '默认知识库', item_id: null, file_path: '', children: [
+    { id: 'wn-2', name: 'readme', item_id: 'it-1', file_path: '', children: [] },
+  ]},
+]
+
+describe('WikiTree', () => {
+  it('should render nested tree', () => {
+    render(<WikiTree nodes={nodes} onSelect={() => {}} />)
+    expect(screen.getByText('默认知识库')).toBeInTheDocument()
+    expect(screen.getByText('readme')).toBeInTheDocument()
+  })
+
+  it('should call onSelect on leaf click', () => {
+    const onSelect = vi.fn()
+    render(<WikiTree nodes={nodes} onSelect={onSelect} />)
+    fireEvent.click(screen.getByText('readme'))
+    expect(onSelect).toHaveBeenCalledWith(nodes[0].children[0])
+  })
+})
+```
+
+- [ ] **Step 6: 运行确认通过**
+
+Run: `cd frontend && npx vitest run src/components/wiki/WikiTree.test.tsx && npx tsc --noEmit`
+Expected: PASS + 类型通过
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add frontend/src/components/wiki/WikiTree.tsx frontend/src/pages/WikiNodePage.tsx frontend/src/components/layout/AppSidebar.tsx frontend/src/api/opencodewiki.ts frontend/src/types/opencodewiki.ts frontend/src/App.tsx frontend/src/components/wiki/WikiTree.test.tsx
+git commit -m "feat: 前端 Wiki 组织树（侧边栏改读 wiki_nodes，节点页渲染）
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 19: 端到端冒烟
 
 **Files:**
@@ -3700,7 +4404,29 @@ curl -s "$BASE/api/items?form=card&scope=team" -H "$AUTH" | python3 -c 'import j
 
 Expected: 注册成功、fragment id 非空、发布后 scope=team、列表含该卡片标题。
 
-- [ ] **Step 5: 提交（如有遗留未提交改动）**
+- [ ] **Step 5: Wiki 组织树验证**
+
+```bash
+BASE=http://localhost:8100
+# 用上面的 TOKEN
+# 1. 树已迁移（启动时把 knowledge/ 旧文件树导入）
+curl -s $BASE/api/wiki/tree -H "$AUTH" | python3 -c '
+import json,sys
+tree = json.load(sys.stdin)
+print("roots:", [n["name"] for n in tree])
+'
+# 2. 建节点 + 挂载刚发布的卡片
+NODE=$(curl -s -X POST $BASE/api/wiki/nodes -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"name":"测试模块"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
+curl -s -X POST $BASE/api/wiki/nodes/$NODE/attach -H "$AUTH" -H 'Content-Type: application/json' \
+  -d "{\"item_id\":\"$FRAG\"}" | python3 -m json.tool | head -6
+# 3. 节点渲染
+curl -s $BASE/api/wiki/node/$NODE -H "$AUTH" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("title:",d["title"])'
+```
+
+Expected: 树含"默认知识库"根；attach 后 node.item_id == FRAG；渲染 title 非空。
+
+- [ ] **Step 6: 提交（如有遗留未提交改动）**
 
 ```bash
 git status --short
@@ -3708,11 +4434,12 @@ git status --short
 git log --oneline -12
 ```
 
-**计划完成标记：** 全部 19 个任务完成后，第一期核心闭环（用户体系/卡片文章/碎片/沉淀/审核/RAG 团队过滤）即交付。
+**计划完成标记：** 全部 22 个任务完成后，第一期核心闭环（用户体系/卡片文章/碎片/沉淀/审核/RAG 团队过滤/Wiki 组织层）即交付。
 
 **本计划明确不做（对照 spec §8 分期）：**
 - 代码库自动生成实体文章（spec §4 沉淀动作表第 4 行）—— 现有代码库无 wiki_builder 实体生成模块，属第二期"输入增强"，本计划不实现。
 - 链接剪藏、文件导入（第二期）。
 - backlink 检索加权（第二期）。
 - 角色矩阵、离职迁移（远期）。
+- Wiki 树的 AI 分类建议（spec §2 第 3 来源）—— 一期只做手工建树/挂载/移动，AI 建议二期。
 - 遗留 Topic/Wiki conversions API 与页面（`/api/topics`、`convert-to-wiki`）第一期保留不动，第二期再移除——QA 沉淀已走新通道，旧通道不再扩展。
