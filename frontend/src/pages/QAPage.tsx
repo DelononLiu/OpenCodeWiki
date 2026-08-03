@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchKBs, fetchSession, createSession } from '@/api/opencodewiki'
+import { fetchKBs, fetchSession, createSession, getToken } from '@/api/opencodewiki'
 import type { KB, QASource, StageInfo, ProcessSummary } from '@/types/opencodewiki'
 import { Button } from '@/components/ui/button'
 import ProcessPanel from '@/components/ProcessPanel'
@@ -315,7 +315,10 @@ export function QAPage() {
 
       const response = await fetch('/api/qa', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        },
         body: JSON.stringify({ kb_id: kbId, question, session_id: sessionId || '' }),
         signal: abortController.signal,
       })

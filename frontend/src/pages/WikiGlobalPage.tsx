@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ContentRightPanel } from '@/components/layout/ContentRightPanel'
 import { fetchWikiPage, fetchWikiModules } from '@/api/client'
+import { getToken } from '@/api/opencodewiki'
 import type { WikiPageResponse } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -25,7 +26,7 @@ export function WikiGlobalPage() {
   // Auto-redirect to first KB when no KB specified
   useEffect(() => {
     if (!name) {
-      fetch('/api/knowledge').then(r => r.json()).then(d => {
+      fetch('/api/knowledge', { headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) } }).then(r => r.json()).then(d => {
         const first = d.data?.[0]?.name
         if (first) navigate(`/wiki/${first}`, { replace: true })
       }).catch(() => {})

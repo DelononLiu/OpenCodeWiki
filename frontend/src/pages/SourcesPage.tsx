@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB, submitSVNAuth } from '@/api/opencodewiki'
+import { fetchKBs, createKB, deleteKB, fetchDocuments, uploadDocument, deleteDocument, syncKB, submitSVNAuth, getToken } from '@/api/opencodewiki'
 import type { KB, Document } from '@/types/opencodewiki'
 import { useSessionHistory } from '@/hooks/useSessionHistory'
 import {
   Upload, Database, Loader2, FileText, Plus, Check, X, Trash2, Globe, RefreshCw, RotateCw, ArrowDownToLine,
 } from 'lucide-react'
+
+// 裸 fetch 统一附加登录头（json=true 时同时带 Content-Type）
+const authHeaders = (json = false): Record<string, string> => ({
+  ...(json ? { 'Content-Type': 'application/json' } : {}),
+  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+})
 
 export function SourcesPage() {
   const [kbs, setKbs] = useState<KB[]>([])
@@ -89,9 +95,9 @@ export function SourcesPage() {
     const poll = async () => {
       try {
         const [runningTasks_, pendingTasks_] = await Promise.all([
-          fetch('/api/tasks?status=running').then(r => r.json()),
-          fetch('/api/tasks?status=pending').then(r => r.json()),
-          fetch('/api/tasks?status=cancelled').then(r => r.json()),
+          fetch('/api/tasks?status=running', { headers: authHeaders() }).then(r => r.json()),
+          fetch('/api/tasks?status=pending', { headers: authHeaders() }).then(r => r.json()),
+          fetch('/api/tasks?status=cancelled', { headers: authHeaders() }).then(r => r.json()),
         ])
         const tasks = [
           ...(Array.isArray(runningTasks_) ? runningTasks_ : []),
@@ -141,7 +147,7 @@ export function SourcesPage() {
           try {
             const check = await fetch('/api/check-repo-auth', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: authHeaders(true),
               body: JSON.stringify({ repo_url: addUrl.trim(), repo_branch: repoBranch, repo_type: repoType }),
             }).then(r => r.json())
             if (!check.ok && check.error) {
@@ -233,7 +239,7 @@ export function SourcesPage() {
   const handleRebuildIndex = async () => {
     if (!selectedKB) return
     try {
-      const resp = await fetch(`/api/kb/${selectedKB.id}/rebuild`, { method: 'POST' })
+      const resp = await fetch(`/api/kb/${selectedKB.id}/rebuild`, { method: 'POST', headers: authHeaders() })
       if (!resp.ok) throw new Error((await resp.json()).detail)
       showSuccess(`重建任务已提交，卡片会显示进度`)
     } catch (e: any) { showError(`重建失败: ${e.message || '未知错误'}`) }
@@ -448,7 +454,7 @@ export function SourcesPage() {
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => {
                                 if (!selectedKB) return;
-                                fetch(`/api/kb/${selectedKB.id}/documents/${doc.id}/rebuild`, {method:'POST'})
+                                fetch(`/api/kb/${selectedKB.id}/documents/${doc.id}/rebuild`, {method:'POST', headers: authHeaders()})
                                   .then(r => r.ok ? showSuccess(`「${doc.title}」重建已提交`) : Promise.reject())
                                   .then(() => setTimeout(() => loadDocuments(selectedKB.id), 1000))
                                   .catch(() => showError(`重建失败`));
