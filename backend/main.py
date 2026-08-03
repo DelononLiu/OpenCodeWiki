@@ -17,6 +17,10 @@ from backend.stores.session import create_session, list_sessions, get_session, d
 from backend.auth import get_secret, create_token, verify_token
 from backend.stores.users import create_user, get_user, get_user_by_username
 from backend.stores.task import create_task, get_task, list_tasks, cancel_task
+from backend.stores.items import (
+    create_item, get_item, list_items, update_item, delete_item,
+    publish_card, submit_item, add_link, list_links,
+)
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
 from backend.pipeline.events import PipelineEvent, EventNames
@@ -626,6 +630,93 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     async def api_delete_session(sid: str):
         delete_session(sid)
         return {"deleted": True}
+
+    # ── 碎片与知识项 ──
+    class FragmentRequest(BaseModel):
+        title: str = ""
+        content: str
+
+    class ItemRequest(BaseModel):
+        title: str = ""
+        content_md: str = ""
+        form: str = "card"
+        scope: str = "personal"
+        kb_id: str = ""
+
+    class ItemUpdateRequest(BaseModel):
+        title: str | None = None
+        content_md: str | None = None
+
+    @app.post("/api/fragments")
+    async def api_create_fragment(req: FragmentRequest, user: dict = Depends(get_current_user)):
+        if not req.content.strip():
+            raise HTTPException(400, "碎片内容不能为空")
+        item = create_item(user["id"], req.title or req.content[:40], req.content,
+                           form="card", scope="personal")
+        return item
+
+    @app.get("/api/fragments")
+    async def api_list_fragments(user: dict = Depends(get_current_user)):
+        return list_items(user["id"], scope="personal", form="card")
+
+    @app.post("/api/items")
+    async def api_create_item(req: ItemRequest, user: dict = Depends(get_current_user)):
+        try:
+            return create_item(user["id"], req.title, req.content_md,
+                               form=req.form, scope=req.scope, kb_id=req.kb_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/items")
+    async def api_list_items(form: str | None = None, scope: str | None = None,
+                             q: str | None = None, user: dict = Depends(get_current_user)):
+        return list_items(user["id"], scope=scope, form=form, q=q)
+
+    @app.get("/api/items/{item_id}")
+    async def api_get_item(item_id: str, user: dict = Depends(get_current_user)):
+        item = get_item(item_id)
+        if not item:
+            raise HTTPException(404, "知识项不存在")
+        if item["scope"] == "personal" and item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "无权访问")
+        return {**item, "links": list_links(item_id)}
+
+    @app.put("/api/items/{item_id}")
+    async def api_update_item(item_id: str, req: ItemUpdateRequest, user: dict = Depends(get_current_user)):
+        item = get_item(item_id)
+        if not item:
+            raise HTTPException(404, "知识项不存在")
+        if item["scope"] == "team" and item["status"] == "published":
+            raise HTTPException(403, "已发布内容只读")
+        if item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "只有作者可编辑")
+        return update_item(item_id, title=req.title, content_md=req.content_md)
+
+    @app.delete("/api/items/{item_id}")
+    async def api_delete_item(item_id: str, user: dict = Depends(get_current_user)):
+        item = get_item(item_id)
+        if not item:
+            raise HTTPException(404, "知识项不存在")
+        if item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "只有作者或管理员可删除")
+        # TODO(Task 9): 恢复向量索引清理
+        # from backend.knowledge.item_index import delete_item_index
+        # delete_item_index(item_id)
+        delete_item(item_id)
+        return {"deleted": True}
+
+    @app.post("/api/items/{item_id}/publish")
+    async def api_publish_item(item_id: str, user: dict = Depends(get_current_user)):
+        item = get_item(item_id)
+        if not item:
+            raise HTTPException(404, "知识项不存在")
+        if item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "只有作者可发布")
+        try:
+            published = publish_card(item_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return published
 
     # ── Tasks ──
     class CreateTaskRequest(BaseModel):

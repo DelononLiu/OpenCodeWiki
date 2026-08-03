@@ -116,6 +116,87 @@ async def test_duplicate_username_register(client):
     resp = await client.post("/api/auth/register", json={"username": "carol", "password": "pw"})
     assert resp.status_code == 400
 
+async def _auth(client, username="alice"):
+    r = await client.post("/api/auth/register", json={"username": username, "password": "pw"})
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+@pytest.mark.asyncio
+async def test_fragment_capture_and_list(client):
+    headers = await _auth(client)
+    r = await client.post("/api/fragments", json={"content": "React 18 的并发特性", "title": "碎片一"},
+                          headers=headers)
+    assert r.status_code == 200
+    item = r.json()
+    assert item["form"] == "card" and item["scope"] == "personal" and item["status"] == "draft"
+
+    r = await client.get("/api/fragments", headers=headers)
+    items = r.json()
+    assert len(items) == 1 and items[0]["title"] == "碎片一"
+
+@pytest.mark.asyncio
+async def test_create_team_card_direct(client):
+    headers = await _auth(client)
+    r = await client.post("/api/items", json={"title": "团队卡", "content_md": "内容", "scope": "team"},
+                          headers=headers)
+    assert r.status_code == 200
+    assert r.json()["scope"] == "team" and r.json()["status"] == "published"
+
+@pytest.mark.asyncio
+async def test_publish_fragment_to_team(client):
+    headers = await _auth(client)
+    frag = (await client.post("/api/fragments", json={"content": "x"}, headers=headers)).json()
+    r = await client.post(f"/api/items/{frag['id']}/publish", headers=headers)
+    assert r.status_code == 200
+    assert r.json()["scope"] == "team" and r.json()["status"] == "published"
+
+@pytest.mark.asyncio
+async def test_items_visibility_between_users(client):
+    alice = await _auth(client, "alice")
+    bob = await _auth(client, "bob")
+    await client.post("/api/fragments", json={"content": "alice 私有"}, headers=alice)
+    await client.post("/api/items", json={"title": "公共卡", "content_md": "c", "scope": "team"}, headers=alice)
+
+    r = await client.get("/api/items", headers=bob)
+    titles = [i["title"] for i in r.json()]
+    assert "公共卡" in titles and "alice 私有" not in titles
+
+@pytest.mark.asyncio
+async def test_item_detail_with_links(client):
+    headers = await _auth(client)
+    a = (await client.post("/api/items", json={"title": "卡A", "content_md": "a", "scope": "team"}, headers=headers)).json()
+    b = (await client.post("/api/items", json={"title": "卡B", "content_md": "b", "scope": "team"}, headers=headers)).json()
+    r = await client.get(f"/api/items/{a['id']}", headers=headers)
+    assert r.status_code == 200 and r.json()["id"] == a["id"]
+
+@pytest.mark.asyncio
+async def test_edit_personal_item_only(client):
+    alice = await _auth(client, "alice")
+    bob = await _auth(client, "bob")
+    frag = (await client.post("/api/fragments", json={"content": "x"}, headers=alice)).json()
+    # bob 不能改 alice 的私有
+    r = await client.put(f"/api/items/{frag['id']}", json={"title": "hack"}, headers=bob)
+    assert r.status_code == 403
+    # alice 自己可以
+    r = await client.put(f"/api/items/{frag['id']}", json={"title": "改好了"}, headers=alice)
+    assert r.status_code == 200 and r.json()["title"] == "改好了"
+
+@pytest.mark.asyncio
+async def test_team_published_is_read_only(client):
+    headers = await _auth(client)
+    card = (await client.post("/api/items", json={"title": "团队卡", "content_md": "c", "scope": "team"}, headers=headers)).json()
+    r = await client.put(f"/api/items/{card['id']}", json={"title": "篡改"}, headers=headers)
+    assert r.status_code == 403
+
+@pytest.mark.asyncio
+async def test_delete_item_owner_or_admin(client):
+    alice = await _auth(client, "alice")
+    bob = await _auth(client, "bob")
+    frag = (await client.post("/api/fragments", json={"content": "x"}, headers=alice)).json()
+    r = await client.delete(f"/api/items/{frag['id']}", headers=bob)
+    assert r.status_code == 403
+    r = await client.delete(f"/api/items/{frag['id']}", headers=alice)
+    assert r.status_code == 200
+
 @pytest.mark.asyncio
 async def test_sessions_are_user_scoped(client):
     # 已注册 tester(admin) 并带 token；再造第二个用户
