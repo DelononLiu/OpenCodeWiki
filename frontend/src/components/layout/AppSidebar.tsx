@@ -270,7 +270,6 @@ export function AppSidebar() {
             ) : (
               /* QA / Admin / Other pages — session history（内容区：与导航区分层） */
               <div>
-                <div className="mx-[10px] mb-1 border-t border-slate-700/30" />
                 <button onClick={() => setSessionsExpanded(o => !o)}
                   className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-slate-500 uppercase tracking-widest hover:text-slate-300 transition-colors rounded-md">
                   <span className="flex items-center gap-1">
