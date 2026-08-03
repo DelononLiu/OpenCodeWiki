@@ -81,6 +81,65 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
+    active        INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_items (
+    id            TEXT PRIMARY KEY,
+    kb_id         TEXT NOT NULL DEFAULT '',
+    title         TEXT NOT NULL DEFAULT '',
+    content_md    TEXT NOT NULL DEFAULT '',
+    form          TEXT NOT NULL CHECK(form IN ('card','article')),
+    scope         TEXT NOT NULL CHECK(scope IN ('personal','team')),
+    status        TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','pending','published')),
+    owner_id      TEXT NOT NULL REFERENCES users(id),
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now')),
+    published_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS item_links (
+    source_id     TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    target_id     TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    type          TEXT NOT NULL CHECK(type IN ('references','derived_from')),
+    created_at    TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (source_id, target_id, type)
+);
+
+CREATE TABLE IF NOT EXISTS review_tasks (
+    id            TEXT PRIMARY KEY,
+    item_id       TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    reviewer_id   TEXT,
+    action        TEXT NOT NULL DEFAULT 'pending' CHECK(action IN ('pending','approved','rejected')),
+    reason        TEXT DEFAULT '',
+    created_at    TEXT DEFAULT (datetime('now')),
+    reviewed_at   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS item_derivations (
+    item_id       TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    source_type   TEXT NOT NULL,
+    source_ref    TEXT NOT NULL,
+    created_at    TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (item_id, source_type, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS wiki_nodes (
+    id            TEXT PRIMARY KEY,
+    parent_id     TEXT REFERENCES wiki_nodes(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL DEFAULT '',
+    item_id       TEXT REFERENCES knowledge_items(id) ON DELETE CASCADE,
+    file_path     TEXT DEFAULT '',
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
 """
 
 # Add columns for existing databases (safe to run multiple times)
@@ -96,6 +155,7 @@ _MIGRATIONS = [
     "ALTER TABLE knowledge_bases ADD COLUMN svn_username TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN svn_password TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN vector_state TEXT DEFAULT 'pending'",
+    "ALTER TABLE sessions ADD COLUMN owner_id TEXT DEFAULT ''",
 ]
 
 # ── Triggers: auto-maintain KB doc_count / chunk_count ──

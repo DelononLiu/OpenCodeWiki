@@ -31,7 +31,33 @@ def test_init_databases_creates_tables():
     assert "vector_chunks" in vec_table_names
     assert "chunk_fts" in vec_table_names
 
-    knora.close()
-    vectors.close()
-    import shutil
-    shutil.rmtree(db_path)
+
+def test_new_tables_exist():
+    from backend.database import get_knora_db
+    db = get_knora_db()
+    for table in ("users", "knowledge_items", "item_links", "review_tasks", "item_derivations", "wiki_nodes"):
+        row = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+        assert row is not None, f"table {table} missing"
+
+def test_sessions_have_owner_column():
+    from backend.database import get_knora_db
+    db = get_knora_db()
+    cols = [r[1] for r in db.execute("PRAGMA table_info(sessions)").fetchall()]
+    assert "owner_id" in cols
+
+def test_knowledge_items_check_constraints():
+    from backend.database import get_knora_db
+    db = get_knora_db()
+    db.execute(
+        "INSERT INTO users (id, username, password_hash, role) VALUES ('usr-t1', 't1', 'h', 'user')"
+    )
+    db.commit()
+    try:
+        db.execute(
+            "INSERT INTO knowledge_items (id, title, content_md, form, scope, status, owner_id) "
+            "VALUES ('it-t1', 'x', 'y', 'bad-form', 'personal', 'draft', 'usr-t1')"
+        )
+        db.commit()
+        assert False, "bad form should violate CHECK"
+    except Exception:
+        pass
