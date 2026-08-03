@@ -56,6 +56,8 @@ def attach_item(node_id: str, item_id: str) -> dict:
 def move_node(node_id: str, new_parent_id: str | None, sort_order: int | None = None) -> None:
     if new_parent_id == node_id:
         raise ValueError("不能移动到自身下")
+    if new_parent_id and not get_node(new_parent_id):
+        raise ValueError("父节点不存在")
     # 防环：新父不能是自己的子孙
     if new_parent_id:
         cur = get_node(new_parent_id)

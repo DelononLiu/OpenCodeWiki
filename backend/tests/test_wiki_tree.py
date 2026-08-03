@@ -46,6 +46,14 @@ def test_move_node_rejects_cycle():
     except ValueError:
         pass
 
+def test_move_node_rejects_missing_parent():
+    a = create_node("独立节点")
+    try:
+        move_node(a["id"], "wn-no-such")  # 新父不存在 → ValueError（原 500）
+        assert False, "should reject missing parent"
+    except ValueError:
+        pass
+
 def test_delete_node_cascades():
     a = create_node("父")
     b = create_node("子", parent_id=a["id"])

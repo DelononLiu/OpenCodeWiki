@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import time
 import yaml
@@ -23,6 +24,7 @@ from backend.stores.items import (
 )
 from backend.knowledge.importer import import_document, compute_hash
 from backend.knowledge.embedder import Embedder
+from backend.knowledge.item_index import index_item
 from backend.pipeline.events import PipelineEvent, EventNames
 from backend.pipeline.pipeline import Pipeline, PipelinePlan
 from backend.pipeline.plugins.query_understand import QueryUnderstandPlugin
@@ -118,8 +120,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     @app.middleware("http")
     async def auth_gate(request: Request, call_next):
         path = request.url.path
-        public = ("/api/auth/register", "/api/auth/login", "/api/config")
-        if path.startswith("/api") and path not in public:
+        public = ("/api/auth/register", "/api/auth/login")
+        # GET /api/config 公开（登录页读取模型配置）；其余方法（PUT 等）需鉴权
+        if path.startswith("/api") and path not in public and not (path == "/api/config" and request.method == "GET"):
             auth = request.headers.get("Authorization", "")
             user = None
             if auth.startswith("Bearer "):
@@ -157,6 +160,29 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     @app.on_event("startup")
     async def _start_worker():
         asyncio.create_task(worker.run())
+
+    # ── 知识项异步向量索引（卡片发布 / 团队直建 / 文章审批通过后触发）──
+    def _log_index_failure(task: asyncio.Task) -> None:
+        """索引失败仅告警，不阻断主流程（P2-3：不再静默失败）。"""
+        try:
+            exc = task.exception()
+        except asyncio.CancelledError:
+            return
+        if exc:
+            logging.warning("知识项索引失败: %s", exc)
+
+    def _spawn_item_index(item: dict) -> None:
+        """异步建知识项向量索引（幂等：先清旧索引）。Embedder 构造
+        （缺 embedding key 时 AsyncOpenAI 构造期抛错）或建索引失败
+        都只告警，不影响卡片发布 / 审批结果。"""
+        try:
+            task = asyncio.create_task(index_item(item, Embedder(
+                client=AsyncOpenAI(api_key=cfg.embedding.api_key, base_url=cfg.embedding.base_url),
+                model=cfg.embedding.model, dimensions=cfg.embedding.dimensions,
+            )))
+            task.add_done_callback(_log_index_failure)
+        except Exception as e:
+            logging.warning("知识项索引失败: %s", e)
 
     # ── Config ──
     @app.get("/api/config")
@@ -363,8 +389,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         if not _wn_get(node_id):
             raise HTTPException(404, "节点不存在")
         from backend.stores.items import get_item as _get_item
-        if not _get_item(req.item_id):
+        item = _get_item(req.item_id)
+        if not item:
             raise HTTPException(404, "知识项不存在")
+        # 不能把他人私有知识项挂到节点上（节点对团队可见）
+        if item["scope"] == "personal" and item["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "不能挂载他人私有知识项")
         try:
             return _wn_attach(node_id, req.item_id)
         except ValueError as e:
@@ -388,9 +418,15 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.get("/api/wiki/node/{node_id}")
     async def api_wiki_node_content(node_id: str, user: dict = Depends(get_current_user)):
-        content = get_node_content(node_id)
-        if not content:
+        node = _wn_get(node_id)
+        if not node:
             raise HTTPException(404, "节点不存在")
+        # 节点挂载了私有知识项时，与 api_get_item 同规则：仅本人/admin 可读
+        if node["item_id"]:
+            item = get_item(node["item_id"])
+            if item and item["scope"] == "personal" and item["owner_id"] != user["id"] and user["role"] != "admin":
+                raise HTTPException(403, "无权访问他人私有知识项")
+        content = get_node_content(node_id)
         return content
 
     @app.get("/api/wiki/{slug:path}")
@@ -702,7 +738,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return {**ses, "messages": messages}
 
     @app.delete("/api/sessions/{sid}")
-    async def api_delete_session(sid: str):
+    async def api_delete_session(sid: str, user: dict = Depends(get_current_user)):
+        ses = get_session(sid)
+        if not ses:
+            raise HTTPException(404, "Session not found")
+        # 与 api_get_session 相同的归属校验
+        if ses["owner_id"] and ses["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "无权删除他人会话")
         delete_session(sid)
         return {"deleted": True}
 
@@ -736,16 +778,24 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     @app.post("/api/items")
     async def api_create_item(req: ItemRequest, user: dict = Depends(get_current_user)):
+        # 文章必须走提交审核流程，禁止直建为团队发布
+        if req.form == "article" and req.scope == "team":
+            raise HTTPException(400, "文章需走审核流程，不能直接发布")
         try:
-            return create_item(user["id"], req.title, req.content_md,
+            item = create_item(user["id"], req.title, req.content_md,
                                form=req.form, scope=req.scope, kb_id=req.kb_id)
         except ValueError as e:
             raise HTTPException(400, str(e))
+        # 团队直建卡片即发布 → 异步进向量索引（与审批路径一致）
+        if item["scope"] == "team" and item["status"] == "published":
+            _spawn_item_index(item)
+        return item
 
     @app.get("/api/items")
     async def api_list_items(form: str | None = None, scope: str | None = None,
-                             q: str | None = None, user: dict = Depends(get_current_user)):
-        return list_items(user["id"], scope=scope, form=form, q=q)
+                             status: str | None = None, q: str | None = None,
+                             user: dict = Depends(get_current_user)):
+        return list_items(user["id"], scope=scope, form=form, status=status, q=q)
 
     @app.get("/api/items/{item_id}")
     async def api_get_item(item_id: str, user: dict = Depends(get_current_user)):
@@ -791,6 +841,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             published = publish_card(item_id)
         except ValueError as e:
             raise HTTPException(400, str(e))
+        # 卡片发布为团队内容 → 异步进向量索引，失败不阻断
+        if published["scope"] == "team" and published["status"] == "published":
+            _spawn_item_index(published)
         return published
 
     # ── QA 沉淀与文章起草 ──
@@ -922,17 +975,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         item = get_item(item_id)
         if req.action == "approve":
             approve_review(item_id, user["id"], req.reason)
-            # 批准后异步建知识项向量索引。Embedder 构造（无 embedding key 时
-            # AsyncOpenAI 构造期抛 OpenAIError）或建索引失败都不阻断审批——
-            # 索引是附加能力，缺失/失败时静默跳过。
-            try:
-                from backend.knowledge.item_index import index_item
-                asyncio.create_task(index_item(item, Embedder(
-                    client=AsyncOpenAI(api_key=cfg.embedding.api_key, base_url=cfg.embedding.base_url),
-                    model=cfg.embedding.model, dimensions=cfg.embedding.dimensions,
-                )))
-            except Exception:
-                pass  # 缺 embedding key 或索引失败：跳过，不阻断审批
+            # 批准后异步建知识项向量索引；失败只告警（P2-3），不阻断审批
+            _spawn_item_index(item)
         elif req.action == "reject":
             reject_review(item_id, user["id"], req.reason)
             # TODO(Task 9): 驳回时清理向量索引（item_index 尚未实现，import 容错）
