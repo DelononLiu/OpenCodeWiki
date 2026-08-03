@@ -24,16 +24,15 @@ function renderQAPage(route = '/qa') {
 describe('QAPage (simplified)', () => {
   it('should show empty state when no active session', () => {
     renderQAPage()
-    const hints = screen.getAllByText('对代码和文档提问')
-    expect(hints.length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('我可以帮你理解代码架构、检索文档或解释工作原理')).toBeInTheDocument()
+    expect(screen.getByText('知识库问答')).toBeInTheDocument()
+    expect(screen.getByText('在左侧选择知识库，输入问题开始对话')).toBeInTheDocument()
   })
 
   it('should render bottom input bar', () => {
-    renderQAPage()
-    const input = screen.getByPlaceholderText('输入你的问题...')
+    const { container } = renderQAPage()
+    const input = screen.getByPlaceholderText('输入问题，Enter 发送...')
     expect(input).toBeInTheDocument()
-    expect(screen.getByText('发送')).toBeInTheDocument()
+    expect(container.querySelector('.lucide-send')).toBeInTheDocument()
   })
 
   it('should show new chat button in top bar', () => {
@@ -44,7 +43,7 @@ describe('QAPage (simplified)', () => {
 
   it('should show bottom input is enabled initially', () => {
     renderQAPage()
-    const input = screen.getByPlaceholderText('输入你的问题...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('输入问题，Enter 发送...') as HTMLInputElement
     expect(input.disabled).toBe(false)
   })
 })

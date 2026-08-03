@@ -11,6 +11,7 @@ import { FeedbackBar } from '@/components/qa/FeedbackBar'
 import { ParagraphCorrection } from '@/components/qa/ParagraphCorrection'
 import { FeedbackStats } from '@/components/qa/FeedbackStats'
 import { WikiSlidePanel } from '@/components/qa/WikiSlidePanel'
+import { SedimentMenu } from '@/components/qa/SedimentMenu'
 import type { QaFeedbackState, ParagraphCorrection as CorrectionType, FeedbackStats as StatsType } from '@/components/qa/types'
 
 interface Message {
@@ -514,6 +515,12 @@ export function QAPage() {
             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
             <Plus className="w-4 h-4" />
           </button>
+        )}
+
+        {activeSessionId && (
+          <SedimentMenu sessionId={activeSessionId}
+            disabled={!messages.length || streaming}
+            onDone={() => {}} />
         )}
 
         <input
