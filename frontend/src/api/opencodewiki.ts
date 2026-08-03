@@ -1,4 +1,4 @@
-import type { KB, Document, Session, Message, Config, User, KnowledgeItem, ReviewTask } from '@/types/opencodewiki'
+import type { KB, Document, Session, Message, Config, User, KnowledgeItem, ReviewTask, WikiNode } from '@/types/opencodewiki'
 
 const BASE = ''
 
@@ -160,4 +160,10 @@ export function fetchReviews(): Promise<ReviewTask[]> { return request('/api/adm
 export function fetchAdminUsers(): Promise<User[]> { return request('/api/admin/users') }
 export function deactivateUser(id: string): Promise<{ deactivated: boolean }> {
   return request(`/api/admin/users/${id}/deactivate`, { method: 'POST' })
+}
+
+// Wiki organization tree
+export function fetchWikiTree(): Promise<WikiNode[]> { return request('/api/wiki/tree') }
+export function fetchWikiNodeContent(id: string): Promise<{ node: { id: string; name: string; item_id: string | null }; content: string; title: string }> {
+  return request(`/api/wiki/node/${id}`)
 }

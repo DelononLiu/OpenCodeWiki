@@ -3,6 +3,7 @@ import { LayoutProvider } from '@/contexts/LayoutContext'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { WikiGlobalPage } from '@/pages/WikiGlobalPage'
+import { WikiNodePage } from '@/pages/WikiNodePage'
 import { QAPage } from '@/pages/QAPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -39,6 +40,7 @@ function Shell() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/" element={<RequireAuth><Navigate to="/qa" replace /></RequireAuth>} />
             <Route path="/wiki/:name" element={<RequireAuth><WikiGlobalPage /></RequireAuth>} />
+            <Route path="/wiki/node/:nodeId" element={<RequireAuth><WikiNodePage /></RequireAuth>} />
             <Route path="/wiki" element={<RequireAuth><WikiGlobalPage /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
             <Route path="/qa" element={<RequireAuth><QAPageRoute /></RequireAuth>} />

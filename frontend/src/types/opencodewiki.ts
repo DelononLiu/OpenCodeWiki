@@ -122,3 +122,11 @@ export interface ReviewTask {
   reason: string
   created_at: string
 }
+
+export interface WikiNode {
+  id: string
+  name: string
+  item_id: string | null
+  file_path: string
+  children: WikiNode[]
+}

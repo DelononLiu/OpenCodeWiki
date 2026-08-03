@@ -4,6 +4,9 @@ import { useLayout, type TabType } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { fetchWikiModules, fetchTopics } from '@/api/client'
 import type { Topic } from '@/types'
+import { fetchWikiTree } from '@/api/opencodewiki'
+import type { WikiNode } from '@/types/opencodewiki'
+import { WikiTree } from '@/components/wiki/WikiTree'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import {
   BookOpen, MessageSquare, FileText, Database, Settings,
@@ -32,6 +35,9 @@ export function AppSidebar() {
   // KB list from API
   const [kbList, setKbList] = useState<{name: string}[]>([])
 
+  // Wiki organization tree from API
+  const [wikiTree, setWikiTree] = useState<WikiNode[]>([])
+
   // Session history for QA page
   const [sessionList, setSessionList] = useState<{id: string; title: string; created_at: string}[]>([])
   const [sessionsExpanded, setSessionsExpanded] = useState(true)
@@ -49,6 +55,7 @@ export function AppSidebar() {
     fetch('/api/knowledge').then(r => r.json()).then(d => {
       setKbList(d.data || [])
     }).catch(() => {})
+    fetchWikiTree().then(setWikiTree).catch(() => {})
   }, [])
 
   // Fetch sessions on mount and every navigation
@@ -243,9 +250,7 @@ export function AppSidebar() {
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                {kbModules.length > 0 ? docTree : (
-                  <div className="text-sm text-slate-600 px-[10px] py-5 text-center">暂无文档</div>
-                )}
+                <WikiTree nodes={wikiTree} onSelect={n => navigate(`/wiki/node/${n.id}`)} />
                 {/* Topics in sidebar */}
                 {topics.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-700/30">
