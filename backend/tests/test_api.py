@@ -115,3 +115,24 @@ async def test_duplicate_username_register(client):
     await client.post("/api/auth/register", json={"username": "carol", "password": "pw"})
     resp = await client.post("/api/auth/register", json={"username": "carol", "password": "pw"})
     assert resp.status_code == 400
+
+@pytest.mark.asyncio
+async def test_sessions_are_user_scoped(client):
+    # 已注册 tester(admin) 并带 token；再造第二个用户
+    r = await client.post("/api/auth/register", json={"username": "other", "password": "pw"})
+    other_token = r.json()["token"]
+
+    r = await client.post("/api/sessions", json={"kb_id": "", "title": "我的会话"})
+    my_sid = r.json()["id"]
+
+    # other 用户看不到我的会话
+    resp = await client.get("/api/sessions", headers={"Authorization": f"Bearer {other_token}"})
+    assert all(s["id"] != my_sid for s in resp.json())
+
+    # other 用户访问我的会话详情 → 403
+    resp = await client.get(f"/api/sessions/{my_sid}", headers={"Authorization": f"Bearer {other_token}"})
+    assert resp.status_code == 403
+
+    # admin 可见全部
+    resp = await client.get("/api/sessions")
+    assert any(s["id"] == my_sid for s in resp.json())

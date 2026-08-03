@@ -603,18 +603,22 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         title: str = ""
 
     @app.post("/api/sessions")
-    async def api_create_session(req: CreateSessionRequest):
-        return create_session(req.kb_id, req.title)
+    async def api_create_session(req: CreateSessionRequest, user: dict = Depends(get_current_user)):
+        return create_session(req.kb_id, req.title, owner_id=user["id"])
 
     @app.get("/api/sessions")
-    async def api_list_sessions(kb_id: str | None = None):
-        return list_sessions(kb_id)
+    async def api_list_sessions(kb_id: str | None = None, user: dict = Depends(get_current_user)):
+        if user["role"] == "admin":
+            return list_sessions(kb_id)
+        return list_sessions(kb_id, owner_id=user["id"])
 
     @app.get("/api/sessions/{sid}")
-    async def api_get_session(sid: str):
+    async def api_get_session(sid: str, user: dict = Depends(get_current_user)):
         ses = get_session(sid)
         if not ses:
             raise HTTPException(404, "Session not found")
+        if ses["owner_id"] and ses["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "无权访问他人会话")
         messages = get_messages(sid)
         return {**ses, "messages": messages}
 
@@ -720,7 +724,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         session_id: str = ""
 
     @app.post("/api/qa")
-    async def api_qa(req: QARequest):
+    async def api_qa(req: QARequest, user: dict = Depends(get_current_user)):
         kb = get_kb(req.kb_id) if req.kb_id else None
 
         # Build pipeline — WeKnora-style: multiple plugins per event
@@ -773,6 +777,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                 # Reuse existing session
                 ses = get_session(req.session_id)
                 if ses:
+                    if ses["owner_id"] and ses["owner_id"] != user["id"] and user["role"] != "admin":
+                        raise HTTPException(403, "无权访问他人会话")
                     session_id = req.session_id
                     # Load history from DB (past turns only, before saving current user message)
                     msgs = get_messages(session_id)
@@ -782,11 +788,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                     ]
                 else:
                     # session_id invalid, create new
-                    ses = create_session(req.kb_id, req.question[:50])
+                    ses = create_session(req.kb_id, req.question[:50], owner_id=user["id"])
                     session_id = ses["id"]
             else:
                 # First turn — create session
-                ses = create_session(req.kb_id, req.question[:50])
+                ses = create_session(req.kb_id, req.question[:50], owner_id=user["id"])
                 session_id = ses["id"]
 
             # Save current user message to DB

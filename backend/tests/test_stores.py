@@ -54,3 +54,10 @@ def test_session_and_messages():
     assert msg["role"] == "user"
     msgs = get_messages(ses["id"])
     assert len(msgs) == 1
+
+def test_session_owner_scoping():
+    ses1 = create_session("kb1", "s1", owner_id="usr-a")
+    ses2 = create_session("kb1", "s2", owner_id="usr-b")
+    legacy = create_session("kb1", "legacy")
+    ids_a = {s["id"] for s in list_sessions(None, owner_id="usr-a")}
+    assert ses1["id"] in ids_a and ses2["id"] not in ids_a and legacy["id"] in ids_a

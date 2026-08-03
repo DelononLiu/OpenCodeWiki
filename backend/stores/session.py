@@ -1,27 +1,39 @@
 import uuid
 from backend.database import get_knora_db
 
-def create_session(kb_id: str, title: str = "") -> dict:
+def create_session(kb_id: str, title: str = "", owner_id: str = "") -> dict:
     db = get_knora_db()
     sid = f"ses-{uuid.uuid4().hex[:8]}"
-    db.execute("INSERT INTO sessions (id, kb_id, title) VALUES (?, ?, ?)", (sid, kb_id, title))
+    db.execute("INSERT INTO sessions (id, kb_id, title, owner_id) VALUES (?, ?, ?, ?)",
+               (sid, kb_id, title, owner_id))
     db.commit()
-    return {"id": sid, "kb_id": kb_id, "title": title}
+    return {"id": sid, "kb_id": kb_id, "title": title, "owner_id": owner_id}
+
 
 def get_session(sid: str) -> dict | None:
     db = get_knora_db()
-    row = db.execute("SELECT id, kb_id, title, created_at FROM sessions WHERE id = ?", (sid,)).fetchone()
+    row = db.execute("SELECT id, kb_id, title, owner_id, created_at FROM sessions WHERE id = ?", (sid,)).fetchone()
     if not row:
         return None
-    return {"id": row[0], "kb_id": row[1], "title": row[2], "created_at": row[3]}
+    return {"id": row[0], "kb_id": row[1], "title": row[2], "owner_id": row[3], "created_at": row[4]}
 
-def list_sessions(kb_id: str | None = None) -> list[dict]:
+
+def list_sessions(kb_id: str | None = None, owner_id: str | None = None) -> list[dict]:
     db = get_knora_db()
+    sql = "SELECT id, kb_id, title, owner_id, created_at FROM sessions"
+    conds, params = [], []
     if kb_id:
-        rows = db.execute("SELECT id, kb_id, title, created_at FROM sessions WHERE kb_id = ? ORDER BY created_at DESC", (kb_id,)).fetchall()
-    else:
-        rows = db.execute("SELECT id, kb_id, title, created_at FROM sessions ORDER BY created_at DESC").fetchall()
-    return [{"id": r[0], "kb_id": r[1], "title": r[2], "created_at": r[3]} for r in rows]
+        conds.append("kb_id = ?")
+        params.append(kb_id)
+    if owner_id is not None:
+        # 个人：自己的 + 无主遗留（owner_id=''）；admin 传 None 看全部
+        conds.append("(owner_id = ? OR owner_id = '')")
+        params.append(owner_id)
+    if conds:
+        sql += " WHERE " + " AND ".join(conds)
+    sql += " ORDER BY created_at DESC"
+    rows = db.execute(sql, params).fetchall()
+    return [{"id": r[0], "kb_id": r[1], "title": r[2], "owner_id": r[3], "created_at": r[4]} for r in rows]
 
 def delete_session(sid: str) -> None:
     db = get_knora_db()
