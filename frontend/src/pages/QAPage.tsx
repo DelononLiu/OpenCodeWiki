@@ -538,7 +538,7 @@ export function QAPage() {
     )
 
     return (
-      <div className={`bg-white border border-gray-200 rounded-2xl shadow-sm transition-all duration-200 focus-within:border-cyber-blue/50 focus-within:ring-4 focus-within:ring-cyber-blue/5 ${compact ? 'shadow-xl' : ''}`}>
+      <div className={`bg-white border border-gray-200/80 rounded-2xl shadow-md transition-all duration-200 focus-within:border-cyber-blue/50 focus-within:ring-4 focus-within:ring-cyber-blue/5 ${compact ? 'shadow-xl' : ''}`}>
         <textarea
           ref={!hasContent ? centerInputRef : undefined}
           rows={1}
@@ -557,7 +557,7 @@ export function QAPage() {
   const isAssistant = (m: Message) => m.role === 'assistant'
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full flex flex-col relative bg-gray-50">
       {/* ── Empty / Messages area ── */}
       <div ref={messageAreaRef} onScroll={handleScroll}
         className={`flex-1 overflow-y-auto px-4 md:px-8 ${hasContent ? '' : 'flex flex-col'}`}>
@@ -698,10 +698,10 @@ export function QAPage() {
         </div>
       )}
 
-      {/* ── Bottom input bar ── */}
+      {/* ── Bottom input bar（悬浮卡片，无条带背景）── */}
       {hasContent && (
-        <div className="flex-shrink-0 border-t border-gray-200/70 bg-white/80 backdrop-blur-sm">
-          <div className="max-w-3xl mx-auto px-4 md:px-8 py-3.5">
+        <div className="flex-shrink-0">
+          <div className="max-w-3xl mx-auto px-4 md:px-8 py-4">
             {renderInputBar(false)}
           </div>
         </div>
