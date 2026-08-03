@@ -1,7 +1,10 @@
 """Tests for the vector store module (sqlite-vec + FTS5)."""
 
-import tempfile
-from backend.database import init_databases, get_knora_db, get_vectors_db
+import random
+
+import pytest
+
+from backend.database import get_knora_db, get_vectors_db
 from backend.config import Config
 from backend.knowledge.vector_store import (
     insert_vectors,
@@ -11,13 +14,21 @@ from backend.knowledge.vector_store import (
 )
 
 
-def setup_module():
-    """Initialize databases with a temp directory, and seed knora with test data."""
-    db_path = tempfile.mkdtemp()
-    cfg = Config()
-    cfg.database.path = db_path
-    init_databases(cfg)
+def _random_vector(dim=None):
+    """Random vector matching the configured embedding dimension."""
+    if dim is None:
+        dim = Config().embedding.dimensions
+    return [random.random() for _ in range(dim)]
 
+
+@pytest.fixture
+def seeded_kb():
+    """Seed knora with a KB/doc/chunks for the vector-store tests.
+
+    The autouse `_isolated_db` fixture from conftest.py (which runs first)
+    initializes a fresh temporary database per test; this fixture only adds
+    the test rows that the vector-store tests depend on.
+    """
     knora = get_knora_db()
     knora.execute(
         "INSERT INTO knowledge_bases (id, name) VALUES ('kb-1', 'Test KB')"
@@ -40,14 +51,8 @@ def setup_module():
     knora.commit()
 
 
-def _random_vector(dim=1536):
-    import random
-
-    return [random.random() for _ in range(dim)]
-
-
 class TestVectorStore:
-    def test_insert_and_search_vector(self):
+    def test_insert_and_search_vector(self, seeded_kb):
         """Insert three vectors, then search and verify result structure."""
         chunks = [
             {"id": "chk-a", "content": "JWT tokens expire after 24 hours", "kb_id": "kb-1"},
@@ -72,12 +77,12 @@ class TestVectorStore:
             assert "chunk_id" in r
             assert "score" in r
 
-    def test_search_keyword(self):
+    def test_search_keyword(self, seeded_kb):
         """FTS5 keyword search — result count may vary by tokenizer."""
         results = search_keyword(["JWT"], "kb-1", top_k=5)
         assert len(results) >= 0
 
-    def test_delete_by_doc(self):
+    def test_delete_by_doc(self, seeded_kb):
         """Insert a vector, verify it exists, delete by doc_id, verify gone."""
         insert_vectors(
             [

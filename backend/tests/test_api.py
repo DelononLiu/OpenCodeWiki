@@ -30,7 +30,9 @@ async def test_create_and_list_kb(client):
     resp = await client.get("/api/kb")
     assert resp.status_code == 200
     kbs = resp.json()
-    assert len(kbs) == 1
+    # App startup seeds the default KB (ensure_default_kb), so assert the new
+    # KB is present rather than coupling to the exact total count.
+    assert any(kb["name"] == "Test KB" for kb in kbs)
 
 @pytest.mark.asyncio
 async def test_delete_kb(client):

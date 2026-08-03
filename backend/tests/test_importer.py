@@ -41,19 +41,23 @@ async def test_import_document_flow():
 
     doc = create_document(kb["id"], "test.md", path, "hash123", "md")
 
+    # Vector dimension must match the configured embedding dimension (the
+    # vector_chunks table is created with this many dims by init_databases).
+    dim = Config().embedding.dimensions
+
     # Mock embedder and run import
     mock_embedder = MagicMock()
-    mock_embedder.embed = AsyncMock(return_value=[[0.0] * 1536])
-    mock_embedder.embed_single = AsyncMock(return_value=[0.0] * 1536)
+    mock_embedder.embed = AsyncMock(return_value=[[0.0] * dim])
+    mock_embedder.embed_single = AsyncMock(return_value=[0.0] * dim)
 
     with patch('backend.knowledge.importer.Embedder', return_value=mock_embedder):
         # We need a small chunk_size so the test creates multiple chunks
         cfg = Config()
         cfg.database.path = tempfile.mkdtemp()
-        init_databases(cfg)
         cfg.knowledge.chunk_size = 100
-        cfg.embedding.dimensions = 1536
+        cfg.embedding.dimensions = dim
         cfg.embedding.api_key = "test-key"
+        init_databases(cfg)
 
         # re-create doc in the correct db
         from backend.stores.doc import create_document as cd

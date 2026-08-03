@@ -62,6 +62,6 @@ def test_env_var_override():
 
 def test_config_defaults():
     cfg = Config()
-    assert cfg.server.port == 8765
-    assert cfg.llm.model == "gpt-4o-mini"
+    assert cfg.server.port == 8100
+    assert cfg.llm.model == "deepseek-v4-flash"
     assert cfg.retrieval.vector_top_k == 20
