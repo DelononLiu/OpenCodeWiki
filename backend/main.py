@@ -718,6 +718,84 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(400, str(e))
         return published
 
+    # ── QA 沉淀与文章起草 ──
+    class SedimentRequest(BaseModel):
+        kind: str = "card"   # "card" | "article"
+
+    class DraftRequest(BaseModel):
+        title: str = ""
+        item_ids: list[str]
+
+    def _get_session_messages(sid: str) -> tuple[str, str]:
+        """取会话最后一条问答；无则返回 ("", "")。"""
+        from backend.stores.session import get_messages as _get_messages
+        msgs = _get_messages(sid)
+        question = answer = ""
+        for m in msgs:
+            if m["role"] == "user":
+                question = m["content"]
+            elif m["role"] == "assistant":
+                answer = m["content"]
+        return question, answer
+
+    @app.post("/api/sessions/{sid}/sediment")
+    async def api_sediment_session(sid: str, req: SedimentRequest, user: dict = Depends(get_current_user)):
+        ses = get_session(sid)
+        if not ses:
+            raise HTTPException(404, "会话不存在")
+        if ses["owner_id"] and ses["owner_id"] != user["id"] and user["role"] != "admin":
+            raise HTTPException(403, "无权沉淀他人会话")
+        question, answer = _get_session_messages(sid)
+        if not question or not answer:
+            raise HTTPException(400, "该会话还没有问答内容")
+
+        client = AsyncOpenAI(api_key=cfg.llm.api_key, base_url=cfg.llm.base_url)
+        from backend import sediment
+        if req.kind == "card":
+            draft = await sediment.refine_qa_to_card(client, cfg.llm.model, question, answer)
+            item = create_item(user["id"], draft["title"], draft["content"],
+                               form="card", scope="personal")
+        elif req.kind == "article":
+            draft = await sediment.draft_article(
+                client, cfg.llm.model,
+                [{"title": question[:40], "content_md": f"{question}\n\n{answer}"}],
+                title_hint=question[:40],
+            )
+            item = create_item(user["id"], draft["title"], draft["content"],
+                               form="article", scope="personal")
+        else:
+            raise HTTPException(400, "kind 必须是 card 或 article")
+        from backend.database import get_knora_db
+        get_knora_db().execute(
+            "INSERT OR IGNORE INTO item_derivations (item_id, source_type, source_ref) VALUES (?, 'qa', ?)",
+            (item["id"], sid))
+        get_knora_db().commit()
+        return item
+
+    @app.post("/api/articles/draft")
+    async def api_draft_article(req: DraftRequest, user: dict = Depends(get_current_user)):
+        if not req.item_ids:
+            raise HTTPException(400, "至少选择一张卡片")
+        cards = []
+        for cid in req.item_ids:
+            card = get_item(cid)
+            if not card:
+                raise HTTPException(404, f"卡片不存在: {cid}")
+            if card["form"] != "card":
+                raise HTTPException(400, f"{cid} 不是卡片")
+            if card["scope"] == "personal" and card["owner_id"] != user["id"]:
+                raise HTTPException(403, f"无权引用他人私有卡片: {cid}")
+            cards.append(card)
+
+        client = AsyncOpenAI(api_key=cfg.llm.api_key, base_url=cfg.llm.base_url)
+        from backend import sediment
+        draft = await sediment.draft_article(client, cfg.llm.model, cards, title_hint=req.title)
+        item = create_item(user["id"], draft["title"], draft["content"],
+                           form="article", scope="personal")
+        for card in cards:
+            add_link(item["id"], card["id"], "references")  # add_link 已在 Task 7 导入
+        return item
+
     # ── Tasks ──
     class CreateTaskRequest(BaseModel):
         type: str

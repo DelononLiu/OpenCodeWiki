@@ -11,6 +11,9 @@ async def client():
     db_path = tempfile.mkdtemp()
     cfg = Config()
     cfg.database.path = db_path
+    # 占位 key：sediment 路由构造 AsyncOpenAI 需要非空 api_key（openai>=1.55 构造期校验）；
+    # 测试均 monkeypatch 了 sediment 函数，不会产生真实 LLM 调用。
+    cfg.llm.api_key = "test-dummy-key"
     os.makedirs(f"{db_path}/files", exist_ok=True)
     init_databases(cfg)
     app = create_app(cfg)
@@ -217,3 +220,67 @@ async def test_sessions_are_user_scoped(client):
     # admin 可见全部
     resp = await client.get("/api/sessions")
     assert any(s["id"] == my_sid for s in resp.json())
+
+@pytest.mark.asyncio
+async def test_sediment_session_to_card(client, monkeypatch):
+    from backend import sediment
+    async def fake_refine(client, model, question, answer):
+        return {"title": "提炼卡", "content": "提炼后的内容"}
+    monkeypatch.setattr(sediment, "refine_qa_to_card", fake_refine)
+
+    headers = await _auth(client, "alice")
+    r = await client.post("/api/sessions", json={"kb_id": "", "title": "会话"}, headers=headers)
+    sid = r.json()["id"]
+    # 塞一条问答（模拟 SSE 已保存）
+    from backend.stores.session import create_message
+    from backend.database import get_knora_db  # 无需——create_message 直接入库
+    create_message(sid, "user", "异步队列怎么实现？", "[]", 0)
+    create_message(sid, "assistant", "用 celery 实现", "[]", 10)
+
+    r = await client.post(f"/api/sessions/{sid}/sediment", json={"kind": "card"}, headers=headers)
+    assert r.status_code == 200
+    item = r.json()
+    assert item["form"] == "card" and item["scope"] == "personal"
+    assert item["title"] == "提炼卡"
+
+    # 派生记录
+    from backend.database import get_knora_db
+    row = get_knora_db().execute(
+        "SELECT 1 FROM item_derivations WHERE item_id = ? AND source_ref = ?",
+        (item["id"], sid)).fetchone()
+    assert row is not None
+
+@pytest.mark.asyncio
+async def test_sediment_requires_ownership(client, monkeypatch):
+    from backend import sediment
+    async def fake_refine(client, model, question, answer):
+        return {"title": "t", "content": "c"}
+    monkeypatch.setattr(sediment, "refine_qa_to_card", fake_refine)
+
+    alice = await _auth(client, "alice")
+    bob = await _auth(client, "bob")
+    r = await client.post("/api/sessions", json={"kb_id": "", "title": "s"}, headers=alice)
+    sid = r.json()["id"]
+    r = await client.post(f"/api/sessions/{sid}/sediment", json={"kind": "card"}, headers=bob)
+    assert r.status_code == 403
+
+@pytest.mark.asyncio
+async def test_draft_article_from_cards(client, monkeypatch):
+    from backend import sediment
+    async def fake_draft(client, model, cards, title_hint=""):
+        return {"title": "聚合文章", "content": "# 正文"}
+    monkeypatch.setattr(sediment, "draft_article", fake_draft)
+
+    headers = await _auth(client, "alice")
+    c1 = (await client.post("/api/items", json={"title": "卡1", "content_md": "内容1", "scope": "team"}, headers=headers)).json()
+    c2 = (await client.post("/api/items", json={"title": "卡2", "content_md": "内容2", "scope": "team"}, headers=headers)).json()
+    r = await client.post("/api/articles/draft", json={"item_ids": [c1["id"], c2["id"]]}, headers=headers)
+    assert r.status_code == 200
+    art = r.json()
+    assert art["form"] == "article" and art["scope"] == "personal" and art["status"] == "draft"
+    # 引用链接
+    from backend.database import get_knora_db
+    n = get_knora_db().execute(
+        "SELECT COUNT(*) FROM item_links WHERE source_id = ? AND type = 'references'",
+        (art["id"],)).fetchone()[0]
+    assert n == 2
