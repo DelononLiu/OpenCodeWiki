@@ -50,3 +50,31 @@ async def test_context_build_plugin():
     assert "Important content" in result.context_text
     assert "You are helpful" in result.system_prompt
     assert "test question" in result.context_text
+
+@pytest.mark.asyncio
+async def test_search_plugin_includes_team_items():
+    import asyncio
+    from backend.stores.users import create_user
+    from backend.stores.items import create_item
+    from backend.knowledge.vector_store import insert_item_vectors
+
+    owner = create_user("searcher", "pw")["id"]
+    item = create_item(owner, "团队检索卡", "这个卡片讲的是异步任务队列的实现", scope="team")
+    # 伪造固定向量
+    import hashlib
+    h = hashlib.sha256("异步任务队列".encode()).digest()
+    vec = [((h[i % 32] + i) % 256) / 128.0 - 1.0 for i in range(2048)]
+    insert_item_vectors([{"item_id": item["id"], "vector": vec,
+                          "text": "团队检索卡 这个卡片讲的是异步任务队列的实现",
+                          "keywords": "异步"}])
+
+    class StubEmbedder:
+        async def embed_single(self, text):
+            h = hashlib.sha256(text.encode()).digest()
+            return [((h[i % 32] + i) % 256) / 128.0 - 1.0 for i in range(2048)]
+
+    plugin = SearchPlugin(embedder=StubEmbedder(), top_k=10, keyword_top_k=5, rrf_k=60)
+    event = PipelineEvent(question="异步任务队列怎么做？", kb_ids=["kb-x"], intent="kb_search",
+                          rewritten_queries=["异步任务队列"], keywords=["异步"])
+    event = await plugin.process(event)
+    assert any(r.chunk_id == item["id"] for r in event.search_results)

@@ -29,9 +29,34 @@ class SearchPlugin(BasePlugin):
             all_vector.extend(vector_results)
             all_keyword.extend(keyword_results)
 
+        # 知识项检索（团队已发布内容，全局不过滤 KB）
+        all_vector.extend(await self._item_vector_search(event))
+        all_keyword.extend(await self._item_keyword_search(event))
+
         # RRF merge
         event.search_results = self._rrf_merge(all_vector, all_keyword)
         return event
+
+    async def _item_vector_search(self, event: PipelineEvent) -> list[dict]:
+        from backend.knowledge.vector_store import search_item_vector
+        try:
+            all_results = []
+            seen = set()
+            for query in event.rewritten_queries[:3]:
+                vec = await self.embedder.embed_single(query)
+                for r in search_item_vector(vec, self.top_k):
+                    if r["chunk_id"] not in seen:
+                        seen.add(r["chunk_id"])
+                        all_results.append(r)
+            return all_results
+        except Exception:
+            return []
+
+    async def _item_keyword_search(self, event: PipelineEvent) -> list[dict]:
+        from backend.knowledge.vector_store import search_item_keyword
+        if not event.keywords:
+            return []
+        return search_item_keyword(event.keywords, self.keyword_top_k)
 
     async def _vector_search(self, event: PipelineEvent, kb_id: str) -> list[dict]:
         try:
