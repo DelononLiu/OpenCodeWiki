@@ -402,3 +402,22 @@ async def test_wiki_tree_api(client):
     # 渲染
     r = await client.get(f"/api/wiki/node/{child['id']}", headers=headers)
     assert r.status_code == 200 and r.json()["content"] == "x"
+
+@pytest.mark.asyncio
+async def test_sediment_with_wiki_mount(client, monkeypatch):
+    from backend import sediment
+    async def fake_refine(client, model, question, answer):
+        return {"title": "卡", "content": "c"}
+    monkeypatch.setattr(sediment, "refine_qa_to_card", fake_refine)
+    headers = await _auth(client, "alice")
+    node = (await client.post("/api/wiki/nodes", json={"name": "待整理"}, headers=headers)).json()
+    ses = (await client.post("/api/sessions", json={"kb_id": "", "title": "s"}, headers=headers)).json()
+    from backend.stores.session import create_message
+    create_message(ses["id"], "user", "q?", "[]", 0)
+    create_message(ses["id"], "assistant", "a!", "[]", 5)
+    r = await client.post(f"/api/sessions/{ses['id']}/sediment",
+                          json={"kind": "card", "wiki_node_id": node["id"]}, headers=headers)
+    assert r.status_code == 200
+    item = r.json()
+    node_resp = (await client.get(f"/api/wiki/node/{node['id']}", headers=headers)).json()
+    assert node_resp["node"]["item_id"] == item["id"]

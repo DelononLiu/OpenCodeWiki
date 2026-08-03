@@ -102,3 +102,37 @@ def _row_to_dict(row) -> dict:
         "item_id": row[3], "file_path": row[4],
         "sort_order": row[5], "created_at": row[6],
     }
+
+
+def migrate_legacy_tree(knowledge_root: str, pages_root: str) -> int:
+    """首次启动时把旧文件目录结构导入 wiki_nodes（幂等）。"""
+    db = get_knora_db()
+    if db.execute("SELECT COUNT(*) FROM wiki_nodes").fetchone()[0] > 0:
+        return 0
+    created = 0
+
+    # knowledge/{kb_name}/*.md → 每 KB 一个根 + 文件叶子
+    if os.path.isdir(knowledge_root):
+        for kb_name in sorted(os.listdir(knowledge_root)):
+            kb_dir = os.path.join(knowledge_root, kb_name)
+            if not os.path.isdir(kb_dir):
+                continue
+            root = create_node(kb_name)
+            created += 1
+            for f in sorted(os.listdir(kb_dir)):
+                if f.endswith(".md"):
+                    create_node(f.replace(".md", ""), parent_id=root["id"],
+                                file_path=os.path.join(kb_dir, f))
+                    created += 1
+
+    # pages/**/*.md → 一个"pages"根
+    if os.path.isdir(pages_root):
+        root = create_node("pages")
+        created += 1
+        for dirpath, _dirs, files in os.walk(pages_root):
+            for f in files:
+                if f.endswith(".md"):
+                    create_node(f.replace(".md", ""), parent_id=root["id"],
+                                file_path=os.path.join(dirpath, f))
+                    created += 1
+    return created

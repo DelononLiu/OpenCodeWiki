@@ -75,6 +75,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     init_databases(cfg)
 
+    # 旧文件树迁移：knowledge/{kb}/*.md 与 pages/**/*.md → wiki_nodes（幂等）
+    from backend.stores.wiki_tree import migrate_legacy_tree
+    migrate_legacy_tree(
+        os.path.join(os.path.expanduser(cfg.database.path), "knowledge"),
+        os.path.join(os.path.expanduser(cfg.database.path), "pages"),
+    )
+
     # Ensure default KB + auto-readme
     default_kb = ensure_default_kb(cfg.embedding.model)
     about_dir = os.path.join(os.path.expanduser(cfg.database.path), "knowledge", DEFAULT_KB_NAME)
@@ -767,9 +774,9 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(404, "知识项不存在")
         if item["owner_id"] != user["id"] and user["role"] != "admin":
             raise HTTPException(403, "只有作者或管理员可删除")
-        # TODO(Task 9): 恢复向量索引清理
-        # from backend.knowledge.item_index import delete_item_index
-        # delete_item_index(item_id)
+        # 删除知识项时同步清理向量索引（Task 9 已实现 delete_item_index）
+        from backend.knowledge.item_index import delete_item_index
+        delete_item_index(item_id)
         delete_item(item_id)
         return {"deleted": True}
 
@@ -789,10 +796,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     # ── QA 沉淀与文章起草 ──
     class SedimentRequest(BaseModel):
         kind: str = "card"   # "card" | "article"
+        wiki_node_id: str = ""
 
     class DraftRequest(BaseModel):
         title: str = ""
         item_ids: list[str]
+        wiki_node_id: str = ""
 
     def _get_session_messages(sid: str) -> tuple[str, str]:
         """取会话最后一条问答；无则返回 ("", "")。"""
@@ -838,6 +847,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             "INSERT OR IGNORE INTO item_derivations (item_id, source_type, source_ref) VALUES (?, 'qa', ?)",
             (item["id"], sid))
         get_knora_db().commit()
+        if req.wiki_node_id:
+            from backend.stores.wiki_tree import attach_item as _wn_attach
+            if _wn_get(req.wiki_node_id):
+                try:
+                    _wn_attach(req.wiki_node_id, item["id"])
+                except ValueError:
+                    pass  # 挂载失败不阻断沉淀
         return item
 
     @app.post("/api/articles/draft")
@@ -862,6 +878,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
                            form="article", scope="personal")
         for card in cards:
             add_link(item["id"], card["id"], "references")  # add_link 已在 Task 7 导入
+        if req.wiki_node_id:
+            from backend.stores.wiki_tree import attach_item as _wn_attach
+            if _wn_get(req.wiki_node_id):
+                try:
+                    _wn_attach(req.wiki_node_id, item["id"])
+                except ValueError:
+                    pass  # 挂载失败不阻断沉淀
         return item
 
     # ── 审核与管理 ──
@@ -899,17 +922,17 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         item = get_item(item_id)
         if req.action == "approve":
             approve_review(item_id, user["id"], req.reason)
-            # TODO(Task 9): 批准后异步建知识项向量索引（item_index 尚未实现，import 容错；
-            # Task 9 落地后此分支自动恢复）
+            # 批准后异步建知识项向量索引。Embedder 构造（无 embedding key 时
+            # AsyncOpenAI 构造期抛 OpenAIError）或建索引失败都不阻断审批——
+            # 索引是附加能力，缺失/失败时静默跳过。
             try:
                 from backend.knowledge.item_index import index_item
-            except ImportError:
-                pass
-            else:
                 asyncio.create_task(index_item(item, Embedder(
                     client=AsyncOpenAI(api_key=cfg.embedding.api_key, base_url=cfg.embedding.base_url),
                     model=cfg.embedding.model, dimensions=cfg.embedding.dimensions,
                 )))
+            except Exception:
+                pass  # 缺 embedding key 或索引失败：跳过，不阻断审批
         elif req.action == "reject":
             reject_review(item_id, user["id"], req.reason)
             # TODO(Task 9): 驳回时清理向量索引（item_index 尚未实现，import 容错）
