@@ -216,6 +216,21 @@ def _ensure_vectors_schema(conn: sqlite3.Connection, dimensions: int) -> None:
                 chunk_id TEXT
             )
         """)
+
+    # Knowledge-item index: vector + FTS5 (only team/published items are searchable)
+    conn.execute(f"""
+        CREATE VIRTUAL TABLE IF NOT EXISTS item_vec0 USING vec0(
+            vector FLOAT[{dimensions}],
+            item_id TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS item_fts USING fts5(
+            item_id UNINDEXED,
+            text,
+            keywords
+        )
+    """)
     conn.commit()
 
 

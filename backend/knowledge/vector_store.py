@@ -209,3 +209,84 @@ def delete_by_kb_id(kb_id: str) -> None:
         vec_db.execute("DELETE FROM vector_chunks WHERE chunk_id = ?", (cid,))
         vec_db.execute("DELETE FROM chunk_fts WHERE chunk_id = ?", (cid,))
     vec_db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Knowledge-item search (RAG: 只检索 scope=team AND status=published)
+# ---------------------------------------------------------------------------
+
+def insert_item_vectors(records: list[dict]) -> None:
+    vec_db = get_vectors_db()
+    for rec in records:
+        blob = _vector_to_blob(rec["vector"])
+        vec_db.execute("INSERT INTO item_vec0 (vector, item_id) VALUES (?, ?)",
+                       (blob, rec["item_id"]))
+        vec_db.execute("INSERT INTO item_fts (item_id, text, keywords) VALUES (?, ?, ?)",
+                       (rec["item_id"], rec.get("text", ""), rec.get("keywords", "")))
+    vec_db.commit()
+
+
+def _fetch_item_row(item_id: str):
+    """返回 team+published 知识项的 (id, title, content)；不可检索返回 None。"""
+    knora_db = get_knora_db()
+    return knora_db.execute(
+        "SELECT id, title, content_md FROM knowledge_items "
+        "WHERE id = ? AND scope = 'team' AND status = 'published'",
+        (item_id,),
+    ).fetchone()
+
+
+def search_item_vector(query_vector: list[float], top_k: int = 20) -> list[dict]:
+    vec_db = get_vectors_db()
+    blob = _vector_to_blob(query_vector)
+    try:
+        rows = vec_db.execute(
+            "SELECT item_id, distance FROM item_vec0 WHERE vector MATCH ? "
+            "ORDER BY distance LIMIT ?",
+            (blob, top_k),
+        ).fetchall()
+    except Exception:
+        rows = vec_db.execute(
+            "SELECT item_id, vec_distance_L2(vector, ?) AS dist FROM item_vec0 ORDER BY dist LIMIT ?",
+            (blob, top_k),
+        ).fetchall()
+    results = []
+    for row in rows:
+        item = _fetch_item_row(row[0])
+        if not item:
+            continue
+        results.append({
+            "chunk_id": item[0], "content": item[2], "doc_id": item[0],
+            "score": 1.0 - float(row[1]), "title": item[1], "source": "item_vector",
+        })
+    return results
+
+
+def search_item_keyword(keywords: list[str], top_k: int = 10) -> list[dict]:
+    vec_db = get_vectors_db()
+    query = " OR ".join(keywords)
+    try:
+        rows = vec_db.execute(
+            "SELECT item_id, rank FROM item_fts WHERE item_fts MATCH ? ORDER BY rank LIMIT ?",
+            (query, top_k),
+        ).fetchall()
+    except Exception:
+        return []
+    results = []
+    for row in rows:
+        item = _fetch_item_row(row[0])
+        if not item:
+            continue
+        results.append({
+            "chunk_id": item[0], "content": item[2], "doc_id": item[0],
+            "score": float(row[1]) if row[1] else 0.0, "title": item[1],
+            "source": "item_keyword",
+        })
+    return results
+
+
+def delete_item_vectors(item_id: str) -> None:
+    vec_db = get_vectors_db()
+    vec_db.execute("DELETE FROM item_vec0 WHERE item_id = ?", (item_id,))
+    vec_db.execute("DELETE FROM item_fts WHERE item_id = ?", (item_id,))
+    vec_db.commit()
