@@ -92,7 +92,7 @@ export function AppSidebar() {
 
   return (
     <>
-      <aside className={`h-screen bg-sidebar-bg flex flex-col shrink-0 z-30 transition-all duration-200 border-r border-white/10 ${sidebarOpen ? 'w-[260px]' : 'w-14'}`}>
+      <aside className={`h-screen bg-sidebar-bg flex flex-col shrink-0 z-30 transition-all duration-200 border-r border-slate-200/70 ${sidebarOpen ? 'w-[260px]' : 'w-14'}`}>
         {/* 顶部行：Logo = 折叠切换，标题 = 跳主页 */}
         <div className={`flex items-center h-[50px] shrink-0 ${sidebarOpen ? 'px-[14px] justify-between' : 'justify-center'}`}>
           <button onClick={toggleSidebar}
@@ -111,18 +111,7 @@ export function AppSidebar() {
           )}
         </div>
 
-        {/* 主 CTA：新建问答 */}
-        <div className={`mb-2 ${sidebarOpen ? 'mx-[10px]' : 'flex justify-center'}`}>
-          <button onClick={() => navigate('/qa')} title="新建问答"
-            className={`flex items-center gap-[8px] rounded-lg bg-cyber-blue hover:bg-cyber-blue-dark text-white font-semibold shadow-sm transition-colors ${
-              sidebarOpen ? 'w-full h-[36px] px-[10px]' : 'w-9 h-9 justify-center'
-            }`}>
-            <Plus className="w-[18px] h-[18px] shrink-0" />
-            {sidebarOpen && <span className="text-sm">新建问答</span>}
-          </button>
-        </div>
-
-        {/* 模式导航：问答 / 知识 / 我的 */}
+        {/* 模式导航：问答 / Wiki / 我的碎片 / 知识卡片 */}
         <nav className="flex flex-col gap-[2px] px-[6px] mb-2">
           {MODES.map(({ mode, label, icon: Icon, path }) => (
             <button key={mode} onClick={() => handleModeClick(mode, path)} title={label}
@@ -130,8 +119,8 @@ export function AppSidebar() {
                 sidebarOpen ? 'w-full h-[36px] px-[10px] gap-[8px]' : 'w-9 h-9 justify-center mx-auto'
               } ${
                 activeMode === mode
-                  ? 'bg-cyber-blue/15 text-cyber-blue-light font-semibold'
-                  : 'text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active'
+                  ? 'bg-cyber-blue/10 text-cyber-blue font-semibold'
+                  : 'text-sidebar-text/60 hover:bg-slate-100 hover:text-sidebar-active'
               }`}>
               <Icon className="w-[18px] h-[18px] shrink-0" />
               {sidebarOpen && <span className="text-sm font-semibold">{label}</span>}
@@ -139,26 +128,26 @@ export function AppSidebar() {
           ))}
         </nav>
 
-        {sidebarOpen && <div className="mx-[10px] border-t border-white/10" />}
+        {sidebarOpen && <div className="mx-[10px] border-t border-slate-200/70" />}
 
         {/* 知识模式：知识库下拉 */}
         {sidebarOpen && activeMode === 'knowledge' && (
           <div className="px-[6px] mb-2 mt-2">
             <div className="relative">
               <button onClick={() => setKbDropdownOpen(o => !o)}
-                className="w-full flex items-center gap-[8px] h-[32px] px-[10px] rounded-lg text-sm text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors">
+                className="w-full flex items-center gap-[8px] h-[32px] px-[10px] rounded-lg text-sm text-sidebar-text/60 hover:bg-slate-100 hover:text-sidebar-active transition-colors">
                 <GitFork className="w-[18px] h-[18px] shrink-0" />
                 <span className="truncate text-sm">{currentKB || '选择知识库'}</span>
                 <ChevronDown className={`w-3.5 h-3.5 ml-auto shrink-0 transition-transform text-sidebar-text/40 ${kbDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {kbDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-blue-900 border border-white/10 rounded-lg shadow-lg shadow-black/30 py-1 z-40"
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/60 py-1 z-40"
                   onMouseLeave={() => setKbDropdownOpen(false)}>
                   {kbList.map(kb => (
                     <button key={kb.name}
                       onClick={() => { navigate(`/wiki/${kb.name}`); setKbDropdownOpen(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-white/5 transition-colors ${
-                        currentKB === kb.name ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60'
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 transition-colors ${
+                        currentKB === kb.name ? 'text-cyber-blue bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60'
                       }`}>
                       {kb.name}
                     </button>
@@ -176,17 +165,17 @@ export function AppSidebar() {
               /* 知识模式：Wiki 目录 + 主题 */
               <div>
                 <div className="flex items-center justify-between px-[10px] mb-1">
-                  <span className="text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest">文档</span>
-                  <Plus className="w-3.5 h-3.5 text-blue-200/30" />
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">文档</span>
+                  <Plus className="w-3.5 h-3.5 text-slate-300" />
                 </div>
                 <WikiTree nodes={wikiTree} onSelect={n => navigate(`/wiki/node/${n.id}`)} />
                 {topics.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-white/10">
-                    <div className="text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest mb-1 px-[10px]">主题</div>
+                  <div className="mt-4 pt-3 border-t border-slate-200/70">
+                    <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1 px-[10px]">主题</div>
                     {topics.map(t => (
                       <button key={t.slug} onClick={() => navigate(`/wiki/${currentKB}#${t.slug}`)}
-                        className={`block w-full text-left px-[10px] py-1 rounded-md text-sm hover:bg-white/5 transition-colors truncate ${
-                          location.hash === `#${t.slug}` ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
+                        className={`block w-full text-left px-[10px] py-1 rounded-md text-sm hover:bg-slate-100 transition-colors truncate ${
+                          location.hash === `#${t.slug}` ? 'text-cyber-blue bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
                         }`}>
                         #{t.slug}
                       </button>
@@ -198,27 +187,27 @@ export function AppSidebar() {
               /* 问答模式（默认）：历史会话 */
               <div>
                 <button onClick={() => setSessionsExpanded(o => !o)}
-                  className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest hover:text-blue-100 transition-colors rounded-md">
+                  className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors rounded-md">
                   <span className="flex items-center gap-1">
                     <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-sidebar-text/40 ${sessionsExpanded ? '' : '-rotate-90'}`} />
                     历史问答
                   </span>
                   {sessionList.length > 0 && (
-                    <span className="text-[10px] font-normal text-blue-200/50 bg-white/5 rounded-full px-1.5 py-0.5">{sessionList.length}</span>
+                    <span className="text-[10px] font-normal text-slate-500 bg-slate-100 rounded-full px-1.5 py-0.5">{sessionList.length}</span>
                   )}
                 </button>
                 {sessionsExpanded && (
                   sessionList.length > 0 ? sessionList.map(s => (
                     <button key={s.id}
                       onClick={() => navigate(`/qa/${s.id}`)}
-                      className={`flex w-full items-center gap-1.5 text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
-                        location.pathname === `/qa/${s.id}` ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/45 hover:text-sidebar-active'
+                      className={`flex w-full items-center gap-1.5 text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-slate-100 transition-colors truncate ${
+                        location.pathname === `/qa/${s.id}` ? 'text-cyber-blue bg-cyber-blue/10 font-medium' : 'text-sidebar-text/45 hover:text-sidebar-active'
                       }`}>
                       <MessageSquare className="w-3.5 h-3.5 shrink-0 text-sidebar-text/30" />
                       <span className="truncate">{s.title || '新对话'}</span>
                     </button>
                   )) : (
-                    <div className="text-sm text-blue-200/30 px-[10px] py-5 text-center">暂无问答记录</div>
+                    <div className="text-sm text-slate-400 px-[10px] py-5 text-center">暂无问答记录</div>
                   )
                 )}
               </div>
@@ -227,11 +216,11 @@ export function AppSidebar() {
         )}
 
         {/* 底部：用户菜单（设置 / 知识库管理 / 审批台 / 退出） */}
-        <div className="flex-shrink-0 px-[6px] mb-2 mt-auto pt-2 border-t border-white/10">
+        <div className="flex-shrink-0 px-[6px] mb-2 mt-auto pt-2 border-t border-slate-200/70">
           {user ? (
             <div className="relative">
               <button onClick={() => setUserMenuOpen(o => !o)} title={user.username}
-                className={`flex items-center gap-[8px] w-full rounded-lg hover:bg-white/5 transition-colors ${
+                className={`flex items-center gap-[8px] w-full rounded-lg hover:bg-slate-100 transition-colors ${
                   sidebarOpen ? 'px-[10px] h-[40px]' : 'w-9 h-9 justify-center mx-auto'
                 }`}>
                 <div className="w-7 h-7 rounded-full bg-cyber-blue/70 flex items-center justify-center text-xs font-bold text-white shrink-0">
@@ -240,7 +229,7 @@ export function AppSidebar() {
                 {sidebarOpen && (
                   <div className="flex-1 min-w-0 text-left">
                     <div className="text-sm font-medium text-sidebar-text/80 truncate">{user.username}</div>
-                    <div className="text-[10px] text-blue-200/40 truncate">{user.role === 'admin' ? '管理员' : '成员'}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{user.role === 'admin' ? '管理员' : '成员'}</div>
                   </div>
                 )}
                 {sidebarOpen && (
@@ -248,27 +237,27 @@ export function AppSidebar() {
                 )}
               </button>
               {userMenuOpen && (
-                <div className={`absolute bottom-full mb-2 rounded-lg bg-blue-900 border border-white/10 shadow-lg shadow-black/30 py-1 z-40 ${
+                <div className={`absolute bottom-full mb-2 rounded-lg bg-white border border-slate-200 shadow-lg shadow-slate-200/60 py-1 z-40 ${
                   sidebarOpen ? 'left-2 right-2' : 'left-[60px] w-52'
                 }`}>
                   <button onClick={() => { setSettingsOpen(true); setUserMenuOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-slate-100 hover:text-sidebar-active transition-colors">
                     <Settings className="w-4 h-4 shrink-0" />
                     设置
                   </button>
                   <button onClick={() => { navigate('/sources'); setUserMenuOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-slate-100 hover:text-sidebar-active transition-colors">
                     <Database className="w-4 h-4 shrink-0" />
                     知识库管理
                   </button>
                   <button onClick={() => { navigate('/admin'); setUserMenuOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-slate-100 hover:text-sidebar-active transition-colors">
                     <FileText className="w-4 h-4 shrink-0" />
                     审批台
                   </button>
-                  <div className="my-1 border-t border-white/10" />
+                  <div className="my-1 border-t border-slate-200/70" />
                   <button onClick={logout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-300 hover:bg-white/5 hover:text-red-200 transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-slate-100 hover:text-red-600 transition-colors">
                     <LogOut className="w-4 h-4 shrink-0" />
                     退出登录
                   </button>
@@ -277,7 +266,7 @@ export function AppSidebar() {
             </div>
           ) : (
             <button onClick={() => navigate('/login')} title="登录"
-              className={`flex items-center gap-[8px] rounded-lg text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors ${
+              className={`flex items-center gap-[8px] rounded-lg text-sidebar-text/60 hover:bg-slate-100 hover:text-sidebar-active transition-colors ${
                 sidebarOpen ? 'w-full h-[36px] px-[10px]' : 'w-9 h-9 justify-center mx-auto'
               }`}>
               <LogIn className="w-[18px] h-[18px] shrink-0" />

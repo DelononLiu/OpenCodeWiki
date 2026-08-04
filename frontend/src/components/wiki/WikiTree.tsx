@@ -14,7 +14,7 @@ function TreeNode({ node, depth, onSelect }: {
   if (isLeaf) {
     return (
       <button onClick={() => onSelect(node)} style={indent}
-        className="w-full flex items-center gap-1.5 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors truncate">
+        className="w-full flex items-center gap-1.5 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/60 hover:bg-slate-100 hover:text-sidebar-active transition-colors truncate">
         <FileText className="w-3.5 h-3.5 shrink-0 text-sidebar-text/40" />
         <span className="truncate">{node.name}</span>
       </button>
@@ -24,7 +24,7 @@ function TreeNode({ node, depth, onSelect }: {
   return (
     <div>
       <button onClick={() => setOpen(o => !o)} style={indent}
-        className="w-full flex items-center gap-1 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/70 hover:bg-white/5 hover:text-sidebar-active transition-colors">
+        className="w-full flex items-center gap-1 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/70 hover:bg-slate-100 hover:text-sidebar-active transition-colors">
         <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-sidebar-text/40 ${open ? '' : '-rotate-90'}`} />
         <Folder className="w-3.5 h-3.5 shrink-0 text-sidebar-text/40" />
         <span className="truncate">{node.name}</span>

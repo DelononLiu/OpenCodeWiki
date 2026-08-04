@@ -75,11 +75,10 @@ describe('AppSidebar 重构', () => {
     expect(screen.queryByText('新问题')).not.toBeInTheDocument()
   })
 
-  it('点击“新建问答”跳转到 /qa', async () => {
+  it('点击“问答”导航跳转到 /qa', async () => {
     const user = userEvent.setup()
     renderSidebar('/wiki')
-    const cta = await screen.findByRole('button', { name: /新建问答/ })
-    await user.click(cta)
+    await user.click(screen.getByRole('button', { name: '问答' }))
     expect(await screen.findByTestId('page-qa')).toBeInTheDocument()
   })
 

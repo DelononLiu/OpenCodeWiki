@@ -20,9 +20,9 @@ const config: Config = {
           card: '#FFFFFF',
         },
         sidebar: {
-          bg: '#172554',
-          text: '#94A3B8',
-          active: '#FFFFFF',
+          bg: '#F8FAFC',
+          text: '#475569',
+          active: '#0F172A',
         },
         code: {
           bg: '#0F172A',
