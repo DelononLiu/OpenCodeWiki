@@ -1,21 +1,34 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate, useLocation, useParams, useMatch } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation, useMatch } from 'react-router-dom'
 import { useLayout, type TabType } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { fetchWikiModules, fetchTopics } from '@/api/client'
+import { fetchTopics } from '@/api/client'
 import type { Topic } from '@/types'
 import { fetchWikiTree, fetchKBs, fetchSessions as fetchSessionsApi } from '@/api/opencodewiki'
 import type { WikiNode } from '@/types/opencodewiki'
 import { WikiTree } from '@/components/wiki/WikiTree'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import {
-  BookOpen, MessageSquare, FileText, Database, Settings,
-  Plus, ChevronLeft, ChevronDown, GitFork, Search,
-  StickyNote, LayoutGrid, LogOut, LogIn,
+  BookOpen, MessageSquare, Plus, ChevronLeft, ChevronDown, GitFork,
+  StickyNote, LayoutGrid, Settings, LogOut, LogIn, Database, FileText,
+  type LucideIcon,
 } from 'lucide-react'
 
-interface WikiModule {
-  slug: string; name: string; type: string; title?: string
+type Mode = 'qa' | 'knowledge' | 'fragments' | 'cards'
+
+const MODES: { mode: Mode; label: string; icon: LucideIcon; path: string }[] = [
+  { mode: 'qa', label: '问答', icon: MessageSquare, path: '/qa' },
+  { mode: 'knowledge', label: 'Wiki', icon: BookOpen, path: '/wiki' },
+  { mode: 'fragments', label: '我的碎片', icon: StickyNote, path: '/fragments' },
+  { mode: 'cards', label: '知识卡片', icon: LayoutGrid, path: '/cards' },
+]
+
+// 侧边栏内容按“模式”切换：管理页（/admin /sources）为瞬态视图，回落默认问答内容
+function modeForPath(path: string): Mode {
+  if (path.startsWith('/wiki')) return 'knowledge'
+  if (path.startsWith('/fragments')) return 'fragments'
+  if (path.startsWith('/cards')) return 'cards'
+  return 'qa'
 }
 
 export function AppSidebar() {
@@ -23,40 +36,36 @@ export function AppSidebar() {
   const location = useLocation()
   const { setActiveTab } = useLayout()
   const { user, logout } = useAuth()
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
-  // Doc tree data
-  const [modules, setModules] = useState<WikiModule[]>([])
+  // 知识模式数据
   const [topics, setTopics] = useState<Topic[]>([])
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [kbList, setKbList] = useState<{ name: string }[]>([])
+  const [wikiTree, setWikiTree] = useState<WikiNode[]>([])
   const [kbDropdownOpen, setKbDropdownOpen] = useState(false)
 
-  // KB list from API
-  const [kbList, setKbList] = useState<{name: string}[]>([])
-
-  // Wiki organization tree from API
-  const [wikiTree, setWikiTree] = useState<WikiNode[]>([])
-
-  // Session history for QA page
-  const [sessionList, setSessionList] = useState<{id: string; title: string; created_at: string}[]>([])
+  // 问答模式数据
+  const [sessionList, setSessionList] = useState<{ id: string; title: string; created_at: string }[]>([])
   const [sessionsExpanded, setSessionsExpanded] = useState(true)
 
-  // useParams doesn't work outside <Routes> — use useMatch instead
+  const activeMode = modeForPath(location.pathname)
   const wikiMatch = useMatch('/wiki/:name')
-  const repoMatch = useMatch('/:repo')
-  // Avoid matching well-known paths as repo names
-  const isRepoRoute = repoMatch && !['qa', 'admin', 'sources', 'settings', 'wiki', 'repos'].includes(repoMatch.params.repo || '')
-  const currentKB = wikiMatch?.params.name || (isRepoRoute ? repoMatch?.params.repo : '') || kbList[0]?.name || ''
+  const currentKB = wikiMatch?.params.name || kbList[0]?.name || ''
 
   useEffect(() => {
-    fetchWikiModules().then(setModules).catch(() => {})
     fetchTopics().then(setTopics).catch(() => {})
     fetchKBs().then(setKbList).catch(() => {})
     fetchWikiTree().then(setWikiTree).catch(() => {})
   }, [])
 
-  // Fetch sessions on mount and every navigation
+  // 当前模式同步到 LayoutContext
+  useEffect(() => {
+    setActiveTab(activeMode)
+  }, [activeMode, setActiveTab])
+
   const fetchSessions = useCallback(() => {
     fetchSessionsApi().then(list => {
       if (Array.isArray(list)) setSessionList(list)
@@ -65,7 +74,7 @@ export function AppSidebar() {
 
   useEffect(() => { fetchSessions() }, [fetchSessions, location.pathname])
 
-  // Refresh session list when a new session is created
+  // 新会话创建后刷新列表
   useEffect(() => {
     const handler = () => fetchSessions()
     window.addEventListener('session-created', handler)
@@ -74,96 +83,20 @@ export function AppSidebar() {
 
   const toggleSidebar = () => setSidebarOpen(o => !o)
 
-  const isActive = (path: string) => {
-    if (path === '/qa') return window.location.pathname === '/qa'
-    if (path === '/wiki') return location.pathname.startsWith('/wiki') || !!isRepoRoute
-    return location.pathname === path || location.pathname.startsWith(path + '/')
-  }
-
-  const handleTabClick = (tab: TabType, path: string) => {
-    setActiveTab(tab)
-    // QA tab: 已在 /qa 时不动，其他情况都跳转
-    if (tab === 'qa' && window.location.pathname === '/qa') return
+  const handleModeClick = (mode: Mode, path: string) => {
+    setActiveTab(mode)
+    // 问答模式：已在 /qa 时不动（页面本身就是新问答入口）
+    if (mode === 'qa' && window.location.pathname === '/qa') return
     navigate(path)
   }
 
-  // Filter modules by current KB
-  const kbModules = useMemo(() => {
-    if (!currentKB) return modules
-    return modules.filter(m => {
-      const source = m.name.split(' / ')[0]
-      return source === currentKB
-    })
-  }, [modules, currentKB])
-
-  const toggleDir = (path: string) => {
-    setExpandedDirs(prev => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }
-
-  // Build doc tree
-  const docTree = useMemo(() => {
-    interface TreeNode { dirs: Record<string, TreeNode>; files: WikiModule[] }
-    const root: TreeNode = { dirs: {}, files: [] }
-    for (const m of kbModules) {
-      if (m.type !== 'source') continue
-      const parts = m.slug.split('/')
-      let node = root
-      for (let i = 0; i < parts.length - 1; i++) {
-        if (!node.dirs[parts[i]]) node.dirs[parts[i]] = { dirs: {}, files: [] }
-        node = node.dirs[parts[i]]
-      }
-      node.files.push(m)
-    }
-
-    const renderNode = (node: TreeNode, depth: number, path: string): React.ReactNode[] => {
-      const els: React.ReactNode[] = []
-      const indent = depth * 16
-      for (const dirName of Object.keys(node.dirs).sort()) {
-        const dirPath = path ? `${path}/${dirName}` : dirName
-        const isExpanded = expandedDirs.has(dirPath)
-        els.push(
-          <div key={`dir-${dirPath}`}>
-            <button onClick={() => toggleDir(dirPath)}
-              style={{ paddingLeft: `${indent + 12}px` }}
-              className="w-full flex items-center gap-1 text-left py-1 pr-2 rounded-md text-sm text-sidebar-text/70 hover:bg-white/5 hover:text-sidebar-active transition-colors">
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-sidebar-text/40 ${isExpanded ? '' : '-rotate-90'}`} />
-              <span className="truncate">{dirName}</span>
-            </button>
-            {isExpanded && <div>{renderNode(node.dirs[dirName], depth + 1, dirPath)}</div>}
-          </div>
-        )
-      }
-      for (const m of node.files.sort((a, b) => (a.title || a.slug).localeCompare(b.title || b.slug))) {
-        els.push(
-          <button key={m.slug} onClick={() => navigate(`/wiki/${currentKB}#${m.slug}`)}
-            style={{ paddingLeft: `${indent + 32}px` }}
-            className={`block w-full text-left py-1 pr-2 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
-              location.hash === `#${m.slug}` ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/60 hover:text-sidebar-active'
-            }`}>
-            {m.title || m.slug.split('/').pop()}
-          </button>
-        )
-      }
-      return els
-    }
-    return renderNode(root, 0, '')
-  }, [kbModules, expandedDirs, currentKB, location.hash, navigate])
-
-  // Show doc tree area on Wiki-related paths
-  const showDocTree = location.pathname.startsWith('/wiki') || !!isRepoRoute
-
   return (
     <>
-      <aside className={`h-screen bg-sidebar-bg flex flex-col shrink-0 z-30 transition-all duration-200 border-r border-slate-700/50 ${sidebarOpen ? 'w-[260px]' : 'w-14'}`}>
-        {/* Logo row — W=折叠切换，标题=跳转主页 */}
+      <aside className={`h-screen bg-sidebar-bg flex flex-col shrink-0 z-30 transition-all duration-200 border-r border-white/10 ${sidebarOpen ? 'w-[260px]' : 'w-14'}`}>
+        {/* 顶部行：Logo = 折叠切换，标题 = 跳主页 */}
         <div className={`flex items-center h-[50px] shrink-0 ${sidebarOpen ? 'px-[14px] justify-between' : 'justify-center'}`}>
           <button onClick={toggleSidebar}
-            className="w-8 h-8 bg-gradient-to-br from-cyber-blue to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm hover:from-cyber-blue-dark hover:to-indigo-700 transition-all shrink-0 shadow-sm">
+            className="w-8 h-8 bg-gradient-to-br from-cyber-blue to-blue-700 rounded-lg flex items-center justify-center text-white font-bold text-sm hover:from-cyber-blue-dark hover:to-blue-800 transition-all shrink-0 shadow-sm">
             W
           </button>
           {sidebarOpen && (
@@ -178,39 +111,39 @@ export function AppSidebar() {
           )}
         </div>
 
-        {/* Nav tabs — 和 WeKnora menu_items 对齐 */}
+        {/* 主 CTA：新建问答 */}
+        <div className={`mb-2 ${sidebarOpen ? 'mx-[10px]' : 'flex justify-center'}`}>
+          <button onClick={() => navigate('/qa')} title="新建问答"
+            className={`flex items-center gap-[8px] rounded-lg bg-cyber-blue hover:bg-cyber-blue-dark text-white font-semibold shadow-sm transition-colors ${
+              sidebarOpen ? 'w-full h-[36px] px-[10px]' : 'w-9 h-9 justify-center'
+            }`}>
+            <Plus className="w-[18px] h-[18px] shrink-0" />
+            {sidebarOpen && <span className="text-sm">新建问答</span>}
+          </button>
+        </div>
+
+        {/* 模式导航：问答 / 知识 / 我的 */}
         <nav className="flex flex-col gap-[2px] px-[6px] mb-2">
-          {[
-            { key: 'qa' as TabType, icon: MessageSquare, label: '新问题', path: '/qa' },
-            { key: 'fragments' as TabType, icon: StickyNote, label: '我的碎片', path: '/fragments' },
-            { key: 'read' as TabType, icon: BookOpen, label: 'Wiki', path: '/wiki' },
-            { key: 'wiki' as TabType, icon: FileText, label: '知识沉淀', path: '/admin' },
-            { key: 'cards' as TabType, icon: LayoutGrid, label: '知识卡片', path: '/cards' },
-            { key: 'sources' as TabType, icon: Database, label: '知识库', path: '/sources' },
-          ].map(tab => (
-            <button key={tab.key} onClick={() => handleTabClick(tab.key, tab.path)}
-              title={tab.label}
+          {MODES.map(({ mode, label, icon: Icon, path }) => (
+            <button key={mode} onClick={() => handleModeClick(mode, path)} title={label}
               className={`flex items-center rounded-lg transition-colors ${
-                sidebarOpen
-                  ? 'w-full h-[36px] px-[10px] gap-[8px]'
-                  : 'w-9 h-9 justify-center mx-auto'
+                sidebarOpen ? 'w-full h-[36px] px-[10px] gap-[8px]' : 'w-9 h-9 justify-center mx-auto'
               } ${
-                isActive(tab.path)
+                activeMode === mode
                   ? 'bg-cyber-blue/15 text-cyber-blue-light font-semibold'
                   : 'text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active'
               }`}>
-              <tab.icon className="w-[18px] h-[18px] shrink-0" />
-              {sidebarOpen && <span className="text-sm font-semibold">{tab.label}</span>}
+              <Icon className="w-[18px] h-[18px] shrink-0" />
+              {sidebarOpen && <span className="text-sm font-semibold">{label}</span>}
             </button>
           ))}
         </nav>
 
-        {/* 导航与内容区分隔 */}
-        {sidebarOpen && <div className="mx-[10px] border-t border-slate-700/30" />}
+        {sidebarOpen && <div className="mx-[10px] border-t border-white/10" />}
 
-        {/* KB Dropdown — Wiki pages only */}
-        {sidebarOpen && showDocTree && (
-          <div className="px-[6px] mb-2">
+        {/* 知识模式：知识库下拉 */}
+        {sidebarOpen && activeMode === 'knowledge' && (
+          <div className="px-[6px] mb-2 mt-2">
             <div className="relative">
               <button onClick={() => setKbDropdownOpen(o => !o)}
                 className="w-full flex items-center gap-[8px] h-[32px] px-[10px] rounded-lg text-sm text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors">
@@ -219,7 +152,7 @@ export function AppSidebar() {
                 <ChevronDown className={`w-3.5 h-3.5 ml-auto shrink-0 transition-transform text-sidebar-text/40 ${kbDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {kbDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700/60 rounded-lg shadow-lg shadow-black/20 py-1 z-40"
+                <div className="absolute top-full left-0 right-0 mt-1 bg-blue-900 border border-white/10 rounded-lg shadow-lg shadow-black/30 py-1 z-40"
                   onMouseLeave={() => setKbDropdownOpen(false)}>
                   {kbList.map(kb => (
                     <button key={kb.name}
@@ -236,26 +169,20 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Separator */}
-        {sidebarOpen && showDocTree && <div className="mx-[10px] border-t border-slate-700/30" />}
-
-        {/* Doc Tree / Session History */}
+        {/* 内容区：按模式切换 */}
         {sidebarOpen && (
           <div className="flex-1 overflow-y-auto min-h-0 mt-1.5 px-[6px] sidebar-scrollable">
-            {showDocTree ? (
-              /* Doc tree */
+            {activeMode === 'knowledge' ? (
+              /* 知识模式：Wiki 目录 + 主题 */
               <div>
                 <div className="flex items-center justify-between px-[10px] mb-1">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">文档</span>
-                  <button className="text-slate-600 hover:text-slate-400 transition-colors">
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  <span className="text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest">文档</span>
+                  <Plus className="w-3.5 h-3.5 text-blue-200/30" />
                 </div>
                 <WikiTree nodes={wikiTree} onSelect={n => navigate(`/wiki/node/${n.id}`)} />
-                {/* Topics in sidebar */}
                 {topics.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-slate-700/30">
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1 px-[10px]">主题</div>
+                  <div className="mt-4 pt-3 border-t border-white/10">
+                    <div className="text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest mb-1 px-[10px]">主题</div>
                     {topics.map(t => (
                       <button key={t.slug} onClick={() => navigate(`/wiki/${currentKB}#${t.slug}`)}
                         className={`block w-full text-left px-[10px] py-1 rounded-md text-sm hover:bg-white/5 transition-colors truncate ${
@@ -268,16 +195,16 @@ export function AppSidebar() {
                 )}
               </div>
             ) : (
-              /* QA / Admin / Other pages — session history（内容区：与导航区分层） */
+              /* 问答模式（默认）：历史会话 */
               <div>
                 <button onClick={() => setSessionsExpanded(o => !o)}
-                  className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-slate-500 uppercase tracking-widest hover:text-slate-300 transition-colors rounded-md">
+                  className="w-full flex items-center justify-between gap-1 px-[10px] h-[30px] text-[11px] font-semibold text-blue-200/50 uppercase tracking-widest hover:text-blue-100 transition-colors rounded-md">
                   <span className="flex items-center gap-1">
-                    <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-slate-600 ${sessionsExpanded ? '' : '-rotate-90'}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform text-sidebar-text/40 ${sessionsExpanded ? '' : '-rotate-90'}`} />
                     历史问答
                   </span>
                   {sessionList.length > 0 && (
-                    <span className="text-[10px] font-normal text-slate-600 bg-white/5 rounded-full px-1.5 py-0.5">{sessionList.length}</span>
+                    <span className="text-[10px] font-normal text-blue-200/50 bg-white/5 rounded-full px-1.5 py-0.5">{sessionList.length}</span>
                   )}
                 </button>
                 {sessionsExpanded && (
@@ -285,13 +212,13 @@ export function AppSidebar() {
                     <button key={s.id}
                       onClick={() => navigate(`/qa/${s.id}`)}
                       className={`flex w-full items-center gap-1.5 text-left px-[10px] py-1.5 rounded-md text-sm leading-snug hover:bg-white/5 transition-colors truncate ${
-                        (location.pathname === `/qa/${s.id}` || window.location.pathname === `/qa/${s.id}`) ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/45 hover:text-sidebar-active'
+                        location.pathname === `/qa/${s.id}` ? 'text-cyber-blue-light bg-cyber-blue/10 font-medium' : 'text-sidebar-text/45 hover:text-sidebar-active'
                       }`}>
                       <MessageSquare className="w-3.5 h-3.5 shrink-0 text-sidebar-text/30" />
                       <span className="truncate">{s.title || '新对话'}</span>
                     </button>
                   )) : (
-                    <div className="text-sm text-slate-600 px-[10px] py-5 text-center">暂无问答记录</div>
+                    <div className="text-sm text-blue-200/30 px-[10px] py-5 text-center">暂无问答记录</div>
                   )
                 )}
               </div>
@@ -299,35 +226,60 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Bottom area: Settings + User — 仿 WeKnora menu_bottom */}
-        <div className="flex-shrink-0 flex flex-col gap-[2px] px-[6px] mb-2 mt-auto pt-2 border-t border-slate-700/30">
-          {/* Settings */}
-          <button onClick={() => setSettingsOpen(true)} title="设置"
-            className="flex items-center gap-[8px] h-[36px] px-[10px] rounded-lg text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors">
-            <Settings className="w-[18px] h-[18px] shrink-0" />
-            {sidebarOpen && <span className="text-sm font-semibold">设置</span>}
-          </button>
-
-          {/* User info */}
+        {/* 底部：用户菜单（设置 / 知识库管理 / 审批台 / 退出） */}
+        <div className="flex-shrink-0 px-[6px] mb-2 mt-auto pt-2 border-t border-white/10">
           {user ? (
-            <div className="flex items-center gap-[8px] px-[10px] h-[36px] rounded-lg text-sidebar-text/60">
-              <div className="w-7 h-7 rounded-full bg-slate-600/50 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
-                {user.username[0]?.toUpperCase()}
-              </div>
-              {sidebarOpen && (
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-sidebar-text/80 truncate">{user.username}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{user.role === 'admin' ? '管理员' : '成员'}</div>
+            <div className="relative">
+              <button onClick={() => setUserMenuOpen(o => !o)} title={user.username}
+                className={`flex items-center gap-[8px] w-full rounded-lg hover:bg-white/5 transition-colors ${
+                  sidebarOpen ? 'px-[10px] h-[40px]' : 'w-9 h-9 justify-center mx-auto'
+                }`}>
+                <div className="w-7 h-7 rounded-full bg-cyber-blue/70 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                  {user.username[0]?.toUpperCase()}
+                </div>
+                {sidebarOpen && (
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="text-sm font-medium text-sidebar-text/80 truncate">{user.username}</div>
+                    <div className="text-[10px] text-blue-200/40 truncate">{user.role === 'admin' ? '管理员' : '成员'}</div>
+                  </div>
+                )}
+                {sidebarOpen && (
+                  <ChevronDown className={`w-3.5 h-3.5 text-sidebar-text/40 transition-transform shrink-0 ${userMenuOpen ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+              {userMenuOpen && (
+                <div className={`absolute bottom-full mb-2 rounded-lg bg-blue-900 border border-white/10 shadow-lg shadow-black/30 py-1 z-40 ${
+                  sidebarOpen ? 'left-2 right-2' : 'left-[60px] w-52'
+                }`}>
+                  <button onClick={() => { setSettingsOpen(true); setUserMenuOpen(false) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    <Settings className="w-4 h-4 shrink-0" />
+                    设置
+                  </button>
+                  <button onClick={() => { navigate('/sources'); setUserMenuOpen(false) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    <Database className="w-4 h-4 shrink-0" />
+                    知识库管理
+                  </button>
+                  <button onClick={() => { navigate('/admin'); setUserMenuOpen(false) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sidebar-text/80 hover:bg-white/5 hover:text-white transition-colors">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    审批台
+                  </button>
+                  <div className="my-1 border-t border-white/10" />
+                  <button onClick={logout}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-300 hover:bg-white/5 hover:text-red-200 transition-colors">
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    退出登录
+                  </button>
                 </div>
               )}
-              <button onClick={logout} title="退出登录"
-                className="text-slate-500 hover:text-red-400 transition-colors shrink-0">
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
           ) : (
             <button onClick={() => navigate('/login')} title="登录"
-              className="flex items-center gap-[8px] h-[36px] px-[10px] rounded-lg text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors">
+              className={`flex items-center gap-[8px] rounded-lg text-sidebar-text/60 hover:bg-white/5 hover:text-sidebar-active transition-colors ${
+                sidebarOpen ? 'w-full h-[36px] px-[10px]' : 'w-9 h-9 justify-center mx-auto'
+              }`}>
               <LogIn className="w-[18px] h-[18px] shrink-0" />
               {sidebarOpen && <span className="text-sm font-semibold">登录</span>}
             </button>
@@ -335,7 +287,6 @@ export function AppSidebar() {
         </div>
       </aside>
 
-      {/* SettingsModal */}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   )

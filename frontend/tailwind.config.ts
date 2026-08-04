@@ -7,9 +7,9 @@ const config: Config = {
     extend: {
       colors: {
         cyber: {
-          blue: '#4F46E5',
-          'blue-dark': '#4338CA',
-          'blue-light': '#EEF2FF',
+          blue: '#2563EB',
+          'blue-dark': '#1D4ED8',
+          'blue-light': '#EFF6FF',
           green: '#10B981',
           orange: '#F59E0B',
           amber: '#F59E0B',
@@ -20,7 +20,7 @@ const config: Config = {
           card: '#FFFFFF',
         },
         sidebar: {
-          bg: '#1E293B',
+          bg: '#172554',
           text: '#94A3B8',
           active: '#FFFFFF',
         },
