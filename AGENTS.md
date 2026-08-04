@@ -22,38 +22,36 @@ OpenCodeWiki — 自进化知识工作台。核心闭环：**QA 问答 → Topic
 opencodewiki/
 ├── backend/                   # Python 全栈后端
 │   ├── main.py                # FastAPI 入口 + 所有路由
+│   ├── auth.py                # JWT 鉴权
 │   ├── config.py              # 配置读取
 │   ├── database.py            # SQLite 初始化
-│   ├── agent/                 # Agent 子系统
-│   │   ├── agent.py           # Agent 配置 + system prompt
-│   │   ├── graph.py           # LangGraph StateGraph
-│   │   ├── tools.py           # codegraph CLI 工具
-│   │   └── wiki_builder.py    # Wiki 实体构建
-│   ├── stores/                # 数据访问层
-│   │   ├── qa.py              # QA 条目 CRUD
-│   │   ├── topics.py          # Topic 聚合
-│   │   └── wiki.py            # Wiki 页面文件操作
-│   └── tests/                 # 单元测试
-│       ├── test_stores.py     # Topic 存储层测试
-│       └── test_agent.py      # Agent 端到端测试
-├── frontend/                  # React SPA
+│   ├── sediment.py            # 问答沉淀（卡片/文章）
+│   ├── knowledge/             # 知识索引（chunker/embedder/importer/item_index/vector_store）
+│   ├── pipeline/              # 问答事件流水线
+│   │   ├── events.py          # PipelineEvent 定义
+│   │   ├── pipeline.py        # 流水线编排 + 插件注册（pipeline.on）
+│   │   └── plugins/           # 插件（chat_complete/query_understand/search/rerank/system_info 等）
+│   ├── stores/                # 数据访问层（kb/doc/items/reviews/session/task/users/wiki_tree）
+│   ├── sync/                  # git_sync / svn_sync
+│   ├── task_worker/           # 后台任务 worker
+│   └── tests/                 # pytest 单测，按模块扁平命名（test_stores.py / test_api.py / ...）
+├── frontend/                  # React SPA（测试与源码同目录，如 QAPage.test.tsx）
 │   ├── src/
-│   │   ├── pages/             # HomePage / WikiGlobalPage / WikiPage / QAPage / AdminPage / SettingsPage
+│   │   ├── pages/             # Home/QAPage/WikiGlobal/WikiNode/Sources/Cards/Fragments/Admin/Settings/Login/Register
 │   │   ├── components/
 │   │   │   ├── ui/            # shadcn/ui 组件
-│   │   │   └── layout/        # Header / Sidebar / BottomInput
-│   │   ├── api/client.ts      # API 客户端
+│   │   │   └── layout/        # AppSidebar / BottomInput / ContentRightPanel / ContextToolbar
+│   │   ├── api/               # client.ts / opencodewiki.ts
 │   │   ├── types/             # TypeScript 类型
-│   │   └── hooks/             # 自定义 hooks (useSSE)
-│   └── tests/
+│   │   └── hooks/             # useSSE / useSessionHistory / useCodeKnoraSSE
 ├── docs/
 │   ├── research/              # 调研/专利/模型文档
-│   └── superpowers/specs/     # 设计文档
+│   └── superpowers/           # plans/ 实施计划 + specs/ 设计文档（只读归档）
 ├── scripts/
 │   ├── start.sh               # 启动脚本
 │   ├── wiki-generate.sh       # Wiki 生成入口
 │   └── crg-wiki.py            # CRG Wiki 生成器
-├── eval/                      # QA 评测套件
+├── eval/                      # QA 评测套件（run.sh + JSON 用例）
 ├── Dockerfile                 # Docker 镜像构建
 └── AGENTS.md                  # 本文件
 ```
@@ -91,8 +89,9 @@ sleep 2
 echo "后端 http://localhost:8100  前端 http://localhost:5180"
 
 # 访问地址
-# 知识管理: http://localhost:5180/sources
-# 知识沉淀: http://localhost:5180/admin
+# 知识源:   http://localhost:5180/sources
+# 卡片/碎片: http://localhost:5180/cards | /fragments
+# 审批:     http://localhost:5180/admin
 # Wiki:     http://localhost:5180/wiki
 ```
 
@@ -119,29 +118,33 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 | 路径 | 页面 | 说明 |
 |------|------|------|
-| `/` | HomePage | 搜索 + 4 板块 |
-| `/wiki` | WikiGlobalPage | 全局 Wiki 概览 |
-| `/:repo` | WikiPage | 文档/topic，hash 定位内容 |
-| `/qa` | QAPage | 跨库问答 |
+| `/` | 重定向到 `/qa` | 首页不再独立 |
+| `/qa`、`/qa/:sessionId` | QAPage | 跨库问答，URL 定位会话 |
+| `/wiki`、`/wiki/:name` | WikiGlobalPage | 全局 Wiki 概览 / 指定 Wiki |
+| `/wiki/node/:nodeId` | WikiNodePage | Wiki 节点详情 |
+| `/cards` | CardsPage | 知识卡片（过滤/新增/引用） |
+| `/fragments` | FragmentsPage | 知识碎片（沉淀/发布） |
+| `/sources` | SourcesPage | 知识源管理 |
 | `/admin` | AdminPage | 审批 + Topic 管理 |
-| `/settings` | SettingsPage | 知识源配置 |
+| `/settings` | SettingsPage | 系统设置 |
+| `/login`、`/register` | LoginPage / RegisterPage | 登录注册 |
 
 ## 开发约定
 
 1. **使用中文** — 代码注释、commit 消息、变量命名优先中文
-2. **Git commit 消息使用中文** — 清晰描述改动内容，不加英文前缀
-4. **前端** — shadcn/ui + Tailwind CSS，不使用自定义 CSS 文件
-5. **Topic 生命周期** — QA → Topic(pool) → Draft → approved → Wiki(published)
-6. **自进化闭环** — 增长循环是核心业务流程，修改时注意保持闭环完整性
-7. **API 响应格式** — `{ok: bool, data?: any, error?: string}`
-8. **新增 Python 工具** — 注册在 `backend/agent/tools.py` 的 `CODEGRAPH_TOOLS` 列表
+2. **Git commit 消息使用 Conventional Commits** — 小写前缀 + 中文描述，scope 选填，如 `feat: 新增...`、`fix(wiki): 修复...`、`chore: ...`、`docs: ...`
+3. **前端** — shadcn/ui + Tailwind CSS，`src/index.css` 只放 Tailwind 指令与主题变量，不写自定义组件 CSS
+4. **Topic 生命周期** — QA → Topic(pool) → Draft → approved → Wiki(published)
+5. **自进化闭环** — 增长循环是核心业务流程，修改时注意保持闭环完整性
+6. **API 响应格式** — `{ok: bool, data?: any, error?: string}`
+7. **新增问答/检索插件** — 放在 `backend/pipeline/plugins/`，并在 `backend/pipeline/pipeline.py` 或 `backend/main.py` 中注册
 
 ## 禁止事项
 
 1. **不要自动 push** — 所有提交后等待用户确认
 2. **不要修改 `docs/superpowers/`** — 那是开发过程归档，详细设计记录，不修改
-4. **不要修改 `frontend/dist/`** — 构建产物，由 `npm run build` 生成
-5. **不要删除数据库文件** — `qa.db` / `knowledge.db` 在 `~/.opencodewiki/`
+3. **不要修改 `frontend/dist/`** — 构建产物，由 `npm run build` 生成
+4. **不要删除数据库文件** — `qa.db` / `knowledge.db` 在 `~/.opencodewiki/`
 
 ## TDD 纪律
 
@@ -152,21 +155,24 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 ```
 1. 写一个失败测试      → Red
 2. 写最少代码让测试通过  → Green
-4. 提交代码
+3. 提交代码
 ```
 
 **具体执行规则：**
 
 | 改了什么 | 必须运行的测试 |
 |---------|---------------|
-| stores/\*.py | `python -m pytest backend/tests/test_stores/ -v` |
-| main.py 路由 | `python -m pytest backend/tests/test_main/ -v` |
-| agent/\*.py | `python -m pytest backend/tests/test_agent/ -v` |
+| stores/*.py | `python -m pytest tests/test_stores.py tests/test_items.py tests/test_reviews.py tests/test_wiki_tree.py -v` |
+| main.py 路由 / auth.py | `python -m pytest tests/test_api.py tests/test_auth.py -v` |
+| pipeline/*.py（含 plugins） | `python -m pytest tests/test_pipeline.py tests/test_chat_complete.py tests/test_query_understand.py tests/test_search_plugins.py -v` |
+| knowledge/*.py | `python -m pytest tests/test_chunker.py tests/test_embedder.py tests/test_importer.py tests/test_item_index.py tests/test_vector_store.py -v` |
 | 前端组件/页面 | `npx vitest run src/pages/ src/components/ --reporter=verbose` |
-| 前端 hooks | `npx vitest run src/hooks/ --reporter=verbose` |
-| 跨模块改动 | **跑全量：** 后端 `python -m pytest backend/tests/ -v` + 前端 `npx vitest run` |
+| 前端 hooks/api | `npx vitest run src/hooks/ src/api/ --reporter=verbose` |
+| 跨模块改动 | **跑全量：** 后端 `python -m pytest -v` + 前端 `npx vitest run` |
 
 **禁止**：测试失败时提交代码、合并 PR、或声称工作完成。
+
+> 后端命令默认在 `backend/`（venv 已激活）下执行；拿不准对应测试就运行全量。
 
 ## 测试质量问责
 
@@ -193,9 +199,9 @@ cd eval && source ../backend/.venv/bin/activate && bash run.sh
 
 1. **「这个测试能抓到什么 bug？」** —— 必须能说出至少一种具体的失败场景
 2. **「断言的值是固定的还是推导的？」** —— 必须断言具体值（"应当等于 X"），不能断言"存在"或"不为空"
-4. **「边界测了吗？」** —— null/空字符串/负数/超出范围/列表为空 等
-5. **「排序/筛选/分页测了顺序吗？」** —— 如果结果集有序，必须验证顺序，不能只验证条数
-6. **「这个测试我删了，有人会发现吗？」** —— 如果删了不影响任何人对代码的信心，那就是凑数测试
+3. **「边界测了吗？」** —— null/空字符串/负数/超出范围/列表为空 等
+4. **「排序/筛选/分页测了顺序吗？」** —— 如果结果集有序，必须验证顺序，不能只验证条数
+5. **「这个测试我删了，有人会发现吗？」** —— 如果删了不影响任何人对代码的信心，那就是凑数测试
 
 ### 审查流程
 
@@ -223,6 +229,6 @@ AI 生成测试代码后，必须在回复中附上**质量自证声明**，逐�
 
 1. **先读 `docs/ARCHITECTURE.md`** 了解完整架构
 2. **读本文件**（AGENTS.md）了解开发和测试命令
-4. **读 `docs/superpowers/plans/`**（如有）了解实施计划细节
-5. **收到问题后，先复述确认，再动手修改** — 用结构化的方式复述你理解的问题、涉及的文件、改动的思路，等待用户确认后再执行代码改动。禁止一上来直接改代码。
-6. **改动后手动运行相关测试**（见上表），确认通过
+3. **读 `docs/superpowers/plans/`**（如有）了解实施计划细节
+4. **收到问题后，先复述确认，再动手修改** — 用结构化的方式复述你理解的问题、涉及的文件、改动的思路，等待用户确认后再执行代码改动。禁止一上来直接改代码。
+5. **改动后手动运行相关测试**（见上表），确认通过
