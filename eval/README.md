@@ -35,6 +35,15 @@ python3 eval/run_rag_eval.py --user <用户名> --password <密码>
 python3 eval/run_rag_eval.py --user <用户名> --password <密码> --skip-llm
 ```
 
+LLM judge 配置走环境变量，**优先 `OPENAI_*`，回退 `LLM_*`**（默认
+`gpt-4o-mini` / `https://api.openai.com/v1`）：
+
+```bash
+export OPENAI_API_KEY=<密钥>        # 或 LLM_API_KEY
+export OPENAI_BASE_URL=https://api.deepseek.com   # 或 LLM_BASE_URL
+export OPENAI_MODEL=deepseek-v4-flash             # 或 LLM_MODEL
+```
+
 结果写入 `results/rag_baseline.json`。题集准备工具：`extract_questions.py` 从
 `~/.opencodewiki/knora.db` 与 `qa.db` 抽取真实用户问题生成候选，人工挑选后补齐
 参考答案与 `golden_files` 即成为正式评测题。

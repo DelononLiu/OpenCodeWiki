@@ -96,20 +96,25 @@ def aggregate(scores):
 
 # ── LLM judge（OpenAI 兼容 chat completion，与 score.py 同款调用）──
 
+def _llm_env(suffix):
+    """读取 LLM 配置环境变量：优先 OPENAI_*（用户环境标准变量），回退 LLM_*（旧约定）。"""
+    return os.environ.get("OPENAI_" + suffix) or os.environ.get("LLM_" + suffix)
+
+
 def llm_judge(messages, model="", base_url="", api_key="", temperature=0):
     """调用 chat/completions，返回 message content（兼容 reasoning_content）。"""
     body = json.dumps({
-        "model": model or os.environ.get("LLM_MODEL", "gpt-4o-mini"),
+        "model": model or _llm_env("MODEL") or "gpt-4o-mini",
         "messages": messages,
         "max_tokens": 1500,
         "temperature": temperature,
     }).encode()
     req = urllib.request.Request(
-        (base_url or os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")) + "/chat/completions",
+        (base_url or _llm_env("BASE_URL") or "https://api.openai.com/v1") + "/chat/completions",
         data=body,
         headers={
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + (api_key or os.environ.get("LLM_API_KEY", "")),
+            "Authorization": "Bearer " + (api_key or _llm_env("API_KEY") or ""),
         },
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
