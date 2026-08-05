@@ -2,6 +2,7 @@
 
 > **活文档** — 随项目持续更新。重大变更在末尾记录。
 > 详细设计文档见 `docs/superpowers/specs/`，分阶段实施计划见 `docs/superpowers/plans/`。
+> 评测方法与精度基线见 `docs/RAG评测方法.md`。
 
 ---
 

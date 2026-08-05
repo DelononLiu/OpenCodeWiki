@@ -1,0 +1,447 @@
+{
+  "summary": {
+    "date": "2026-08-05T13:18:23",
+    "cases": 25,
+    "metrics": {
+      "context_precision": 0.01875,
+      "context_recall": 0.041666666666666664,
+      "faithfulness": 0.8504273504273504,
+      "context_recall_llm": 0.22124542124542124
+    }
+  },
+  "cases": [
+    {
+      "id": "real-001",
+      "intent": "what-is",
+      "question": "DishCLI的技术栈有哪些",
+      "answer_len": 516,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "docs/architecture.md",
+        "README.md",
+        "home/long2015/.opencodewiki/knowledge/DishCLI/openwiki/_plan.md",
+        "home/long2015/.opencodewiki/knowledge/DishCLI/openwiki/quickstart.md",
+        "README.md"
+      ],
+      "context_precision": 0.45,
+      "context_recall": 1.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-002",
+      "intent": "architecture",
+      "question": "OpenCodeWiki 采用几层架构",
+      "answer_len": 88,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "architecture.md",
+        "quickstart.md",
+        "workflows.md",
+        "quickstart.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.3333333333333333
+    },
+    {
+      "id": "real-003",
+      "intent": "what-is",
+      "question": "OpenCodeWiki有哪些核心功能",
+      "answer_len": 623,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "architecture.md",
+        "quickstart.md",
+        "quickstart.md",
+        "data-model.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-004",
+      "intent": "how-to",
+      "question": "opencodewiki是怎么工作的",
+      "answer_len": 1428,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "quickstart.md",
+        "quickstart.md",
+        "architecture.md",
+        "workflows.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-005",
+      "intent": "what-is",
+      "question": "OpenCodeWiki 的后端用哪些技术栈",
+      "answer_len": 451,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "quickstart.md",
+        "quickstart.md",
+        "quickstart.md",
+        "architecture.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 0.4,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-006",
+      "intent": "what-is",
+      "question": "你有哪些知识库",
+      "answer_len": 253,
+      "retrieved_count": 0,
+      "retrieved_titles": [],
+      "context_precision": null,
+      "context_recall": null
+    },
+    {
+      "id": "real-007",
+      "intent": "what-is",
+      "question": "OpenCodeWiki 是什么",
+      "answer_len": 1012,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "quickstart.md",
+        "workflows.md",
+        "architecture.md",
+        "quickstart.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-008",
+      "intent": "what-is",
+      "question": "这个项目是做什么的",
+      "answer_len": 226,
+      "retrieved_count": 2,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "理解 Flux 单向数据流：构建可预测的前端应用"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.14285714285714285
+    },
+    {
+      "id": "real-009",
+      "intent": "where-is",
+      "question": "create_entry 函数在哪里定义的？",
+      "answer_len": 339,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "data-model.md",
+        "architecture.md",
+        "workflows.md",
+        "data-model.md",
+        "workflows.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.2
+    },
+    {
+      "id": "real-010",
+      "intent": "what-is",
+      "question": "FastAPI 的版本多少",
+      "answer_len": 191,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "architecture.md",
+        "quickstart.md",
+        "architecture.md",
+        "architecture.md",
+        "testing.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.0
+    },
+    {
+      "id": "real-011",
+      "intent": "what-is",
+      "question": "Local协议基于什么实现的",
+      "answer_len": 41,
+      "retrieved_count": 2,
+      "retrieved_titles": [
+        "理解 Flux 单向数据流：构建可预测的前端应用",
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.0
+    },
+    {
+      "id": "real-012",
+      "intent": "what-is",
+      "question": "OpenCodeWiki 的存储用的什么技术栈",
+      "answer_len": 553,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "quickstart.md",
+        "workflows.md",
+        "data-model.md",
+        "architecture.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": 0.3333333333333333
+    },
+    {
+      "id": "real-013",
+      "intent": "what-is",
+      "question": "OpenCodeWiki支持哪些文档格式",
+      "answer_len": 93,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "quickstart.md",
+        "workflows.md",
+        "data-model.md",
+        "data-model.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.5
+    },
+    {
+      "id": "real-014",
+      "intent": "what-is",
+      "question": "OpenCodeWiki是否使用python",
+      "answer_len": 219,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "quickstart.md",
+        "architecture.md",
+        "quickstart.md",
+        "architecture.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 0.75,
+      "context_recall_llm": 0.25
+    },
+    {
+      "id": "real-015",
+      "intent": "what-is",
+      "question": "codewiki的前端技术栈",
+      "answer_len": 312,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "architecture.md",
+        "quickstart.md",
+        "quickstart.md",
+        "architecture.md",
+        "quickstart.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-016",
+      "intent": "what-is",
+      "question": "kcode是干什么的",
+      "answer_len": 400,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "quickstart.md",
+        "quickstart.md",
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "理解 Flux 单向数据流：构建可预测的前端应用"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 0.5555555555555556,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-017",
+      "intent": "what-is",
+      "question": "介绍一下OpenCodeWiki",
+      "answer_len": 2295,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "architecture.md",
+        "quickstart.md",
+        "quickstart.md",
+        "workflows.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-018",
+      "intent": "what-is",
+      "question": "介绍下：意图路由",
+      "answer_len": 342,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "architecture.md",
+        "quickstart.md",
+        "architecture.md",
+        "architecture.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 0.75,
+      "context_recall_llm": 0.0
+    },
+    {
+      "id": "real-019",
+      "intent": "how-to",
+      "question": "可以上传pdf文件吗",
+      "answer_len": 100,
+      "retrieved_count": 2,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "理解 Flux 单向数据流：构建可预测的前端应用"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.6666666666666666
+    },
+    {
+      "id": "real-020",
+      "intent": "how-to",
+      "question": "如何配置 OpenCodeWiki 的数据源",
+      "answer_len": 1021,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "quickstart.md",
+        "data-model.md",
+        "workflows.md",
+        "data-model.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-021",
+      "intent": "how-to",
+      "question": "它的技术架构是怎样的",
+      "answer_len": 1008,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "architecture.md",
+        "quickstart.md",
+        "architecture.md",
+        "architecture.md",
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-022",
+      "intent": "what-is",
+      "question": "数据库用的什么",
+      "answer_len": 366,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "data-model.md",
+        "data-model.md",
+        "architecture.md",
+        "data-model.md",
+        "architecture.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 0.6,
+      "context_recall_llm": null
+    },
+    {
+      "id": "real-023",
+      "intent": "how-to",
+      "question": "解释下事件流水线",
+      "answer_len": 401,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "workflows.md",
+        "testing.md",
+        "理解 Flux 单向数据流：构建可预测的前端应用",
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "workflows.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": 0.0
+    },
+    {
+      "id": "real-024",
+      "intent": "what-is",
+      "question": "说说kcode的核心功能",
+      "answer_len": 422,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "quickstart.md",
+        "architecture/overview.md",
+        "OpenCodeWiki：团队知识库问答系统核心功能与架构",
+        "理解 Flux 单向数据流：构建可预测的前端应用",
+        "quickstart.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": null,
+      "context_recall_llm": 0.2
+    },
+    {
+      "id": "real-025",
+      "intent": "what-is",
+      "question": "项目用的是什么后端框架",
+      "answer_len": 96,
+      "retrieved_count": 5,
+      "retrieved_titles": [
+        "architecture.md",
+        "architecture.md",
+        "testing.md",
+        "architecture.md",
+        "quickstart.md"
+      ],
+      "context_precision": 0.0,
+      "context_recall": 0.0,
+      "faithfulness": 1.0,
+      "context_recall_llm": 0.25
+    }
+  ]
+}
