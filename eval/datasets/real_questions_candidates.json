@@ -1,0 +1,620 @@
+[
+  {
+    "id": "rq-001",
+    "question": "DishCLI的技术栈有哪些",
+    "count": 29,
+    "intent": "what-is",
+    "sources": [
+      "msg-747da12c",
+      "msg-9ebfab77",
+      "msg-f58dcdd5",
+      "msg-1158fdfe",
+      "msg-8579c5f4",
+      "msg-b1931ca7",
+      "msg-ba22c76a",
+      "msg-8ca3b14a",
+      "msg-6d9e301f",
+      "msg-766d2c6c",
+      "msg-37e20a55",
+      "msg-4b909121",
+      "msg-470a10c1",
+      "msg-1bddea12",
+      "msg-b7c96962",
+      "msg-e07464ba",
+      "msg-4fa7c995",
+      "msg-1ea33ab6",
+      "msg-3af9d1be",
+      "msg-b67f7a4d"
+    ],
+    "kb_ids": [
+      "kb-f8692695",
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-002",
+    "question": "OpenCodeWiki 采用几层架构",
+    "count": 5,
+    "intent": "other",
+    "sources": [
+      "7e6e3c3b-7aab-488f-958f-1b482391765a",
+      "e82dd3dd-4987-4293-ae37-c481fcf1f1ce",
+      "e4ce717f-7f43-4d34-83fa-327f46c47ef1",
+      "9c66a1f1-3a94-47b5-a7db-409db8e533b2",
+      "67416a46-9454-4ebc-99c3-39aeca3e3d45"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-003",
+    "question": "OpenCodeWiki有哪些核心功能",
+    "count": 4,
+    "intent": "what-is",
+    "sources": [
+      "msg-677915b1",
+      "msg-7032d647",
+      "msg-04120e4a",
+      "msg-d3be6866"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-004",
+    "question": "opencodewiki是怎么工作的",
+    "count": 4,
+    "intent": "how-to",
+    "sources": [
+      "msg-07faf1f1",
+      "msg-7e04ebaa",
+      "msg-ae32306d",
+      "msg-5569597f"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-005",
+    "question": "OpenCodeWiki 的后端用哪些技术栈",
+    "count": 3,
+    "intent": "other",
+    "sources": [
+      "9f8374cc-a178-4864-9c9b-b3b9fc7180a5",
+      "66043b73-1ec6-4568-80de-a51702e7cff3",
+      "69cd7f3c-fd96-4502-863d-0fc9d552d1eb"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-006",
+    "question": "你有哪些知识库",
+    "count": 3,
+    "intent": "what-is",
+    "sources": [
+      "msg-7f053b96",
+      "msg-133b5091",
+      "msg-115ab48f"
+    ],
+    "kb_ids": [
+      "kb-f8692695",
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-007",
+    "question": "能详细解释一下关键部分吗",
+    "count": 3,
+    "intent": "other",
+    "sources": [
+      "msg-1b682008",
+      "msg-c693e4f3",
+      "msg-cafaca38"
+    ],
+    "kb_ids": [
+      "kb-f8692695",
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-008",
+    "question": "OpenCodeWiki 是什么",
+    "count": 2,
+    "intent": "what-is",
+    "sources": [
+      "msg-e8a89add",
+      "0e771390-1587-46b0-8095-1f79f904afd9"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-009",
+    "question": "OpenCodeWiki支持什么",
+    "count": 2,
+    "intent": "what-is",
+    "sources": [
+      "msg-9570d3a4",
+      "msg-7d3813d5"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-010",
+    "question": "你是谁，能干啥",
+    "count": 2,
+    "intent": "other",
+    "sources": [
+      "msg-df79e42e",
+      "msg-a0cd1d9f"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-011",
+    "question": "你能做什么",
+    "count": 2,
+    "intent": "other",
+    "sources": [
+      "5a217963-27f2-4116-b5dd-dcab77a6f259",
+      "93e1b40b-56e7-46a0-9cda-4736526c38c2"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-012",
+    "question": "这个项目是做什么的",
+    "count": 2,
+    "intent": "what-is",
+    "sources": [
+      "msg-dd76f106",
+      "msg-aaae58e5"
+    ],
+    "kb_ids": [
+      "kb-f8692695",
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-013",
+    "question": "\"create_entry 函数在哪里定义的？\"",
+    "count": 1,
+    "intent": "where-is",
+    "sources": [
+      "edbb9269-1346-43b2-b697-45fae128ebde"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-014",
+    "question": "CodeWiki后端技术栈",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "54085435-e1d4-4438-a568-0656d507defb"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-015",
+    "question": "DishCLI技术栈",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-b1e0659c"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-016",
+    "question": "DishCLI技术栈是哪些",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-860f1a4f"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-017",
+    "question": "DishCLI的架构",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-c3dd3955"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-018",
+    "question": "FastAPI 的版本多少",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "c58a6825-2aa5-445c-81ef-cad98f5e428f"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-019",
+    "question": "Flux 单向数据流是什么意思",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-2bca9081"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-020",
+    "question": "Local协议基于什么实现的",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-2a02e8b6"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-021",
+    "question": "OpenCodeWiki 的存储用的什么技术栈",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "da965c11-2349-40e9-8762-923e8e5e1219"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-022",
+    "question": "OpenCodeWiki 的架构是什么",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "97a2283b-8801-4390-a117-feb39d80ad22"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-023",
+    "question": "OpenCodeWiki支持哪些文档格式",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-bc6a0ea6"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-024",
+    "question": "OpenCodeWiki是什么",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-bdc9d2b8"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-025",
+    "question": "OpenCodeWiki是否使用python",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "66371c67-828e-4536-b1dd-b281cb3a6dfa"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-026",
+    "question": "codewiki的前端技术栈",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "4b4db829-3066-4699-b597-82a2019d256b"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-027",
+    "question": "codewiki的后端技术栈",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "2a58d554-b400-4169-ac8e-b71c8b57387f"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-028",
+    "question": "kcode是干什么的",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-ad7fcf7e"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-029",
+    "question": "opencodewiki是什么",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-31b1be7b"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-030",
+    "question": "介绍一下 上面得通信方式",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-1ae617d7"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-031",
+    "question": "介绍一下OpenCodeWiki",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-4e367a7c"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-032",
+    "question": "介绍一下编程语言",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-059f5be3"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-033",
+    "question": "介绍下opencodewiki",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-205fdc67"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-034",
+    "question": "介绍下：意图路由",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-74017efa"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-035",
+    "question": "你到底干啥的",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-ca5e7460"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-036",
+    "question": "你有哪些支持库",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "507b57fb-109f-499d-aa80-a5a90496cbd0"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-037",
+    "question": "其他知识库分别有哪些模块",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "msg-84055ecc"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-038",
+    "question": "可以上传pdf文件吗",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-df4eb3d5"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-039",
+    "question": "如何配置 OpenCodeWiki 的数据源",
+    "count": 1,
+    "intent": "how-to",
+    "sources": [
+      "00ea9399-a065-47e9-8861-cd40c3cfb487"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-040",
+    "question": "它基于什么技术",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-03e290e8"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-041",
+    "question": "它支持哪些文档格式",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-08fbd340"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-042",
+    "question": "它的技术架构是怎样的",
+    "count": 1,
+    "intent": "how-to",
+    "sources": [
+      "msg-4ab50f00"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-043",
+    "question": "我是问，你有哪些知识库",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "7a48d979-920b-4611-a3a9-c3a08050f6c4"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-044",
+    "question": "技术架构是怎样的",
+    "count": 1,
+    "intent": "how-to",
+    "sources": [
+      "msg-3e92aee5"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-045",
+    "question": "数据库用的什么",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "0c8e5e3c-c3b5-4b7d-9d7f-81992b42367f"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-046",
+    "question": "解释下事件流水线",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-bed1f6dc"
+    ],
+    "kb_ids": [
+      "kb-f8692695"
+    ]
+  },
+  {
+    "id": "rq-047",
+    "question": "说说kcode的核心功能",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-88bca504"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-048",
+    "question": "那数据库呢",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "7b09da4b-ddd6-404a-b8f8-3c46bcbc7e9b"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-049",
+    "question": "重新描述下问题",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "msg-61f45cf5"
+    ],
+    "kb_ids": [
+      "__all__"
+    ]
+  },
+  {
+    "id": "rq-050",
+    "question": "项目用的什么框架",
+    "count": 1,
+    "intent": "other",
+    "sources": [
+      "f39391da-2eff-4957-a105-94ebe2877179"
+    ],
+    "kb_ids": []
+  },
+  {
+    "id": "rq-051",
+    "question": "项目用的是什么后端框架",
+    "count": 1,
+    "intent": "what-is",
+    "sources": [
+      "9ef016ff-e948-4a30-8009-f674b3dea6ed"
+    ],
+    "kb_ids": []
+  }
+]
